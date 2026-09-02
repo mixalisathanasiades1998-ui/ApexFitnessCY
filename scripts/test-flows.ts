@@ -989,6 +989,132 @@ async function main() {
     );
   }
 
+  console.log("\n8j. The studio's own copy of a payment");
+  /**
+   * Money arriving, told to the studio as well as to the member.
+   *
+   * Three tills feed this and two of them used to be silent: a card payment on
+   * the website appeared only in the Stripe dashboard, and cash at the counter
+   * appeared only in the drawer. The owner could not answer "what came in
+   * today, and from whom" without opening two systems and asking whoever was on
+   * shift.
+   *
+   * Asserted by capturing what the log transport writes, which is the only
+   * honest way to test this: the wiring is `notifyPurchased` firing a second
+   * email at a different address, and every part of that can break without any
+   * test that only reads the database noticing.
+   */
+  {
+    const W = await import("../src/lib/messaging/wording");
+    const { notifyPurchased } = await import("../src/lib/messaging/events");
+    const { STUDIO_OPS_EMAIL } = await import("../src/lib/personal");
+    const { purchases } = await import("../src/db/schema");
+
+    /* --- the words, first, because they are what somebody reads --- */
+    const words = W.studioPaidWords({
+      memberName: "Maria Georgiou",
+      memberEmail: "maria@example.com",
+      memberPhone: "+357 99 123456",
+      methodEn: "Cash at the studio",
+      methodEl: "Μετρητά στο στούντιο",
+      credits: 10,
+      amountCents: 18000,
+      currency: "eur",
+      balance: 12,
+      staffName: "Elena",
+      invoiceNo: "2026-0042",
+      reference: null,
+    });
+
+    check(
+      "the subject carries the amount and the name, so the mailbox reads without opening",
+      words.en.subject.includes("€180") &&
+        words.en.subject.includes("Maria Georgiou"),
+      words.en.subject,
+    );
+    check(
+      "the body says who paid and how to reach them",
+      words.en.body.includes("maria@example.com") &&
+        words.en.body.includes("+357 99 123456"),
+      words.en.body,
+    );
+    check(
+      "which till took it, and who was serving",
+      words.en.body.includes("Cash at the studio") &&
+        words.en.body.includes("Elena"),
+      words.en.body,
+    );
+    check(
+      "and the balance the member is now looking at",
+      words.en.body.includes("Balance now: 12 sessions"),
+      words.en.body,
+    );
+    check(
+      "the Greek copy says the same things",
+      words.el.body.includes("Μετρητά στο στούντιο") &&
+        words.el.body.includes("Υπόλοιπο τώρα: 12 συνεδρίες"),
+      words.el.body,
+    );
+    /* A desk reference is `desk:` plus a fragment of a staff id, which tells a
+       reader nothing that "served by" has not already said. */
+    check(
+      "and nothing pretends to be a payment reference when there is none",
+      !/Reference:/.test(words.en.body),
+      words.en.body,
+    );
+
+    /* --- the wiring: does a real sale actually send it --- */
+    const sale = db
+      .insert(purchases)
+      .values({
+        userId: user.id,
+        credits: 4,
+        amountCents: 8000,
+        currency: "eur",
+        status: "PAID",
+        provider: "cash",
+        paidAt: new Date(),
+        providerRef: "desk:testtest",
+      })
+      .returning()
+      .get();
+
+    const seen: string[] = [];
+    const realLog = console.log;
+    console.log = (...args: unknown[]) => {
+      seen.push(args.map(String).join(" "));
+    };
+    try {
+      await notifyPurchased(sale.id, { staffName: "Elena" });
+      /* The studio's copy is fired and not awaited, on purpose: the member's
+         confirmation must not wait for it. So give it a tick to land. */
+      await new Promise((r) => setTimeout(r, 80));
+    } finally {
+      console.log = realLog;
+    }
+
+    const toStudio = seen.filter((l) => l.includes(STUDIO_OPS_EMAIL));
+    check(
+      "a cash sale at the desk emails the studio",
+      toStudio.length === 1,
+      { lines: seen.length, toStudio },
+    );
+    check(
+      "and names the amount in the subject",
+      toStudio.some((l) => l.includes("€80")),
+      toStudio,
+    );
+    check(
+      "the member is still told as well, and separately",
+      seen.some(
+        (l) => l.includes("Payment received") && !l.includes(STUDIO_OPS_EMAIL),
+      ),
+      seen.filter((l) => l.includes("email:log")),
+    );
+
+    db.delete(purchases).where(eq(purchases.id, sale.id)).run();
+  }
+
   console.log("\n9. Ledger integrity");
   const ledgerSum =
     db

@@ -440,6 +440,37 @@ console.log("\n9. The invoice, and who may read it");
 
   const nonsense = await req(reader.j, "/api/invoices/not-a-purchase");
   check("a purchase that does not exist is a 404", nonsense.status === 404, nonsense.status);
+
+  /**
+   * A specimen is downloadable but never emailed.
+   *
+   * While the VAT details are still placeholder, the document is stamped
+   * SPECIMEN and says at the bottom that it is not a valid invoice. The studio
+   * needs to be able to look at that; a member who has just paid must not
+   * receive it, because it is a document telling them their own paperwork is
+   * void. The route serves it, the email does not attach it, and the
+   * confirmation does not claim an attachment it is not carrying.
+   *
+   * Which of the two this run exercises depends on whether the server was
+   * started with the invoice details set, so this asserts the pair that must
+   * hold either way: a number and a claim of an attachment go together, or
+   * neither is there.
+   */
+  const numbered = /filename="APEX-pilates-invoice-\d{4}-\d{4}\.pdf"/.test(
+    mine.headers.get("content-disposition") ?? "",
+  );
+  const notices = await req(reader.j, "/api/notices");
+  const paidNotice = (notices.json?.notices ?? []).find((n) =>
+    /Payment received/i.test(n.title ?? ""),
+  );
+  const claimsInvoice = /invoice is attached/i.test(paidNotice?.body ?? "");
+  check(
+    numbered
+      ? "a numbered invoice is claimed in the confirmation"
+      : "a specimen is not claimed in the confirmation",
+    numbered === claimsInvoice,
+    { numbered, claimsInvoice, body: paidNotice?.body },
+  );
 }
 
 console.log(

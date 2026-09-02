@@ -259,8 +259,24 @@ the two mistakes are not comparable: one produces a document somebody asks about
 the other produces a document somebody files with the tax office.
 
 A specimen still renders, so the studio can read its own paperwork before a
-client ever sees one. It simply cannot be mistaken for the real thing, and it
-never burns invoice 0001.
+client ever sees one — but it is **never emailed to a member**. Mailing somebody
+who has just paid a document stamped "this is not a valid invoice" is worse than
+sending nothing at all. The two places to look at a specimen are
+`npm run invoice:preview` and the download link on the member's own payments
+list; the confirmation email attaches nothing and claims nothing until the
+invoice has a real number. It also never burns invoice 0001.
+
+### So which emails arrive when
+
+Two independent switches, and they are easy to confuse: Stripe's sandbox has
+nothing to do with the studio's own invoice.
+
+| | Stripe's receipt email | The studio's email + invoice PDF |
+| --- | --- | --- |
+| Sent by | Stripe | This app, over Gmail SMTP |
+| Test / sandbox payments | **Never sent.** Send a manual one from the payment's Receipt history | Sent normally |
+| Needs | Live keys, and Customer emails switched on | Nothing |
+| PDF attached | n/a | Only once `INVOICE_*` is real; a specimen is not attached |
 
 ### The numbering
 

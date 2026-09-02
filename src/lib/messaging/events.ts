@@ -8,8 +8,10 @@ import {
   purchases,
   users,
 } from "@/db/schema";
+import { getAvailableCredits } from "@/lib/credits";
 import { createNotice } from "@/lib/notices";
 import { invoiceForPurchase } from "@/lib/invoice-for";
+import { isSpecimen } from "@/lib/invoice";
 import { dueReminders, markSent } from "@/lib/reminders";
 import { emailTransport } from "./email";
 import { sendPush, subscriptionsFor } from "./push";
@@ -27,6 +29,7 @@ import {
   promoWords,
   purchasedWords,
   reminderWords,
+  studioPaidWords,
   studioAppointmentWords,
   say,
   verifySentWords,
@@ -333,6 +336,89 @@ async function tellStudio(f: BookingFacts, cancelled: boolean) {
 }
 
 /**
+ * The studio's own copy of a payment, emailed to the operations mailbox.
+ *
+ * Three tills feed this and until now two of them were silent. A card payment
+ * on the website showed up in the Stripe dashboard and nowhere the studio
+ * looks; cash at the counter showed up in the drawer and nowhere at all. So the
+ * owner could not answer "what came in today, and from whom" without opening
+ * two systems and asking whoever was on shift.
+ *
+ * Deliberately email only, and deliberately not a notification. Every sale
+ * buzzing every staff phone would be noise within a week, and noise is how a
+ * channel stops being read — which matters, because the same phones carry the
+ * appointment alerts that somebody has to act on within the hour. A mailbox is
+ * the right shape for a record you scan later.
+ *
+ * Never throws outward and never awaited. The money is in the till whatever the
+ * mail server does, and the member's own confirmation is the one that must not
+ * be held up.
+ */
+async function tellStudioPaid(a: {
+  memberName: string;
+  memberEmail: string;
+  memberPhone: string | null;
+  credits: number;
+  amountCents: number;
+  currency: string;
+  provider: string;
+  providerRef: string | null;
+  invoiceNo: string | null;
+  userId: string;
+  staffName: string | null;
+}) {
+  try {
+    const till = tillWords(a.provider);
+    const words = studioPaidWords({
+      memberName: a.memberName,
+      memberEmail: a.memberEmail,
+      memberPhone: a.memberPhone,
+      methodEn: till.en,
+      methodEl: till.el,
+      credits: a.credits,
+      amountCents: a.amountCents,
+      currency: a.currency,
+      /* Read after the sessions were granted, so it is the number the member is
+         now looking at — which is the one they will quote if they think
+         something has gone wrong. */
+      balance: await getAvailableCredits(a.userId),
+      staffName: a.staffName,
+      invoiceNo: a.invoiceNo,
+      /* A desk reference is `desk:` and a fragment of a staff id, which tells
+         the reader nothing they cannot already see in "served by". */
+      reference: a.provider === "stripe" ? a.providerRef : null,
+    });
+
+    const res = await emailTransport().send(STUDIO_OPS_EMAIL, forEmail(words));
+    if (!res.ok) {
+      console.error(
+        `[pay] could not tell the studio about ${a.amountCents} from ${a.memberEmail}: ${res.error}`,
+      );
+    }
+    return res.ok;
+  } catch (err) {
+    console.error("[pay] could not tell the studio about a payment", err);
+    return false;
+  }
+}
+
+/** Which till took the money, in words rather than a provider slug. */
+function tillWords(provider: string) {
+  switch (provider) {
+    case "stripe":
+      return { en: "Card online", el: "Κάρτα online" };
+    case "cash":
+      return { en: "Cash at the studio", el: "Μετρητά στο στούντιο" };
+    case "card_at_desk":
+      return { en: "Card at the studio", el: "Κάρτα στο στούντιο" };
+    case "test":
+      return { en: "Test payment", el: "Δοκιμαστική πληρωμή" };
+    default:
+      return { en: provider, el: provider };
+  }
+}
+
+/**
  * Fired once a payment has actually become sessions.
  *
  * Called from the single place that grants them, and only by the caller that
@@ -343,7 +429,19 @@ async function tellStudio(f: BookingFacts, cancelled: boolean) {
  * The expiry is read from the batch that was just written rather than
  * recalculated, so the message cannot promise a date the balance disagrees with.
  */
-export async function notifyPurchased(purchaseId: string) {
+export async function notifyPurchased(
+  purchaseId: string,
+  /**
+   * Who was serving, when a person was.
+   *
+   * Only the desk knows this — an online payment has no one behind it — and it
+   * is not on the purchase row, which records `desk:` and eight characters of a
+   * staff id. Passed in rather than looked up so the studio's copy can say
+   * "served by Elena" instead of a fragment of a UUID, which is the difference
+   * between a record somebody can act on and one they have to decode.
+   */
+  opts?: { staffName?: string | null },
+) {
   const row = db
     .select({
       userId: users.id,
@@ -357,6 +455,9 @@ export async function notifyPurchased(purchaseId: string) {
       amountCents: purchases.amountCents,
       currency: purchases.currency,
       receiptUrl: purchases.receiptUrl,
+      provider: purchases.provider,
+      providerRef: purchases.providerRef,
+      invoiceNo: purchases.invoiceNo,
       expiresAt: creditBatches.expiresAt,
     })
     .from(purchases)
@@ -384,7 +485,26 @@ export async function notifyPurchased(purchaseId: string) {
   let attachments: Attachment[] | undefined;
   try {
     const invoice = await invoiceForPurchase(purchaseId);
-    if (invoice) {
+    /**
+     * A specimen is never emailed to a member.
+     *
+     * This was wrong when it was first written: it attached whatever
+     * `invoiceForPurchase` produced, which while the VAT details are still
+     * placeholder is a page stamped SPECIMEN and saying, at the bottom, that it
+     * is not a valid invoice and must not be given to a client. Mailing that to
+     * somebody who has just paid is worse than sending nothing — it is a
+     * document telling them their own paperwork is void.
+     *
+     * A specimen exists for the studio to look at, and there are two proper
+     * places to do that: `npm run invoice:preview`, and the download link on
+     * the member's own payments list. Not an inbox.
+     *
+     * So the test is the invoice *number*, not the PDF. A number is only ever
+     * issued once the configuration is real — see assignInvoiceNumber — which
+     * makes "has a number" and "is a document worth sending" the same
+     * question, answered in one place.
+     */
+    if (invoice && !isSpecimen(invoice.invoiceNo)) {
       attachments = [
         {
           filename: invoice.filename,
@@ -396,6 +516,23 @@ export async function notifyPurchased(purchaseId: string) {
   } catch (err) {
     console.error(`[pay] no invoice attached to ${purchaseId}`, err);
   }
+
+  /* The studio's own copy, to the operations mailbox. Fired and not awaited:
+     the member's confirmation is what matters to the person standing at the
+     counter, and a slow mail server must not hold up their receipt. */
+  void tellStudioPaid({
+    memberName: row.name,
+    memberEmail: row.email,
+    memberPhone: row.phone,
+    credits: row.credits,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    provider: row.provider,
+    providerRef: row.providerRef,
+    invoiceNo: row.invoiceNo,
+    userId: row.userId,
+    staffName: opts?.staffName ?? null,
+  }).catch(() => {});
 
   const words = purchasedWords({
     credits: row.credits,

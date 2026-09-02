@@ -469,6 +469,83 @@ export function personalBookedWords(a: {
  * were just emailed about is the kind of small friction that ends with the call
  * not being made.
  */
+/**
+ * The studio's own copy of a payment, to the operations mailbox.
+ *
+ * The member already gets told; this is for the other side of the counter. The
+ * owner asked for it in plain terms: they want to know money has arrived, from
+ * whom, and through which till — because those three facts are what reconciling
+ * a day's takings needs, and until now two of the three tills were silent.
+ * A card payment on the website appeared nowhere except the Stripe dashboard,
+ * and cash at the desk appeared nowhere except the drawer.
+ *
+ * Everything a person would want in order to act on it, and nothing they would
+ * have to look up: who paid, how to reach them, what they bought, what it cost,
+ * which till took it, who was serving, and what the member's balance is now.
+ * The last one matters more than it looks — it is the number the member will
+ * quote back if they think something has gone wrong.
+ *
+ * Bilingual like the rest of the studio's mail. This lands in a shared mailbox
+ * read by more than one person and nobody was asked which language they prefer.
+ */
+export function studioPaidWords(a: {
+  memberName: string;
+  memberEmail: string;
+  memberPhone: string | null;
+  /** "Cash", "Card at the desk", "Card online" — the till, in words. */
+  methodEn: string;
+  methodEl: string;
+  credits: number;
+  amountCents: number;
+  currency: string;
+  /** The member's balance after this sale. */
+  balance: number;
+  /** Who was serving, for a sale taken at the desk. */
+  staffName?: string | null;
+  /** The studio's invoice number, when one was issued. */
+  invoiceNo?: string | null;
+  /** The provider's reference, for tracing one payment to one charge. */
+  reference?: string | null;
+}): Bilingual {
+  const contact = [a.memberEmail, a.memberPhone].filter(Boolean).join(", ");
+  const paid = moneyWords(a.amountCents, a.currency);
+  const paidEl = moneyWords(a.amountCents, a.currency, "el");
+
+  /* Built as lines rather than a paragraph. This is a record somebody scans for
+     one figure, not prose they read. */
+  const linesEn = [
+    `${a.memberName} — ${contact}`,
+    `${sessionWords(a.credits)} for ${paid}`,
+    `Taken by: ${a.methodEn}${a.staffName ? `, served by ${a.staffName}` : ""}`,
+    `Balance now: ${sessionWords(a.balance)}`,
+    a.invoiceNo ? `Invoice: ${a.invoiceNo}` : "",
+    a.reference ? `Reference: ${a.reference}` : "",
+  ].filter(Boolean);
+
+  const linesEl = [
+    `${a.memberName} — ${contact}`,
+    `${sessionWords(a.credits, "el")} για ${paidEl}`,
+    `Τρόπος: ${a.methodEl}${a.staffName ? `, από ${a.staffName}` : ""}`,
+    `Υπόλοιπο τώρα: ${sessionWords(a.balance, "el")}`,
+    a.invoiceNo ? `Τιμολόγιο: ${a.invoiceNo}` : "",
+    a.reference ? `Αναφορά: ${a.reference}` : "",
+  ].filter(Boolean);
+
+  return {
+    en: {
+      /* The amount and the name in the subject, so the mailbox is readable
+         without opening anything — which is how somebody checks a day's
+         takings from a phone. */
+      subject: `Payment received: ${paid} from ${a.memberName}`,
+      body: linesEn.join("\n"),
+    },
+    el: {
+      subject: `Πληρωμή: ${paidEl} από ${a.memberName}`,
+      body: linesEl.join("\n"),
+    },
+  };
+}
+
 export function studioAppointmentWords(a: {
   startsAt: Date;
   memberName: string;

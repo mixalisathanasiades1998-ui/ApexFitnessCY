@@ -407,7 +407,9 @@ export async function sellSessions(args: {
      * Not awaited, and it can never fail the sale: the money is in the till
      * whatever the mail server does.
      */
-    if (sold) void notifyPurchased(sold).catch(() => {});
+    /* The staff name is passed through so the studio's own copy can say who was
+       serving. Nothing else needs it, and the purchase row does not carry it. */
+    if (sold) void notifyPurchased(sold, { staffName }).catch(() => {});
 
     return {
       ok: true,
