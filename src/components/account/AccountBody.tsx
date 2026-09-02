@@ -76,6 +76,10 @@ type Props = {
     provider: string;
     createdAt: string;
     paidAt: string | null;
+    /** The provider's hosted receipt. Null for cash and desk sales. */
+    receiptUrl: string | null;
+    /** The studio's own invoice number, when one was issued. */
+    invoiceNo: string | null;
     packageName: { en: string; el: string } | null;
   }[];
   ledger: {
@@ -694,6 +698,38 @@ export function AccountBody(props: Props) {
                         </span>
                       </span>
                       <span className="flex items-center gap-3">
+                        {/**
+                          * The paperwork, where somebody looks for it a month
+                          * later. Both are emailed when the payment goes
+                          * through, but an email is a thing you have to still
+                          * have.
+                          *
+                          * The invoice first, because it is the document that
+                          * matters: the studio's own, with the VAT breakdown on
+                          * it. The card provider's receipt is the lesser one and
+                          * only exists for card payments.
+                          */}
+                        {p.invoiceNo && (
+                          <a
+                            href={`/api/invoices/${p.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={p.invoiceNo}
+                            className="text-[11px] uppercase tracking-widest text-clay underline decoration-mocha-200 underline-offset-4 transition-colors hover:text-mocha-600"
+                          >
+                            {t.account.invoice}
+                          </a>
+                        )}
+                        {p.receiptUrl && (
+                          <a
+                            href={p.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] uppercase tracking-widest text-clay underline decoration-mocha-200 underline-offset-4 transition-colors hover:text-mocha-600"
+                          >
+                            {t.account.receipt}
+                          </a>
+                        )}
                         <span className="lining-nums tabular-nums text-mocha-600">
                           {fmtMoney(p.amountCents)}
                         </span>

@@ -103,4 +103,19 @@ export interface PaymentProvider {
    * where the money is.
    */
   settle(purchase: PurchaseLike): Promise<Settlement>;
+  /**
+   * A link to the provider's own receipt for a payment that has gone through.
+   *
+   * Optional, because not every provider has one. Stripe builds and hosts a
+   * receipt page for every charge — amount, date, last four digits, the
+   * studio's name, printable — and that page is the only document in this
+   * system a member can hand to somebody else as proof of what they paid. A
+   * bank gateway may offer nothing of the kind, and a cash sale at the desk
+   * certainly does not.
+   *
+   * Returns null rather than throwing when there is no receipt to give. The
+   * caller is in the middle of confirming a payment that has already succeeded,
+   * and a missing link is a slightly plainer email, not a failure.
+   */
+  receipt?(purchase: PurchaseLike): Promise<string | null>;
 }

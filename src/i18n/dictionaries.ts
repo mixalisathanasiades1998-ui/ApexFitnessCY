@@ -886,6 +886,10 @@ export const en = {
     historyEmpty: "No completed classes yet.",
     purchasesTitle: "Purchases",
     purchasesEmpty: "No purchases yet.",
+    /* The link to the card provider's own receipt page, on each paid row. */
+    receipt: "Receipt",
+    /* The studio's own VAT invoice, as a PDF. */
+    invoice: "Invoice",
     cancelBooking: "Cancel booking",
     cancelFree: "Free cancellation until",
     cancelLate: "Cancelling now uses the session",
@@ -1972,6 +1976,8 @@ export const el: typeof en = {
     historyEmpty: "Δεν υπάρχουν ολοκληρωμένα μαθήματα.",
     purchasesTitle: "Αγορές",
     purchasesEmpty: "Δεν υπάρχουν αγορές.",
+    receipt: "Απόδειξη",
+    invoice: "Τιμολόγιο",
     cancelBooking: "Ακύρωση",
     cancelFree: "Δωρεάν ακύρωση έως",
     cancelLate: "Η ακύρωση τώρα καταναλώνει τη συνεδρία",

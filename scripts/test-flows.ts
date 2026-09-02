@@ -692,7 +692,7 @@ async function main() {
     );
   }
 
-  console.log("\n8b. Which language a phone notification goes out in");
+  console.log("\n8f. Which language a phone notification goes out in");
   /**
    * The one-language channels, and the bug they had.
    *
@@ -746,6 +746,247 @@ async function main() {
       .get();
     check("the account remembers the language", saved?.locale === "el", saved);
     db.update(users).set({ locale: null }).where(eq(users.id, user.id)).run();
+  }
+
+  console.log("\n8g. The receipt, which Stripe mails and this email does not");
+  /**
+   * A receipt for a card payment, and who sends it.
+   *
+   * The studio's own confirmation carries the sessions, the price and the expiry
+   * date, and deliberately no receipt link. Two reasons, both learned rather
+   * than guessed: a raw payment-processor URL inside the studio's own email is
+   * exactly the shape of a phishing message, and Stripe's receipt links expire
+   * after thirty days — so the email somebody keeps for their accountant holds
+   * a dead link a month later.
+   *
+   * Stripe mails its own receipt to the same address, which the code supplies
+   * as `receipt_email` from the member's account. This asserts the confirmation
+   * stays clean, in both languages, whether or not a link happens to be on the
+   * purchase row.
+   */
+  {
+    const W = await import("../src/lib/messaging/wording");
+    const args = {
+      credits: 5,
+      amountCents: 9000,
+      currency: "eur",
+      expiresAt: null,
+    };
+
+    const withUrl = W.purchasedWords({
+      ...args,
+      receiptUrl: "https://pay.stripe.com/receipts/abc123",
+    });
+    check(
+      "the confirmation never puts a processor URL in front of a member",
+      !withUrl.en.body.includes("pay.stripe.com") &&
+        !withUrl.el.body.includes("pay.stripe.com"),
+      withUrl.en.body,
+    );
+    check(
+      "and does not promise a receipt it is not carrying",
+      !/receipt/i.test(withUrl.en.body) && !/απόδειξ/i.test(withUrl.el.body),
+      withUrl.en.body,
+    );
+
+    /* Same message with nothing on the row — a cash sale at the desk — so the
+       two cases cannot drift apart. */
+    const cash = W.purchasedWords(args);
+    check(
+      "a payment with no receipt reads identically",
+      cash.en.body === withUrl.en.body && cash.el.body === withUrl.el.body,
+    );
+    check(
+      "and both still say what was bought and for how much",
+      cash.en.body.includes("5 sessions") && cash.en.body.includes("€90"),
+      cash.en.body,
+    );
+  }
+
+  console.log("\n8h. The VAT invoice");
+  /**
+   * The studio's own invoice, which is the document a Stripe receipt is not.
+   *
+   * A Stripe receipt names an amount and a card. It carries no VAT number and
+   * no net-and-VAT breakdown, so it is not something a Cyprus accountant can
+   * put through a set of books — which is the whole reason this exists.
+   *
+   * Three things are worth asserting and none of them are about layout. The
+   * arithmetic has to balance to the cent. The specimen guard has to hold,
+   * because the cost of it failing is a false tax document with the studio's
+   * name on it. And the numbering has to be gapless and idempotent, because a
+   * webhook and a returning browser both report the same payment.
+   */
+  {
+    const V = await import("../src/lib/invoice");
+
+    /* --- the arithmetic, on prices that are quoted VAT-inclusive --- */
+    const at19 = V.vatSplit(2000, 19);
+    check(
+      "net plus VAT equals exactly what was paid",
+      at19.netCents + at19.vatCents === 2000,
+      at19,
+    );
+    check(
+      "EUR 20 at 19% is 16.81 net and 3.19 VAT",
+      at19.netCents === 1681 && at19.vatCents === 319,
+      at19,
+    );
+    /**
+     * The rounding case, which is the one that goes wrong.
+     *
+     * Rounding the net and the VAT independently is the obvious implementation
+     * and produces invoices whose two lines do not add up to the total somebody
+     * paid — the single error on a tax document that nobody will accept. So the
+     * VAT is whatever is left after the net, and this checks it across a range
+     * rather than at one convenient number.
+     */
+    let balanced = true;
+    for (let cents = 1; cents <= 5000; cents++) {
+      const s2 = V.vatSplit(cents, 19);
+      if (s2.netCents + s2.vatCents !== cents) balanced = false;
+    }
+    check("and it balances for every amount up to EUR 50", balanced);
+
+    const exempt = V.vatSplit(2000, 0);
+    check(
+      "a zero rate charges no VAT and claims none",
+      exempt.netCents === 2000 && exempt.vatCents === 0,
+      exempt,
+    );
+
+    /* --- the specimen guard --- */
+    const before = {
+      name: process.env.INVOICE_LEGAL_NAME,
+      vat: process.env.INVOICE_VAT_NUMBER,
+      rate: process.env.INVOICE_VAT_RATE,
+    };
+
+    delete process.env.INVOICE_LEGAL_NAME;
+    check(
+      "an unconfigured studio issues specimens, not invoices",
+      V.invoiceIssuer().real === false,
+      V.invoiceIssuer().why,
+    );
+
+    process.env.INVOICE_LEGAL_NAME = "Apex Test Ltd";
+    process.env.INVOICE_ADDRESS = "Somewhere, Larnaca";
+    process.env.INVOICE_VAT_NUMBER = "CY12345678X";
+    process.env.INVOICE_VAT_RATE = "19";
+    check(
+      "and so does one whose details still say TEST",
+      V.invoiceIssuer().real === false,
+      V.invoiceIssuer().why,
+    );
+
+    process.env.INVOICE_LEGAL_NAME = "Apex Wellness Ltd";
+    process.env.INVOICE_VAT_NUMBER = "NOTAVATNUMBER";
+    check(
+      "a VAT number of the wrong shape is refused",
+      V.invoiceIssuer().real === false,
+      V.invoiceIssuer().why,
+    );
+
+    process.env.INVOICE_VAT_NUMBER = "CY10456789J";
+    const good = V.invoiceIssuer();
+    check(
+      "a complete, well-formed configuration is accepted",
+      good.real === true && good.vatRatePercent === 19,
+      good,
+    );
+
+    /* Put the environment back, so nothing after this runs configured. */
+    if (before.name === undefined) delete process.env.INVOICE_LEGAL_NAME;
+    else process.env.INVOICE_LEGAL_NAME = before.name;
+    if (before.vat === undefined) delete process.env.INVOICE_VAT_NUMBER;
+    else process.env.INVOICE_VAT_NUMBER = before.vat;
+    if (before.rate === undefined) delete process.env.INVOICE_VAT_RATE;
+    else process.env.INVOICE_VAT_RATE = before.rate;
+
+    check(
+      "SPECIMEN counts as no invoice number",
+      V.isSpecimen(null) && V.isSpecimen("SPECIMEN") && !V.isSpecimen("2026-0001"),
+    );
+    check(
+      "numbers are the year and four padded digits",
+      V.formatInvoiceNo(2026, 7, "") === "2026-0007",
+      V.formatInvoiceNo(2026, 7, ""),
+    );
+  }
+
+  console.log("\n8i. An email that carries a file");
+  /**
+   * The MIME structure, which is the part of attaching a PDF that goes wrong.
+   *
+   * The studio's SMTP transport builds its own messages rather than using a
+   * library, so the nesting is ours to get right. MIME cannot say "two
+   * alternatives and also a PDF" in one part: the text-and-HTML pair has to
+   * become the first child of a multipart/mixed, with the files as siblings.
+   * Get it wrong and you produce the email everyone has received at some point
+   * — a body that is a wall of base64, or an attachment rendered inline as
+   * gibberish. Neither throws, which is exactly why it is worth a test.
+   */
+  {
+    const { buildMessage } = await import("../src/lib/messaging/smtp");
+    const pdf = Buffer.from("%PDF-1.3 pretend");
+
+    const plain = buildMessage({
+      from: "APEX pilates <hello@apexpilates.cy>",
+      to: "member@example.com",
+      msg: { subject: "Payment received", body: "Five sessions." },
+      html: "<p>Five sessions.</p>",
+    });
+    check(
+      "with nothing attached it stays a simple alternative pair",
+      plain.includes("Content-Type: multipart/alternative") &&
+        !plain.includes("multipart/mixed"),
+    );
+
+    const withFile = buildMessage({
+      from: "APEX pilates <hello@apexpilates.cy>",
+      to: "member@example.com",
+      msg: {
+        subject: "Payment received",
+        body: "Five sessions.",
+        attachments: [
+          {
+            filename: "APEX-pilates-invoice-2026-0001.pdf",
+            content: pdf,
+            contentType: "application/pdf",
+          },
+        ],
+      },
+      html: "<p>Five sessions.</p>",
+    });
+
+    check(
+      "with a file it becomes mixed, wrapping the alternative pair",
+      withFile.includes("Content-Type: multipart/mixed") &&
+        withFile.includes("Content-Type: multipart/alternative"),
+    );
+    check(
+      "the alternative pair is closed before the file starts",
+      withFile.indexOf("--apex_alt_") <
+        withFile.indexOf("Content-Type: application/pdf"),
+    );
+    check(
+      "the file is an attachment and not rendered inline",
+      /Content-Disposition: attachment; filename="APEX-pilates-invoice-2026-0001\.pdf"/.test(
+        withFile,
+      ),
+    );
+    check(
+      "and it survives the trip as base64",
+      withFile.includes(pdf.toString("base64")),
+    );
+    /* Every boundary opened has to be closed, or a reader shows the rest of the
+       message as part of the attachment. */
+    const mixed = withFile.match(/boundary="(apex_mix_[a-f0-9]+)"/)?.[1];
+    check(
+      "and the outer boundary is properly closed",
+      Boolean(mixed) && withFile.trimEnd().endsWith(`--${mixed}--`),
+      mixed,
+    );
   }
 
   console.log("\n9. Ledger integrity");

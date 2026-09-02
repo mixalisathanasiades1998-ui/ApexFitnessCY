@@ -4,6 +4,8 @@ import { creditBatches, purchases } from "@/db/schema";
 import { grantCredits } from "@/lib/credits";
 import { getPackageById } from "@/lib/catalogue";
 import { notifyPurchased } from "@/lib/messaging/events";
+import { activeProvider } from "./active";
+import { assignInvoiceNumber } from "@/lib/invoice-number";
 
 /**
  * The one place a payment turns into sessions.
@@ -131,6 +133,69 @@ export async function fulfilPurchase(args: {
     console.log(
       `[pay] ${purchase.credits} sessions granted to ${purchase.userId} for purchase ${purchase.id}`,
     );
+
+    /**
+     * The provider's receipt, fetched and stored before the member is told.
+     *
+     * Order matters here and it is the only reason this sits above the notify
+     * call rather than below it: the confirmation email is composed from the
+     * purchase row, so the link has to be on the row by the time that runs.
+     * One extra API call, once per payment, on the single caller that actually
+     * granted — the webhook and the browser both arrive here and only one of
+     * them gets this far.
+     *
+     * Wrapped in its own try/catch and asked of the provider only when the
+     * purchase was actually taken by that provider. A cash sale at the desk has
+     * no receipt to link to, and `activeProvider()` throws outright when
+     * nothing is configured — neither of which should be able to unwind a
+     * payment that has already succeeded and been granted.
+     */
+    try {
+      const provider = activeProvider();
+      if (provider.id === purchase.provider && provider.receipt) {
+        const url = await provider.receipt({
+          ...purchase,
+          providerRef: ref ?? purchase.providerRef,
+        });
+        if (url) {
+          db.update(purchases)
+            .set({ receiptUrl: url })
+            .where(eq(purchases.id, purchase.id))
+            .run();
+        }
+      }
+    } catch (err) {
+      console.error("[pay] no receipt link for this payment", err);
+    }
+
+    /**
+     * The studio's own invoice number, for a payment taken through a provider.
+     *
+     * Only for those. A sale taken in cash or on the card machine at the desk
+     * is handed a paper receipt over the counter, which is the studio's
+     * decision — so those deliberately get no number and no PDF, and the
+     * sequence stays a sequence of the payments this system actually took.
+     *
+     * Before the notify call, like the receipt above and for the same reason:
+     * the confirmation email attaches the invoice, and it cannot attach a
+     * document that has no number yet. Its own try/catch because a payment that
+     * has already succeeded must not be unwound by a numbering problem — the
+     * worst case is an email without its attachment, and a number that can be
+     * issued later from the desk.
+     */
+    if (purchase.provider !== "cash" && purchase.provider !== "card_at_desk") {
+      try {
+        const numbered = assignInvoiceNumber(purchase.id);
+        if (!numbered.ok) {
+          console.log(
+            `[pay] purchase ${purchase.id} has no invoice number: ${numbered.reason}`,
+          );
+        }
+      } catch (err) {
+        console.error("[pay] could not assign an invoice number", err);
+      }
+    }
+
     /* Told once, by whichever caller actually granted. The webhook, the browser
        coming back and a later check all arrive here; only one of them gets
        `granted`, which is exactly the one that should say so. Not awaited: the

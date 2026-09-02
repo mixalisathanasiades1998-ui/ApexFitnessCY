@@ -40,7 +40,8 @@
     "test:personal": "tsx scripts/test-personal.ts",
     "test:account": "tsx scripts/test-account.ts",
     "manual": "node scripts/manual.mjs",
-    "social": "tsx scripts/social.ts"
+    "social": "tsx scripts/social.ts",
+    "invoice:preview": "tsx scripts/invoice-preview.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.2",
@@ -52,6 +53,7 @@
     "drizzle-orm": "^0.40.1",
     "jose": "5.9.6",
     "next": "15.3.1",
+    "pdfkit": "^0.20.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "stripe": "17.7.0",
@@ -63,6 +65,7 @@
     "@types/bcryptjs": "2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "22.14.0",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",
     "@types/web-push": "^3.6.4",

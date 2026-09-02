@@ -78,7 +78,15 @@ const logTransport: Transport = {
   name: "log (nothing is sent)",
   ready: true,
   async send(to, msg) {
-    console.log(`[email:log] → ${to} :: ${msg.subject}`);
+    /* Names the attachments as well as the subject. A test run that silently
+       drops an invoice looks exactly like one that never made an invoice, and
+       the whole point of this transport is that the pipeline can be read. */
+    const files = (msg.attachments ?? [])
+      .map((a) => `${a.filename} (${a.content.length}b)`)
+      .join(", ");
+    console.log(
+      `[email:log] → ${to} :: ${msg.subject}${files ? ` + ${files}` : ""}`,
+    );
     return { ok: true, id: "log" };
   },
 };
@@ -101,6 +109,18 @@ function resend(key: string): Transport {
             subject: msg.subject,
             text: msg.body,
             html: html(msg),
+            /* Resend takes base64 in `content`. Omitted entirely when there is
+               nothing to send, rather than passed as an empty array, because an
+               empty array is a thing some APIs object to. */
+            ...(msg.attachments?.length
+              ? {
+                  attachments: msg.attachments.map((a) => ({
+                    filename: a.filename,
+                    content: a.content.toString("base64"),
+                    content_type: a.contentType,
+                  })),
+                }
+              : {}),
           }),
         });
         if (!res.ok) return { ok: false, error: `resend ${res.status}: ${await res.text()}` };
@@ -132,6 +152,17 @@ function brevo(key: string): Transport {
             subject: msg.subject,
             textContent: msg.body,
             htmlContent: html(msg),
+            /* Brevo calls the field `attachment`, singular, and wants `name`
+               where Resend wants `filename`. One of the small ways these APIs
+               differ, and the reason this adapter exists at all. */
+            ...(msg.attachments?.length
+              ? {
+                  attachment: msg.attachments.map((a) => ({
+                    name: a.filename,
+                    content: a.content.toString("base64"),
+                  })),
+                }
+              : {}),
           }),
         });
         if (!res.ok) return { ok: false, error: `brevo ${res.status}: ${await res.text()}` };

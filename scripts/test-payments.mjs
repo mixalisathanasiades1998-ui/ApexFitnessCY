@@ -378,6 +378,70 @@ console.log("\n8. Paying tells the member, once");
   );
 }
 
+console.log("\n9. The invoice, and who may read it");
+/**
+ * The studio's own VAT invoice, downloadable from the member's account.
+ *
+ * It is attached to the confirmation email, which is where most people will get
+ * it. This route is for the other times — the email was deleted, it went to
+ * spam, or the accountant asks for it in March.
+ *
+ * The permission is the point of this section. An invoice is somebody's
+ * financial record, and the check is on the purchase's own owner rather than on
+ * the id in the URL: a UUID is unguessable, but unguessable is not a permission
+ * model, and a member who forwards a link should not hand over their payment
+ * history with it. A stranger gets 404 rather than 403, so probing ids cannot
+ * be used to learn which of them exist.
+ */
+{
+  const reader = await member("inv");
+  const opened = await req(reader.j, "/api/checkout", {
+    method: "POST",
+    body: { packSlug: "month-2" },
+  });
+  const id = opened.json?.purchaseId;
+  await req(reader.j, "/api/payments/settle", {
+    method: "POST",
+    body: { purchaseId: id },
+  });
+
+  const mine = await req(reader.j, `/api/invoices/${id}`);
+  check("the buyer can download their own invoice", mine.status === 200, mine.status);
+  check(
+    "and it really is a PDF",
+    (mine.headers.get("content-type") ?? "").includes("application/pdf") &&
+      mine.text.startsWith("%PDF-"),
+    mine.headers.get("content-type"),
+  );
+  check(
+    "which no shared cache is allowed to keep",
+    /private/.test(mine.headers.get("cache-control") ?? "") &&
+      /no-store/.test(mine.headers.get("cache-control") ?? ""),
+    mine.headers.get("cache-control"),
+  );
+  check(
+    "named after the invoice, not 'invoice.pdf'",
+    /filename="APEX-pilates-invoice-[^"]+\.pdf"/.test(
+      mine.headers.get("content-disposition") ?? "",
+    ),
+    mine.headers.get("content-disposition"),
+  );
+
+  const stranger = await member("inv-other");
+  const theirs = await req(stranger.j, `/api/invoices/${id}`);
+  check(
+    "another member cannot read it, and cannot tell it exists",
+    theirs.status === 404,
+    theirs.status,
+  );
+
+  const anon = await req(jar(), `/api/invoices/${id}`);
+  check("and neither can a stranger with no account", anon.status === 401, anon.status);
+
+  const nonsense = await req(reader.j, "/api/invoices/not-a-purchase");
+  check("a purchase that does not exist is a 404", nonsense.status === 404, nonsense.status);
+}
+
 console.log(
   `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
 );

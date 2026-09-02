@@ -439,12 +439,63 @@ export const purchases = sqliteTable(
     providerRef: text("provider_ref"),
     stripeSession: text("stripe_session"),
     stripeIntent: text("stripe_intent"),
+    /**
+     * The provider's own receipt for this payment, as a link.
+     *
+     * Stripe builds one of these for every successful charge and hosts it: the
+     * amount, the date, the last four digits, the studio's name, printable and
+     * saveable as a PDF by whoever opens it. It costs nothing to keep the
+     * address and it is the only document in this system that a member can
+     * hand to somebody else as proof of what they paid.
+     *
+     * Stored rather than fetched when needed, for two reasons. The confirmation
+     * email is composed once and sent immediately, so the link has to be in
+     * hand at that moment rather than a round trip away. And the account's
+     * payment list would otherwise make one API call per row, on a page that
+     * shows twenty.
+     *
+     * Null on a purchase taken in cash or at the desk, which have no provider
+     * and therefore no receipt to link to, and on anything paid before this
+     * column existed.
+     */
+    receiptUrl: text("receipt_url"),
+    /**
+     * The studio's own invoice number for this payment, once it has one.
+     *
+     * Three columns rather than one because they answer three different
+     * questions. `invoiceNo` is the identifier printed on the document and
+     * quoted back by an accountant, and it must never change even if the format
+     * does — so it is stored, not derived. `invoiceYear` and `invoiceSeq` are
+     * what the *next* number is worked out from, and a tax authority cares that
+     * the sequence has no gaps in it, which is a question about integers and not
+     * about strings.
+     *
+     * Null on anything that has not been invoiced: a payment still pending, a
+     * cash sale handed a paper receipt at the counter, and every purchase made
+     * before the studio started issuing invoices. Also null while the invoice
+     * configuration is still placeholder, because a specimen must never consume
+     * a number from the real sequence.
+     */
+    invoiceNo: text("invoice_no"),
+    invoiceYear: integer("invoice_year"),
+    invoiceSeq: integer("invoice_seq"),
     createdAt: now().notNull(),
     paidAt: integer("paid_at", { mode: "timestamp" }),
   },
   (t) => [
     uniqueIndex("purchases_stripe_session_idx").on(t.stripeSession),
     index("purchases_user_idx").on(t.userId),
+    /**
+     * One invoice number, once.
+     *
+     * The sequence is handed out by reading the highest one already used and
+     * adding one, inside the same transaction that writes it — see
+     * assignInvoiceNumber. This index is the backstop that makes a duplicate
+     * impossible rather than merely unlikely, which for a document a tax
+     * authority may audit is the difference that matters. SQLite treats NULLs as
+     * distinct, so the many purchases with no invoice do not collide.
+     */
+    uniqueIndex("purchases_invoice_no_idx").on(t.invoiceNo),
   ],
 );
 

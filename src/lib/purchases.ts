@@ -60,6 +60,12 @@ export async function getMyPurchases(userId: string, limit = 20) {
     provider: p.provider,
     createdAt: p.createdAt,
     paidAt: p.paidAt,
+    /* So the member can find the receipt again without digging out the email
+       it arrived in, which is where people actually look for it. */
+    receiptUrl: p.receiptUrl,
+    /* Non-null means there is an invoice PDF to download. The number itself is
+       shown too: it is what an accountant asks for by name. */
+    invoiceNo: p.invoiceNo,
     packageName: pkg ? { en: pkg.nameEn, el: pkg.nameEl } : null,
   }));
 }

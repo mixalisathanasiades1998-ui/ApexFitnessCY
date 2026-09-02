@@ -17,7 +17,9 @@ const nextConfig: NextConfig = {
    * `better-sqlite3` is here for the same reason and one more: it is a compiled
    * binary, and bundling a `.node` file is not a thing that works.
    */
-  serverExternalPackages: ["web-push", "better-sqlite3"],
+  /* pdfkit reads its own font-metric files off disk at runtime, so it has to
+     stay outside the bundle or an invoice fails with a missing .afm. */
+  serverExternalPackages: ["web-push", "better-sqlite3", "pdfkit"],
 
   /**
    * The build type-checks the website, not the toolbox.

@@ -47,7 +47,13 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "health_condition", ddl: "text" },
   ],
   instructors: [{ name: "photo_url", ddl: "text" }],
-  purchases: [{ name: "provider_ref", ddl: "text" }],
+  purchases: [
+    { name: "provider_ref", ddl: "text" },
+    { name: "receipt_url", ddl: "text" },
+    { name: "invoice_no", ddl: "text" },
+    { name: "invoice_year", ddl: "integer" },
+    { name: "invoice_seq", ddl: "integer" },
+  ],
   /* The spend window — which class dates a batch may be paid towards, which is
      a different question from when the batch expires. See lib/promo.ts. */
   credit_batches: [
@@ -198,6 +204,13 @@ const INDEXES: { name: string; ddl: string }[] = [
   {
     name: "email_verifications_user_idx",
     ddl: "create unique index email_verifications_user_idx on email_verifications (user_id)",
+  },
+  {
+    /* One invoice number, once. The sequence is handed out by reading the
+       highest and adding one; this is what makes a duplicate impossible rather
+       than merely unlikely, on a document a tax authority may audit. */
+    name: "purchases_invoice_no_idx",
+    ddl: "create unique index purchases_invoice_no_idx on purchases (invoice_no)",
   },
   {
     name: "booking_reminders_due_idx",

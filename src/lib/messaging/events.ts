@@ -9,11 +9,12 @@ import {
   users,
 } from "@/db/schema";
 import { createNotice } from "@/lib/notices";
+import { invoiceForPurchase } from "@/lib/invoice-for";
 import { dueReminders, markSent } from "@/lib/reminders";
 import { emailTransport } from "./email";
 import { sendPush, subscriptionsFor } from "./push";
 import { smsTransport, toE164 } from "./sms";
-import type { Channel, Outgoing } from "./types";
+import type { Attachment, Channel, Outgoing } from "./types";
 import { STUDIO_OPS_EMAIL } from "@/lib/personal";
 import {
   bookedWords,
@@ -355,6 +356,7 @@ export async function notifyPurchased(purchaseId: string) {
       credits: purchases.credits,
       amountCents: purchases.amountCents,
       currency: purchases.currency,
+      receiptUrl: purchases.receiptUrl,
       expiresAt: creditBatches.expiresAt,
     })
     .from(purchases)
@@ -363,6 +365,64 @@ export async function notifyPurchased(purchaseId: string) {
     .where(eq(purchases.id, purchaseId))
     .get();
   if (!row) return 0;
+
+  /**
+   * The invoice, drawn now and attached to the email.
+   *
+   * The one automatic message that carries a file, because it is the one a
+   * member may have to give to somebody else — an employer, an insurer, an
+   * accountant. A link would have been less work and worse: it is one more
+   * thing to click, and a document that lives only behind a login is a document
+   * somebody cannot forward.
+   *
+   * Failure is not allowed to matter. The sessions are already in the balance
+   * by the time this runs, and an email that arrives without its attachment is
+   * a smaller problem than no email at all — the member can still download it
+   * from their account, and the desk can still produce it. So a PDF that will
+   * not draw is logged and the message goes anyway.
+   */
+  let attachments: Attachment[] | undefined;
+  try {
+    const invoice = await invoiceForPurchase(purchaseId);
+    if (invoice) {
+      attachments = [
+        {
+          filename: invoice.filename,
+          content: invoice.pdf,
+          contentType: "application/pdf",
+        },
+      ];
+    }
+  } catch (err) {
+    console.error(`[pay] no invoice attached to ${purchaseId}`, err);
+  }
+
+  const words = purchasedWords({
+    credits: row.credits,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    expiresAt: row.expiresAt ?? null,
+    /* Written onto the purchase by fulfilPurchase a moment before this runs,
+       which is the only reason it is here to read. */
+    receiptUrl: row.receiptUrl,
+    hasInvoice: Boolean(attachments),
+  });
+
+  /**
+   * Put on a copy of the wording rather than on the wording itself.
+   *
+   * `deliverPersonal` hands the same object to three places. The account copy
+   * and the phone notification both read only the subject and the body and
+   * ignore this field, exactly as email ignores `url` — but building a separate
+   * object makes that harmless rather than merely true today, and keeps the
+   * plain wording usable by the test suite without a Buffer in it.
+   */
+  const withFile: Bilingual = attachments
+    ? {
+        en: { ...words.en, attachments },
+        el: { ...words.el, attachments },
+      }
+    : words;
 
   return deliverPersonal(
     {
@@ -380,12 +440,7 @@ export async function notifyPurchased(purchaseId: string) {
       classKind: "GROUP",
       guestName: null,
     },
-    purchasedWords({
-      credits: row.credits,
-      amountCents: row.amountCents,
-      currency: row.currency,
-      expiresAt: row.expiresAt ?? null,
-    }),
+    withFile,
     SENDS.purchased,
   );
 }

@@ -161,6 +161,36 @@ export function purchasedWords(a: {
   amountCents: number;
   currency: string;
   expiresAt: Date | null;
+  /**
+   * The provider's hosted receipt, when there is one. Kept, and deliberately
+   * *not* put in this email.
+   *
+   * It was in here for a while, as a line saying "Your receipt: https://…".
+   * Two things are wrong with that. A raw payment-processor URL in the studio's
+   * own confirmation is the shape of a phishing email, and it is the one line a
+   * cautious member would be right not to click. And Stripe's receipt links
+   * expire after thirty days — the receipt does not, but the link does — so an
+   * email kept for the accountant in March holds a dead link by April.
+   *
+   * Stripe sends its own receipt instead, to the same address, from its own
+   * domain, with the studio's name and logo on it. Switched on in the Stripe
+   * dashboard under Customer emails, and it needs nothing from this file.
+   *
+   * The value still reaches the member's account page, where a link that can be
+   * re-issued makes sense: they are signed in, looking at their own payment
+   * history, and an expired link there asks them for their address and mails a
+   * fresh one. Kept on the argument here so nobody wonders where it went.
+   */
+  receiptUrl?: string | null;
+  /**
+   * Whether an invoice PDF is riding along with this email.
+   *
+   * Passed in rather than assumed, because the attachment can fail — and an
+   * email that says "your invoice is attached" with nothing attached is worse
+   * than one that says nothing. The sentence only appears when the file
+   * actually did.
+   */
+  hasInvoice?: boolean;
 }): Bilingual {
   const expiryEn = a.expiresAt
     ? ` They expire on ${dateWords(a.expiresAt)}.`
@@ -169,19 +199,33 @@ export function purchasedWords(a: {
     ? ` Λήγουν στις ${dateWords(a.expiresAt, "el")}.`
     : "";
 
+  /* Where the receipt line used to be. See the note on `receiptUrl` above:
+     Stripe mails the receipt itself, and a processor URL in the studio's own
+     email reads like a phishing attempt and dies after thirty days.
+
+     What is here instead is the studio's own invoice, as a file. A sentence
+     rather than nothing, because an attachment somebody is not expecting is an
+     attachment somebody does not open. */
+  const invoiceEn = a.hasInvoice
+    ? " Your VAT invoice is attached."
+    : "";
+  const invoiceEl = a.hasInvoice
+    ? " Το τιμολόγιό σας είναι συνημμένο."
+    : "";
+
   return {
     en: {
       subject: "Payment received",
       body:
         `${sessionWords(a.credits)} added to your balance for ` +
-        `${moneyWords(a.amountCents, a.currency)}.${expiryEn}`,
+        `${moneyWords(a.amountCents, a.currency)}.${expiryEn}${invoiceEn}`,
       url: "/account?tab=payments",
     },
     el: {
       subject: "Η πληρωμή ελήφθη",
       body:
         `${sessionWords(a.credits, "el")} προστέθηκαν στο υπόλοιπό σας για ` +
-        `${moneyWords(a.amountCents, a.currency, "el")}.${expiryEl}`,
+        `${moneyWords(a.amountCents, a.currency, "el")}.${expiryEl}${invoiceEl}`,
       url: "/account?tab=payments",
     },
   };
@@ -652,5 +696,17 @@ export function forEmail(m: Bilingual | Outgoing, el?: Outgoing): Outgoing {
       sign(greek.body, SIGN_OFF.el),
     ].join("\n\n"),
     url: en.url,
+    /**
+     * Carried through, and it was not at first.
+     *
+     * This function builds a *new* message out of two, and the first version
+     * listed the fields it wanted — which silently dropped the invoice PDF that
+     * `notifyPurchased` had just spent a database read and a render producing.
+     * Nothing failed: the email arrived, said "your VAT invoice is attached",
+     * and had nothing attached to it. The single-language branch above spreads
+     * `en` and so never had the bug, which is exactly why it went unnoticed in
+     * the one place it mattered.
+     */
+    attachments: en.attachments,
   };
 }

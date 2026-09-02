@@ -201,6 +201,104 @@ both keep the studio out of PCI scope.
 
 ---
 
+## The invoice, and VAT
+
+A Stripe receipt is **not** a VAT invoice. It names an amount and a card, and
+says nothing about tax: no VAT number, no net-and-VAT breakdown, nothing a
+Cyprus accountant can put through a set of books. Stripe can issue real
+invoices, but only through its own hosted Checkout flow, which would mean
+sending members to a page at stripe.com and giving up the card fields in our own
+page. So the studio issues its own.
+
+**What happens on a card payment.** The moment the money lands, the purchase is
+given the next invoice number, a one-page A4 PDF is drawn, and it is attached to
+the "Payment received" email. The member can also download it any time from
+**Account -> Payments**, and reception can download it from the member's card.
+Cash and card-at-the-desk sales are deliberately excluded: those are handed a
+paper receipt over the counter, so they get no number and no PDF.
+
+### Setting it up
+
+Seven environment variables, listed in `.env.example` and `render.yaml`. They
+are facts about a company rather than code, which is why they are configuration:
+a rate rises, an address moves, and correcting a typo on a legal document should
+not need a deploy.
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `INVOICE_LEGAL_NAME` | `Apex Wellness Ltd` | The company as registered, not the trading name |
+| `INVOICE_ADDRESS` | `Grigori Afxentiou 9, Livadia, Larnaca 7060, Cyprus` | One line, as it should print |
+| `INVOICE_VAT_NUMBER` | `CY10456789J` | CY, eight digits, one letter. Empty if not registered |
+| `INVOICE_REG_NUMBER` | `HE 456789` | Optional |
+| `INVOICE_VAT_RATE` | `19` | A percentage. **Ask the accountant which rate applies** |
+| `INVOICE_EMAIL` | `info@ergonsite.com` | Where a member writes about an invoice |
+| `INVOICE_PHONE` | `+357 24 000000` | Optional |
+
+Check the result without taking a payment:
+
+```
+npm run invoice:preview          a specimen, from your own .env
+npm run invoice:preview -- real  as it looks once configured
+```
+
+Both write `docs/invoice-sample.pdf` and print the arithmetic, including the
+line that matters: net plus VAT must equal exactly what was paid.
+
+### The specimen guard
+
+**Until every one of those values is real, every invoice is stamped SPECIMEN
+across the page and consumes no invoice number.** That is deliberate. A document
+carrying a made-up VAT number, forwarded by a member to a real accountant, is
+not a rough draft — it is a false tax document with the studio's name on it.
+
+A configuration counts as real only when the legal name, the address, the VAT
+number and the rate are all present, the VAT number is the shape of a Cyprus
+one, and nothing looks like a placeholder (`test`, `example`, `xxx`, `123456789`
+and similar are all refused). The guard errs heavily towards SPECIMEN, because
+the two mistakes are not comparable: one produces a document somebody asks about,
+the other produces a document somebody files with the tax office.
+
+A specimen still renders, so the studio can read its own paperwork before a
+client ever sees one. It simply cannot be mistaken for the real thing, and it
+never burns invoice 0001.
+
+### The numbering
+
+Cyprus wants a sequence with **no gaps** in it, which is a constraint on when a
+number is handed out rather than on how it looks. So a number is issued at
+exactly one moment: when a payment has succeeded and the sessions have been
+granted. Nothing earlier can consume one, so nothing that fails can waste one —
+an abandoned checkout leaves no hole to explain to an auditor.
+
+The format is `2026-0001`, restarting each January, with an optional
+`INVOICE_PREFIX` before it. Safe to ask for twice: a Stripe webhook and a
+returning browser both report the same payment, and the second one is handed the
+number the first one issued rather than a new one. A unique index on the column
+makes a duplicate impossible rather than merely unlikely.
+
+### What the document says about VAT
+
+Prices are quoted VAT-inclusive — EUR 20 is EUR 20 at the counter — so the
+invoice works backwards from the total: the net is rounded to the cent and the
+VAT is whatever remains. Rounding both independently is the obvious
+implementation and produces invoices whose two lines do not add up to the total
+somebody paid, which is the one error on a tax document nobody will accept.
+
+A rate of `0` prints "No VAT charged on this supply" rather than "VAT at 0%".
+Those are different statements in tax law, and the document should not invite
+the reader to assume the wrong one.
+
+### Two things it does not do yet
+
+**It is in English.** pdfkit's built-in fonts have no Greek glyphs at all, so
+Greek text would come out blank. An invoice in English is normal and accepted in
+Cyprus; if the studio wants Greek it is one font file in the repository and one
+`doc.font()` call.
+
+**It does not carry a member's own VAT number.** The field is in the renderer and
+nothing collects it, because no member has ever been asked for one. Worth adding
+the day a company wants to put classes through its books.
+
 ## Prices and VAT
 
 Pack prices in `src/lib/packs.ts` are treated as the final amount the member

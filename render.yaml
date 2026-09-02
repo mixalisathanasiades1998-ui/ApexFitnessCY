@@ -142,6 +142,29 @@ services:
       - key: ALLOW_TEST_PAYMENTS
         value: "false"
 
+      # ---------------------------------------------------------- the invoice
+      # What prints on the VAT invoice attached to every card payment. Facts
+      # about a company, so they live here and not in the code. While any of
+      # them is missing or still a placeholder, every invoice is stamped
+      # SPECIMEN and consumes no invoice number — see src/lib/invoice.ts for
+      # why that is the safe default rather than an inconvenience.
+      - key: INVOICE_LEGAL_NAME
+        sync: false
+      - key: INVOICE_ADDRESS
+        value: Grigori Afxentiou 9, Livadia, Larnaca 7060, Cyprus
+      # CY + eight digits + one letter.
+      - key: INVOICE_VAT_NUMBER
+        sync: false
+      - key: INVOICE_REG_NUMBER
+        sync: false
+      # A percentage: 19 means 19%. Confirm the rate with the accountant.
+      - key: INVOICE_VAT_RATE
+        sync: false
+      - key: INVOICE_EMAIL
+        value: info@ergonsite.com
+      - key: INVOICE_PHONE
+        sync: false
+
       # -------------------------------------------------------------------- SMS
       - key: SMS_PROVIDER
         value: smsto

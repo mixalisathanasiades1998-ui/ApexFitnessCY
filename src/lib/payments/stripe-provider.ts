@@ -51,6 +51,21 @@ export const stripeProvider: PaymentProvider = {
        * decision and it lives in the repository where it can be reviewed.
        */
       payment_method_types: ["card"],
+      /**
+       * Where Stripe sends its own receipt, and the reason the studio does not
+       * have to build one.
+       *
+       * This is the signed-in member's account address, straight from the
+       * checkout route — not something typed into the payment form, which is
+       * why it cannot be a stranger's inbox. With "Successful payments" turned
+       * on under Customer emails in the Stripe dashboard, every completed
+       * payment gets a receipt at this address, from Stripe, carrying the
+       * studio's name, logo and support details.
+       *
+       * Load-bearing, therefore. Removing it would silently stop every receipt
+       * without breaking a single test, because nothing in this application
+       * sends them.
+       */
       receipt_email: req.email,
       description: `APEX pilates: ${req.packName}`,
       statement_descriptor_suffix: "APEX PILATES",
@@ -72,6 +87,40 @@ export const stripeProvider: PaymentProvider = {
       publicKey: publishableKey()!,
       ref: intent.id,
     };
+  },
+
+  /**
+   * Stripe's hosted receipt for this payment.
+   *
+   * The receipt belongs to the *charge*, not to the intent, and the intent only
+   * carries the charge's id — so this expands it in one call rather than making
+   * two. Everything about it is Stripe's: they build the page, they host it,
+   * and it stays valid, which is why the studio stores the address instead of
+   * trying to render a receipt of its own.
+   *
+   * Never throws. It is called while confirming a payment that has already
+   * succeeded and the sessions are already granted; a failure here means the
+   * confirmation email has no receipt line in it, which is not worth turning
+   * into an error anybody sees.
+   */
+  async receipt(purchase: PurchaseLike): Promise<string | null> {
+    const stripe = getStripe();
+    const ref = purchase.providerRef ?? purchase.stripeIntent;
+    if (!stripe || !ref) return null;
+
+    try {
+      const intent = await stripe.paymentIntents.retrieve(ref, {
+        expand: ["latest_charge"],
+      });
+      const charge = intent.latest_charge;
+      /* Expanded it is the object; unexpanded, or on an intent with no charge
+         yet, it is a string or null and there is nothing to link to. */
+      if (!charge || typeof charge === "string") return null;
+      return charge.receipt_url ?? null;
+    } catch (err) {
+      console.error("[pay] could not read the Stripe receipt", err);
+      return null;
+    }
   },
 
   async settle(purchase: PurchaseLike): Promise<Settlement> {

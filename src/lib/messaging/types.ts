@@ -14,12 +14,36 @@
 
 export type Channel = "push" | "email" | "sms";
 
+/**
+ * A file travelling with an email.
+ *
+ * Only email carries these; a push notification and a text message have nowhere
+ * to put one, and ignore the field the same way email ignores `url`.
+ */
+export type Attachment = {
+  /** What it is called when it lands on somebody's desktop. */
+  filename: string;
+  content: Buffer;
+  /** e.g. "application/pdf". Guessed by nobody: say what it is. */
+  contentType: string;
+};
+
 /** One message, already in the recipient's language. */
 export type Outgoing = {
   subject: string;
   body: string;
   /** Where a push notification should open. Ignored by email and SMS. */
   url?: string;
+  /**
+   * Files to send with it. Email only.
+   *
+   * Here rather than as a fourth argument to `send` because every transport
+   * already receives this object and passes it whole — adding a parameter would
+   * have meant touching four adapters and every call site to thread through
+   * something three of them ignore. A transport that cannot attach a file
+   * simply does not read this, exactly as the SMS transports do not read `url`.
+   */
+  attachments?: Attachment[];
 };
 
 export type SendResult =

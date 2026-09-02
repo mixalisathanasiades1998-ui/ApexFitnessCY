@@ -311,6 +311,20 @@ function base64Lines(s: string) {
  * The message itself: the same words twice, once as text and once as the styled
  * version, so a mail client that refuses HTML still shows something a person can
  * read. Both parts are base64 so that Greek text arrives as Greek text.
+ *
+ * With a file attached the structure gains a layer, because MIME has no way to
+ * say "two alternatives and also a PDF" in one part. The whole alternative pair
+ * becomes the first part of a `multipart/mixed`, and the files follow it:
+ *
+ *   multipart/mixed
+ *     multipart/alternative      the text and the HTML, as before
+ *       text/plain
+ *       text/html
+ *     application/pdf            the invoice
+ *
+ * Getting that nesting wrong is what produces the mail everyone has received at
+ * some point: a message body that is a wall of base64, or an attachment the
+ * reader shows inline as gibberish.
  */
 export function buildMessage(args: {
   from: string;
@@ -319,34 +333,81 @@ export function buildMessage(args: {
   html: string;
   date?: Date;
 }) {
-  const boundary = `apex_${randomBytes(12).toString("hex")}`;
+  const alt = `apex_alt_${randomBytes(9).toString("hex")}`;
+  const mixed = `apex_mix_${randomBytes(9).toString("hex")}`;
   const domain = addressOf(args.from).split("@")[1] ?? "localhost";
   const id = `<${randomBytes(12).toString("hex")}@${domain}>`;
+  const files = args.msg.attachments ?? [];
 
-  return [
+  /* The body pair, which is the whole message when nothing is attached and the
+     first part of it when something is. */
+  const alternative = [
+    `--${alt}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(args.msg.body),
+    `--${alt}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(args.html),
+    `--${alt}--`,
+  ];
+
+  const headers = [
     `From: ${args.from}`,
     `To: ${args.to}`,
     `Subject: ${headerValue(args.msg.subject)}`,
     `Date: ${(args.date ?? new Date()).toUTCString().replace("GMT", "+0000")}`,
     `Message-ID: ${id}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ];
+
+  if (files.length === 0) {
+    return [
+      ...headers,
+      `Content-Type: multipart/alternative; boundary="${alt}"`,
+      "",
+      "This message needs a mail reader that understands MIME.",
+      "",
+      ...alternative,
+      "",
+    ].join("\r\n");
+  }
+
+  const parts: string[] = [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
     "",
     "This message needs a mail reader that understands MIME.",
     "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
+    `--${mixed}`,
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
     "",
-    base64Lines(args.msg.body),
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    base64Lines(args.html),
-    `--${boundary}--`,
-    "",
-  ].join("\r\n");
+    ...alternative,
+  ];
+
+  for (const f of files) {
+    parts.push(
+      `--${mixed}`,
+      `Content-Type: ${f.contentType}; name="${f.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      /* `attachment` rather than `inline`: an invoice belongs in the paperclip,
+         not rendered in the middle of the sentence about expiry dates. */
+      `Content-Disposition: attachment; filename="${f.filename}"`,
+      "",
+      base64Buffer(f.content),
+    );
+  }
+
+  parts.push(`--${mixed}--`, "");
+  return parts.join("\r\n");
+}
+
+/** The same 76-character wrapping, for bytes that were never a string. */
+function base64Buffer(b: Buffer) {
+  return (b.toString("base64").match(/.{1,76}/g) ?? []).join("\r\n");
 }
 
 /* ------------------------------------------------------------- the transport */
