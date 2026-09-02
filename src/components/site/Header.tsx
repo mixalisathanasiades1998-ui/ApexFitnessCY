@@ -39,7 +39,7 @@ export type HeaderUser = {
 const REFRESH_MS = 15_000;
 
 export function Header({ user }: { user: HeaderUser }) {
-  const { t } = useI18n();
+  const { t, fmtSessions } = useI18n();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -467,7 +467,7 @@ export function Header({ user }: { user: HeaderUser }) {
                     </span>
                   </span>
                   <span className="shrink-0 rounded-full bg-mocha-600 px-2.5 py-1 text-cream">
-                    {credits} {t.common.credits}
+                    {fmtSessions(credits)}
                   </span>
                 </Link>
                 <button

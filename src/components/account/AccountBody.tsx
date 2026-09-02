@@ -108,6 +108,7 @@ export function AccountBody(props: Props) {
     fmtMonthYear,
     fmtTime,
     fmtMoney,
+    fmtSessions,
   } = useI18n();
   const router = useRouter();
   const el = locale === "el";
@@ -410,11 +411,10 @@ export function AccountBody(props: Props) {
                   <p className="mt-6 text-[12px] text-cream/60">
                     {/* "1 sessions expires" was the plural of a count that is
                         very often exactly one, because an appointment session is
-                        bought singly. */}
-                    {props.wallet.nextExpiryCredits}{" "}
-                    {props.wallet.nextExpiryCredits === 1
-                      ? t.common.credit
-                      : t.common.credits}{" "}
+                        bought singly. Fixed here first, by hand, and then in the
+                        eight other places that had it wrong — which is why it is
+                        a helper now and not a ternary. */}
+                    {fmtSessions(props.wallet.nextExpiryCredits)}{" "}
                     {t.account.expiringOn}{" "}
                     {fmtFullDate(props.wallet.nextExpiry)}
                   </p>
@@ -688,7 +688,7 @@ export function AccountBody(props: Props) {
                           ? el
                             ? p.packageName.el
                             : p.packageName.en
-                          : `${p.credits} ${t.common.credits}`}
+                          : fmtSessions(p.credits)}
                         <span className="ml-3 text-[11px] text-clay">
                           {fmtDayMonth(p.createdAt)}
                         </span>

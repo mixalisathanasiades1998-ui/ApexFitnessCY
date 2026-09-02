@@ -47,7 +47,7 @@ export type HeroUser = {
  * critical path of every first visit, so it carries no animation library.
  */
 export function Hero({ user }: { user: HeroUser }) {
-  const { t } = useI18n();
+  const { t, fmtSessions } = useI18n();
 
   return (
     <section className="relative -mt-24 flex h-[100svh] min-h-[560px] flex-col overflow-hidden bg-mocha-800">
@@ -168,7 +168,7 @@ export function Hero({ user }: { user: HeroUser }) {
               {/* The number a returning member actually came to check, and the
                   header is not showing it here. */}
               <span className="text-[13px] text-cream/70 lining-nums tabular-nums">
-                {user.credits} {t.common.credits}
+                {fmtSessions(user.credits)}
               </span>
             </Link>
           ) : (

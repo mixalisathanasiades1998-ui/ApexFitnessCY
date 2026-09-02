@@ -46,7 +46,7 @@ export function PricingPanel({
   packs: Pack[];
   onNotice: (s: string) => void;
 }) {
-  const { t, locale, fmtMoney } = useI18n();
+  const { t, locale, fmtMoney, fmtSessions } = useI18n();
   const d = t.desk;
   const router = useRouter();
   /* Pack names in the language the desk is reading. */
@@ -229,7 +229,7 @@ export function PricingPanel({
                 <span className="text-[14px] text-mocha-600">
                   {name(p)}
                   <span className="ml-3 text-[12px] text-clay">
-                    {p.credits} {t.common.credits}
+                    {fmtSessions(p.credits)}
                   </span>
                   {own && (
                     <span className="ml-3 rounded-full bg-mocha-100 px-2 py-0.5 text-[10px] uppercase tracking-widest text-mocha-500">

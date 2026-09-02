@@ -93,8 +93,52 @@ Nothing to build. Twenty minutes, most of it waiting for their onboarding.
 5. When the business is verified, swap the test keys for the live ones. Nothing
    else changes.
 
-Apple Pay and Google Pay are a switch in the Stripe dashboard, not a code
-change — they appear in the same card panel once enabled.
+### Apple Pay and Google Pay
+
+Both are already in the code: the Payment Element is mounted with
+`wallets: { applePay: "auto", googlePay: "auto" }`, and `auto` means each one
+appears only where it can actually be used. Neither is a code change.
+
+**Google Pay** needs nothing beyond switching it on in the Stripe dashboard. It
+shows up in Chrome.
+
+**Apple Pay needs the domain registered**, because Apple will not let a site
+show the button until it has proved it owns the domain. This is one screen and
+no code:
+
+Stripe Dashboard → **Settings** → **Payments** → **Payment method domains** →
+**Add a new domain**. Enter the domain with no scheme and no path, for example
+`apexfitnesscentrecy.onrender.com`. It should come back **Enabled**.
+
+That is the whole job. Stripe does the Apple merchant validation itself —
+merchant ID, certificate signing request, the lot — and hosts whatever Apple
+needs. **Do not** follow Apple's own merchant-validation instructions, and do
+not go looking for a file to download and host: Stripe's documentation tells you
+not to, and the old `/.well-known/apple-developer-merchantid-domain-association`
+dance is only for hosts where Stripe cannot verify by itself. The path is left
+open in `src/middleware.ts` in case that day ever comes.
+
+Register every domain that shows the button, including subdomains — `www` counts
+as one — and remember that a sandbox registration is not a live one. Registering
+`onrender.com` today does not register the studio's own domain later.
+
+### Testing the wallets, which is where the confusion is
+
+**Apple Pay renders only in Safari**, on an Apple device, signed into iCloud,
+with a card in Wallet. **Google Pay renders in Chrome.** You will never see both
+in one browser, and neither appears in Chrome on Windows — which is where most
+of this gets tested, and why "Apple Pay is not working" is usually "Apple Pay is
+not being asked for".
+
+**Apple Pay is tested with a real card, not `4242 4242 4242 4242`.** Stripe test
+cards cannot be added to an Apple Wallet at all. With the sandbox keys in place,
+use a genuine card from your own Wallet: Stripe recognises that the keys are test
+keys, returns a successful test token, and the card is never charged. Confirm it
+in the sandbox dashboard, where the payment appears like any other.
+
+Stripe keeps a wallet test page at `docs.stripe.com/testing/wallets` that says
+which of the requirements your current browser fails, which settles the argument
+faster than guessing.
 
 ---
 

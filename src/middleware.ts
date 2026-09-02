@@ -52,6 +52,24 @@ const OPEN_PATHS = new Set([
      HTML page is how you get an unregistered worker and a console full of
      mime-type errors. */
   "/sw.js",
+  /**
+   * Apple's proof that this domain belongs to the studio.
+   *
+   * Normally nothing serves this and nothing needs to: registering the domain
+   * on Stripe's Payment method domains page makes Stripe do the whole Apple
+   * merchant validation, certificate and all, and no file is hosted here. Their
+   * documentation is blunt about it — do not follow Apple's own validation
+   * process.
+   *
+   * Left open anyway, for one reason. If the studio ever moves to a host or a
+   * setup where Stripe cannot verify on its own, the fix is to drop Stripe's
+   * association file into public/.well-known/ — and that file deliberately has
+   * no extension, so the static-file rule below would not match it and Apple's
+   * fetch, which carries no cookie, could be answered with a redirect instead
+   * of the file. That failure is invisible until the button silently stops
+   * appearing. One line here costs nothing and removes the trap in advance.
+   */
+  "/.well-known/apple-developer-merchantid-domain-association",
 ]);
 
 /** Static files by extension, in case the matcher below ever widens. */

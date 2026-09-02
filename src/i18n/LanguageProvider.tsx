@@ -39,6 +39,17 @@ type Ctx = {
   fmtWeekdayShort: (d: DateLike) => string;
   /** €200 / €22.50 */
   fmtMoney: (cents: number) => string;
+  /**
+   * "1 session" / "5 sessions", in either language.
+   *
+   * Exists because the plural was wrong in nine places and had been fixed by
+   * hand in one. A balance of exactly one session is not a rare edge case here:
+   * the Day pass *is* one session, appointments are bought singly, and a member
+   * who has used all but their last is looking at "1 sessions" on the header of
+   * every page. Greek needs the same treatment and gets it from the same
+   * dictionary, so neither language can drift from the other.
+   */
+  fmtSessions: (n: number) => string;
 };
 
 type DateLike = Date | string | number;
@@ -143,6 +154,8 @@ export function LanguageProvider({
          off the thousands separator in "€1,000.00". */
       fmtMoney: (cents) =>
         money.format(cents / 100).replace(/([.,])00(?!\d)/, ""),
+      fmtSessions: (n) =>
+        `${n} ${n === 1 ? dictionaries[locale].common.credit : dictionaries[locale].common.credits}`,
     };
   }, [locale, setLocale]);
 

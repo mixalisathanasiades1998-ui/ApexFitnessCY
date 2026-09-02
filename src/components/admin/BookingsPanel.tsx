@@ -60,7 +60,7 @@ type Appointment = {
 };
 
 export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
-  const { t, locale, fmtTime, fmtLongDate } = useI18n();
+  const { t, locale, fmtTime, fmtLongDate, fmtSessions } = useI18n();
   const d = t.desk;
   const el = locale === "el";
 
@@ -347,7 +347,7 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                         : "bg-red-50 text-red-700",
                     )}
                   >
-                    {m.credits} {t.common.credits}
+                    {fmtSessions(m.credits)}
                   </span>
                 </span>
                 <Button

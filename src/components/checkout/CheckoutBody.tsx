@@ -64,7 +64,7 @@ export function CheckoutBody({
   balance: number;
   payment: { id: string | null; label: string | null; configured: boolean };
 }) {
-  const { t, locale, fmtMoney } = useI18n();
+  const { t, locale, fmtMoney, fmtSessions } = useI18n();
   const c = t.checkoutPage;
   const el = locale === "el";
   const router = useRouter();
@@ -156,7 +156,7 @@ export function CheckoutBody({
                 <div>
                   <p className="font-display text-3xl text-mocha-600">{name}</p>
                   <p className="mt-2 text-[13px] text-clay">
-                    {pack.credits} {t.common.credits} ·{" "}
+                    {fmtSessions(pack.credits)} ·{" "}
                     {fmtMoney(Math.round(pack.priceCents / pack.credits))}{" "}
                     {c.perClassNote}
                   </p>
@@ -175,10 +175,10 @@ export function CheckoutBody({
                   k={c.validityLabel}
                   v={c.validityValue.replace("{n}", String(pack.validityDays))}
                 />
-                <Row k={c.balanceNow} v={`${balance} ${t.common.credits}`} />
+                <Row k={c.balanceNow} v={fmtSessions(balance)} />
                 <Row
                   k={c.afterPurchase}
-                  v={`${balance + pack.credits} ${t.common.credits}`}
+                  v={fmtSessions(balance + pack.credits)}
                   strong
                 />
               </dl>
