@@ -43,7 +43,9 @@
     "social": "tsx scripts/social.ts",
     "invoice:preview": "tsx scripts/invoice-preview.ts",
     "db:peek": "node scripts/db-peek.mjs",
-    "db:mirror": "node scripts/db-mirror.mjs"
+    "db:mirror": "node scripts/db-mirror.mjs",
+    "db:sql": "node scripts/db-sql.mjs",
+    "go-live": "tsx scripts/go-live.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.2",

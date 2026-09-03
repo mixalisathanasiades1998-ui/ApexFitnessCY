@@ -608,6 +608,43 @@ web service's Shell tab, not from your own machine.
 > `db-mirror.mjs` refuses to run when `DATABASE_URL` looks like a connection
 > string.
 
+### A SQL prompt: `npm run db:sql`
+
+```bash
+npm run db:sql                      # an interactive prompt
+npm run db:sql -- "select ..."      # one query and out
+```
+
+At the prompt, `\dt` lists the tables with row counts, `\d users` shows one
+table's columns, `\q` leaves, and a statement runs when it ends in `;` so a long
+join can be typed over several lines.
+
+This points at the **mirror**, not at the studio's database, and that is what
+makes it useful. `db:peek` is read-only and refuses anything that is not a
+`select`, which is correct for a tool aimed at live bookings and makes it a poor
+place to experiment. Here, anything is allowed on purpose:
+
+```
+sql> delete from bookings;
+  ✓ delete 902
+```
+
+The studio's SQLite file still has all 902. The mirror is disposable, so the cost
+of that mistake is one `npm run db:mirror`. A sandbox that punishes mistakes is
+not a sandbox.
+
+**It sets the session to the studio's timezone**, which matters more than it
+sounds. Postgres defaults a connection to UTC and Cyprus is two or three hours
+ahead, so left alone a 16:00 class in Larnaca prints as `13:00`, and
+`starts_at::date` cuts the day at midnight UTC rather than at midnight in
+Nicosia. The timezone is read out of `src/lib/studio.ts` rather than written
+twice. If you query the mirror from anywhere else — Render's dashboard, pgAdmin,
+`psql` — run this first, or dates will be an hour or two out:
+
+```sql
+set time zone 'Asia/Nicosia';
+```
+
 **Keeping it fresh.** It is deliberately manual: a mirror is for looking at, and
 a person looking at it can type one command first. If it should refresh on its
 own, the cheapest arrangement is a Render Cron Job in the same region running

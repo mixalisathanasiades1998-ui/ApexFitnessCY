@@ -55,7 +55,7 @@
  * this file exists. See `readModes()`.
  */
 import Database from "better-sqlite3";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -63,6 +63,18 @@ import pg from "pg";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
+
+/**
+ * The studio's timezone, read from the one place that already knows.
+ *
+ * Used to put the mirror database itself into studio time, so every client that
+ * connects to it reads class times as Larnaca reads them. See the ALTER
+ * DATABASE below for why that matters more than it looks.
+ */
+const STUDIO_TZ =
+  readFileSync(join(root, "src/lib/studio.ts"), "utf8").match(
+    /timezone:\s*"([^"]+)"/,
+  )?.[1] ?? "Asia/Nicosia";
 
 const dry = process.argv.includes("--dry");
 
@@ -137,6 +149,55 @@ if (!existsSync(source)) {
     `DATABASE_URL is ${process.env.DATABASE_URL ?? "(not set)"}`,
     "On Render this should be file:/var/data/apex.db, with the disk",
     "mounted at /var/data.",
+  );
+}
+
+/**
+ * Refuse to push a development database over the studio's mirror.
+ *
+ * This is the trap that opens the moment somebody puts the *external* Postgres
+ * URL in their own `.env` so they can query the mirror from a laptop, which is
+ * a perfectly sensible thing to want. The next `npm run db:mirror` typed on
+ * that laptop then does exactly what it is told: it copies `./dev.db` — three
+ * thousand invented members, a hundred thousand euro of imaginary takings —
+ * straight over the copy the studio is reading its real figures from.
+ *
+ * Nothing breaks. No error appears. The website is untouched, because the
+ * website has never read Postgres. The only symptom is that the numbers are now
+ * fiction, and they look exactly as plausible as the real ones did.
+ *
+ * The two ends are told apart by shape rather than by configuration: an
+ * external Render host is the public one (`*.render.com`), and a source on
+ * `/var/data` is the mounted disk, which only exists on the server. Local file
+ * plus public host is the mistake, and there is no legitimate reason to do it,
+ * so `--force` exists for the one case nobody has thought of yet and prints
+ * what it is doing.
+ */
+const targetIsHosted = /\.render\.com/.test(target);
+const sourceIsLive = source.startsWith("/var/data");
+
+if (targetIsHosted && !sourceIsLive && !process.argv.includes("--force")) {
+  die(
+    "this would copy a local database over the studio's mirror.",
+    `  source  ${c.bold(source)} ${c.dim("(a file on this machine)")}`,
+    `  target  ${c.bold("the hosted Postgres")} ${c.dim("(external Render host)")}`,
+    "",
+    "The mirror is meant to be filled from the live database, which lives on",
+    "Render's disk at /var/data/apex.db. Run this from the web service's",
+    "Shell tab instead, where it already points at the right file:",
+    "",
+    `    ${c.bold("npm run db:mirror")}`,
+    "",
+    "To read the mirror from here without overwriting it, query it:",
+    "",
+    `    ${c.bold('npm run db:sql -- "select count(*) from users"')}`,
+    "",
+    c.dim("(--force overrides this, and is almost certainly not what you want.)"),
+  );
+}
+if (targetIsHosted && !sourceIsLive) {
+  console.log(
+    `  ${c.yellow("--force")} ${c.dim("copying a local database over the hosted mirror")}\n`,
   );
 }
 
@@ -270,6 +331,31 @@ try {
    * they see the old copy until the moment they see the new one, and a failure
    * anywhere leaves the previous copy exactly as it was.
    */
+  /**
+   * Put the whole database into the studio's timezone, permanently.
+   *
+   * Postgres defaults a connection to UTC and Cyprus is two or three hours
+   * ahead, so every client that is not told otherwise reads the timetable
+   * wrong: a 16:00 class in Larnaca shows as 13:00. Worse, and invisible,
+   * `starts_at::date` and `date_trunc('day', ...)` cut the day at midnight UTC,
+   * so a query about the 1st of October quietly answers about a different day.
+   *
+   * `npm run db:sql` sets this per session, but that only helps the one tool.
+   * Set on the database itself, it reaches everything that ever connects —
+   * Render's dashboard, DBeaver, Navicat, pgAdmin, Excel — with nobody having
+   * to remember. New sessions pick it up; this one has already started, so
+   * `set time zone` below covers the rest of this run.
+   *
+   * Outside the transaction because ALTER DATABASE cannot run inside one.
+   */
+  if (!dry) {
+    const { rows } = await client.query("select current_database() as db");
+    await client.query(
+      `alter database "${rows[0].db}" set timezone to '${STUDIO_TZ}'`,
+    );
+    await client.query(`set time zone '${STUDIO_TZ}'`);
+  }
+
   if (!dry) await client.query("begin");
 
   for (const name of tables) {
