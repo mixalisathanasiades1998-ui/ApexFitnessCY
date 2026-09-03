@@ -547,6 +547,76 @@ written to is not a file worth copying: SQLite keeps recent writes in
 `apex.db-wal` beside it, so a half-copied pair is a database missing whatever
 happened last.
 
+### Browsing it in Render's dashboard: the Postgres mirror
+
+`db:peek` answers questions you already know how to ask. Clicking around a table
+looking for something odd is a different activity, and for that there is a
+one-way copy in Postgres:
+
+```bash
+npm run db:mirror              # rebuild the copy, about a second
+npm run db:mirror -- --dry     # say what it would do, write nothing
+```
+
+Then **Render dashboard → the Postgres service → Connect**, and every table is
+browsable and queryable with the full run of SQL.
+
+What it is:
+
+- **A photograph, not a second original.** Every run drops the mirrored tables
+  and rebuilds them. There is no delta logic, because a mirror that is clever
+  about deltas is one that will eventually be subtly wrong.
+- **One-way, always.** Nothing reads back from Postgres and nothing writes to
+  SQLite. The source is opened with SQLite's read-only flag. A mistyped `update`
+  in the dashboard cannot cost the studio a booking; it is simply gone on the
+  next run.
+- **Better typed than the original.** SQLite stores a date as an integer count of
+  seconds, which is why `db:peek` shows `1801674000` where a person wanted
+  `3 Feb 2027, 17:00`. Postgres has a real timestamp type, so the mirror converts
+  on the way in and dates read as dates. Booleans stop being `0` and `1` too.
+  Which columns are which is read out of `src/db/schema.ts` rather than guessed,
+  so a column added there arrives in the mirror correctly typed without anyone
+  remembering the script exists.
+- **All or nothing.** The whole rebuild is one transaction. Nobody opening the
+  dashboard mid-run sees a database that appears to have lost half the studio,
+  and a failure anywhere leaves the previous copy untouched.
+- `zz_mirror_info` holds one row saying when the copy was taken, so a member
+  count read off it on Thursday cannot silently be Monday's.
+
+Primary keys come across. Foreign keys, unique indexes and `NOT NULL` do not:
+they would force the tables to be built in dependency order, and a constraint
+tripping on a copy would stop the mirror over something that is not a problem in
+a photograph.
+
+**Setting it up.** One environment variable on the **web service** (not on the
+Postgres service):
+
+```
+MIRROR_DATABASE_URL = <the Postgres service's Internal Database URL>
+```
+
+The Internal URL only resolves from inside Render, so run `db:mirror` from the
+web service's Shell tab, not from your own machine.
+
+> **Do not put that URL in `DATABASE_URL`.** That variable is a *file path*, and
+> `src/db/index.ts` treats it as one. Handed `postgresql://…` it does not fail:
+> it creates a new empty SQLite database in a directory literally named
+> `postgresql:` and serves the studio from it, on the container's temporary
+> filesystem, while the real data sits untouched on the disk. The deploy goes
+> green and the site looks healthy, and every booking taken is deleted at the
+> next restart. This happened once, on 3 September 2026, and it is why
+> `db-mirror.mjs` refuses to run when `DATABASE_URL` looks like a connection
+> string.
+
+**Keeping it fresh.** It is deliberately manual: a mirror is for looking at, and
+a person looking at it can type one command first. If it should refresh on its
+own, the cheapest arrangement is a Render Cron Job in the same region running
+`npm run db:mirror` — but note that a cron job is its own instance with its own
+filesystem and *cannot see the web service's disk*, so it would have to be a
+second copy of the app with the disk attached, which is not worth it. The better
+answer, if this is wanted often, is a call to the mirror at the end of the
+nightly reminder sweep.
+
 ### Option A — paid service with a persistent disk, keep SQLite
 
 Almost no code change: point `DATABASE_URL` at a file on the mounted disk,

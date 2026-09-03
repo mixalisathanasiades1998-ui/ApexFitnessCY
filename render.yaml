@@ -49,8 +49,27 @@ services:
       sizeGB: 1
     envVars:
       # ---------------------------------------------------------------- basics
+      # A FILE PATH, not a connection string. `src/db/index.ts` strips `file:`
+      # and hands the rest to SQLite as a filename.
+      #
+      # Never put a postgresql:// URL here. It does not fail: SQLite creates a
+      # new empty database in a directory literally named `postgresql:` on the
+      # container's temporary filesystem and the site serves from that, looking
+      # perfectly healthy while the real data sits untouched on the disk and
+      # every new booking is deleted at the next restart. That happened on
+      # 3 September 2026. To browse the data in Postgres, use MIRROR_DATABASE_URL
+      # below and `npm run db:mirror`.
       - key: DATABASE_URL
         value: file:/var/data/apex.db
+      # Optional. The Postgres database `npm run db:mirror` copies the data into
+      # so it can be browsed in Render's dashboard, described in
+      # docs/database.md. Nothing about the website depends on it: unset, only
+      # the mirror script stops working. Set it by hand in the dashboard to the
+      # Postgres service's Internal Database URL, which is why it is commented
+      # out here rather than `sync: false` — a blueprint prompt for a variable
+      # most deploys do not need is a prompt people click past.
+      # - key: MIRROR_DATABASE_URL
+      #   sync: false
       - key: NODE_VERSION
         # Matches .node-version and the studio's own machine. better-sqlite3 is
         # a native module, and a matching Node major means a prebuilt binary

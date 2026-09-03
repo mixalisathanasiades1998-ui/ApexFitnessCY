@@ -42,7 +42,8 @@
     "manual": "node scripts/manual.mjs",
     "social": "tsx scripts/social.ts",
     "invoice:preview": "tsx scripts/invoice-preview.ts",
-    "db:peek": "node scripts/db-peek.mjs"
+    "db:peek": "node scripts/db-peek.mjs",
+    "db:mirror": "node scripts/db-mirror.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.2",
@@ -72,6 +73,7 @@
     "@types/web-push": "^3.6.4",
     "autoprefixer": "10.4.21",
     "drizzle-kit": "^0.30.5",
+    "pg": "^8.23.0",
     "postcss": "8.5.3",
     "tailwindcss": "3.4.17",
     "tsx": "4.19.3",
