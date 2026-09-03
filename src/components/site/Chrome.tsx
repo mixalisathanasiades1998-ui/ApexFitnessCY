@@ -28,8 +28,18 @@ export function Chrome({
 }) {
   const pathname = usePathname();
   const desk = pathname?.startsWith("/admin") ?? false;
+  /**
+   * The share card gets no shell either, for a related reason.
+   *
+   * `/link` is what sits behind one shared address — an Instagram bio, a QR
+   * code on the counter — and its whole job is five buttons. Putting the site's
+   * navigation above them adds five more things to press instead of the one
+   * thing the link was sent for, and it is the only page here that is designed
+   * to be seen out of context.
+   */
+  const bare = desk || (pathname?.startsWith("/link") ?? false);
 
-  if (desk) return <main>{children}</main>;
+  if (bare) return <main>{children}</main>;
 
   return (
     <>

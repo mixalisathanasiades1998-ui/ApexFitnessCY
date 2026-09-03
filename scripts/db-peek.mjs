@@ -32,10 +32,32 @@
  * probably while something is going wrong.
  */
 import Database from "better-sqlite3";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const file = (process.env.DATABASE_URL ?? "file:./dev.db").replace(/^file:/, "");
-const arg = process.argv.slice(2).join(" ").trim();
+
+/**
+ * `--csv` prints the result as comma-separated text instead of a table.
+ *
+ * Because Render's Shell has no way to download a file. The only route from a
+ * hosted shell to a spreadsheet on somebody's desk is the clipboard, and an
+ * aligned table full of box-drawing characters pastes into Excel as one column
+ * that then needs Text to Columns and a guess at the delimiter. CSV pastes as a
+ * spreadsheet.
+ *
+ * Dates are written as the studio's own clock rather than as the Unix seconds
+ * stored in the file, because a column of numbers like 1801674000 is not
+ * something anybody can analyse, and Excel will read `2026-10-28 10:00` as a
+ * date on its own.
+ */
+const wantsCsv = process.argv.includes("--csv");
+const arg = process.argv
+  .slice(2)
+  .filter((a) => a !== "--csv")
+  .join(" ")
+  .trim();
 
 const c = {
   dim: (s) => `\x1b[2m${s}\x1b[0m`,
@@ -62,8 +84,82 @@ function human(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * The columns holding whole Unix seconds, so `--csv` can write them as dates.
+ *
+ * Read out of `src/db/schema.ts`, which is the only place that knows: SQLite
+ * stores a date and a price as the same kind of integer, so the meaning is not
+ * in the file. Matching on the column name is safe because no name is a date in
+ * one table and a number in another.
+ */
+const TIMESTAMP_COLUMNS = (() => {
+  try {
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../src/db/schema.ts"),
+      "utf8",
+    );
+    return new Set(
+      [
+        ...src.matchAll(
+          /integer\(\s*"([a-z0-9_]+)"\s*,\s*\{\s*mode:\s*"timestamp"/g,
+        ),
+      ].map((m) => m[1]),
+    );
+  } catch {
+    return new Set();
+  }
+})();
+
+const studioTime = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Nicosia",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/** One row as a CSV line, quoted the way a spreadsheet expects. */
+function csvRow(values) {
+  return values
+    .map((v) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      /* A comma, a quote or a newline inside a field has to be quoted, and an
+         inner quote doubled. Member names and class notes contain all three. */
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    })
+    .join(",");
+}
+
+function csv(rows) {
+  if (rows.length === 0) {
+    console.error("  no rows");
+    return;
+  }
+  const cols = Object.keys(rows[0]);
+  /* Written to stdout with nothing else, so `> members.csv` gives a clean file
+     and a copy-paste gives clean text. Every message goes to stderr. */
+  console.log(csvRow(cols));
+  for (const r of rows) {
+    console.log(
+      csvRow(
+        cols.map((k) => {
+          const v = r[k];
+          if (v !== null && TIMESTAMP_COLUMNS.has(k) && Number.isFinite(Number(v))) {
+            return studioTime.format(new Date(Number(v) * 1000)).replace(",", "");
+          }
+          return v;
+        }),
+      ),
+    );
+  }
+}
+
 /** Prints rows as a plain aligned table, which is all a terminal needs. */
 function table(rows) {
+  if (wantsCsv) return csv(rows);
   if (rows.length === 0) {
     console.log(`  ${c.dim("no rows")}`);
     return;

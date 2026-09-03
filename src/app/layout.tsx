@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { Chrome } from "@/components/site/Chrome";
+import { ResumeHome } from "@/components/app/ResumeHome";
 import { Footer } from "@/components/site/Footer";
 import { Header, type HeaderUser } from "@/components/site/Header";
 import {
@@ -120,6 +121,9 @@ export default async function RootLayout({
       </head>
       <body className="min-h-dvh bg-cream">
         <LanguageProvider initialLocale={locale}>
+          {/* Reopening the installed app lands on the homepage rather than on
+              whatever screen it was suspended on. Renders nothing. */}
+          <ResumeHome />
           {/* The public bar and footer everywhere except the reception desk,
               which brings its own — see components/site/Chrome.tsx. */}
           <Chrome header={<Header user={headerUser} />} footer={<Footer />}>
