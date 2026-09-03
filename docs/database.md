@@ -22,6 +22,12 @@ Other ways in:
 - **Any SQLite viewer** opens `dev.db` directly. [DB Browser for SQLite](https://sqlitebrowser.org)
   is free and runs on Windows; TablePlus is nicer and paid. The whole database is
   one file — copy it and you have a backup.
+- `npm run db:peek` prints what is in there without opening anything: the file,
+  its size, every table with its row count, and the six numbers somebody
+  usually came for. `npm run db:peek -- users` shows one table's columns and
+  its newest rows; `npm run db:peek -- "select ..."` runs a read-only query.
+  Writes are refused at the driver *and* at the parser, because this is the tool
+  you reach for on a live database while something is going wrong.
 - `npm run diagnose:db` prints a health summary rather than the contents.
 - `npm run reminders` prints the reminder queue and which accounts have devices.
 - `npm run doctor` checks the whole setup: keys, providers, passwords, packs.
@@ -517,6 +523,29 @@ Three reasons, each fatal on its own:
   redeploy, restart and spin-down. Members, bookings and payments with it.
 - **A free Postgres database expires 30 days after creation** and is deleted 14
   days after that.
+
+### Looking at it once it is hosted
+
+Render's dashboard has a database browser, and it is **not for this**: it is for
+Render's own Postgres services. A SQLite file on a mounted disk is invisible to
+it, and `npm run db:studio` cannot help either — Drizzle Studio reads a file on
+the machine it runs on, so pointing it at a hosted studio opens an empty
+database sitting next to the repository.
+
+The way in is the service's **Shell** tab:
+
+```bash
+npm run db:peek                 # the file, the tables, the row counts
+npm run db:peek -- users        # one table
+npm run db:peek -- "select count(*) from bookings where status='CONFIRMED'"
+```
+
+To get a copy onto your own machine, where a graphical viewer can open it, take
+a **disk snapshot** (the service's Disk tab keeps one per day for at least seven
+days) rather than trying to move the file out through a shell. A file being
+written to is not a file worth copying: SQLite keeps recent writes in
+`apex.db-wal` beside it, so a half-copied pair is a database missing whatever
+happened last.
 
 ### Option A — paid service with a persistent disk, keep SQLite
 

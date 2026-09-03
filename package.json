@@ -41,7 +41,8 @@
     "test:account": "tsx scripts/test-account.ts",
     "manual": "node scripts/manual.mjs",
     "social": "tsx scripts/social.ts",
-    "invoice:preview": "tsx scripts/invoice-preview.ts"
+    "invoice:preview": "tsx scripts/invoice-preview.ts",
+    "db:peek": "node scripts/db-peek.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.2",

@@ -1614,6 +1614,84 @@ async function main() {
     }
   }
 
+  console.log("\n8m. No live credential is committed");
+  /**
+   * `.env.example` is a tracked file, and something real got into it.
+   *
+   * A live Render Postgres connection string — user, host, database and
+   * password — was pasted over the placeholder and pushed to a repository that
+   * was public at the time. Nothing failed, nothing warned, and the only actual
+   * remedy once it is in git history is rotating the password.
+   *
+   * So this is the guard. It is deliberately shaped as a test rather than as
+   * advice in a comment: the mistake takes two seconds to make, is invisible in
+   * a diff somebody is skimming, and the cost of it is a stranger with write
+   * access to the studio's members.
+   *
+   * It looks for shapes rather than for known strings. A placeholder is
+   * recognisable — it says `change-me`, or `xxx`, or `file:./dev.db` — and
+   * anything that is *not* recognisable in a field that should hold a secret is
+   * treated as real until somebody proves otherwise. Erring that way costs a
+   * developer one line in this list; erring the other way costs a password.
+   */
+  {
+    const { readFileSync, existsSync } = await import("node:fs");
+
+    check(".env.example is where it should be", existsSync(".env.example"));
+
+    const lines = readFileSync(".env.example", "utf8").split("\n");
+
+    /* Fields whose whole purpose is to hold something secret. */
+    const SECRET = /(SECRET|PASSWORD|PASS|TOKEN|API_KEY|PRIVATE_KEY|DATABASE_URL|_URL$)/;
+
+    /* What a deliberate placeholder looks like. */
+    const PLACEHOLDER =
+      /^$|change-?me|xxx|placeholder|example\.com|your-|<|\.\.\.|dev\.db|localhost|127\.0\.0\.1|mailto:|apexpilates\.cy|ergonsite\.com|Larnaca|^\d+$|^(true|false|log|smtp|stripe|smsto|eur|en|el)$/i;
+
+    /* Shapes that are a live credential wherever they appear. */
+    const LIVE = [
+      { name: "a database connection string with a password in it", re: /:\/\/[^:/@\s"]+:[^@\s"]+@/ },
+      { name: "a Stripe live key", re: /sk_live_|rk_live_/ },
+      { name: "a Stripe secret key", re: /sk_test_[A-Za-z0-9]{20,}/ },
+      { name: "a VAPID private key", re: /^[A-Za-z0-9_-]{40,}$/ },
+    ];
+
+    const offenders: string[] = [];
+    for (const [i, raw] of lines.entries()) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const at = line.indexOf("=");
+      if (at < 1) continue;
+
+      const key = line.slice(0, at).trim();
+      const value = line.slice(at + 1).trim().replace(/^["']|["']$/g, "");
+
+      if (PLACEHOLDER.test(value)) continue;
+
+      for (const shape of LIVE) {
+        if (shape.re.test(value)) {
+          offenders.push(`line ${i + 1}: ${key} looks like ${shape.name}`);
+          break;
+        }
+      }
+    }
+
+    check(
+      "no line in .env.example holds a live credential",
+      offenders.length === 0,
+      offenders,
+    );
+
+    /* And the one that actually happened, named, so the regression is obvious
+       rather than buried in a list. */
+    const dbLine = lines.find((l) => l.trim().startsWith("DATABASE_URL="));
+    check(
+      "DATABASE_URL in .env.example is the local SQLite placeholder",
+      Boolean(dbLine && /file:\.\/dev\.db/.test(dbLine)),
+      dbLine,
+    );
+  }
+
   console.log("\n9. Ledger integrity");
   const ledgerSum =
     db
