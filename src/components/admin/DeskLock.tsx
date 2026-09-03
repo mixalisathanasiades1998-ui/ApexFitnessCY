@@ -15,7 +15,7 @@ import { useI18n } from "@/i18n/LanguageProvider";
  * Typing /admin is the whole journey: the credentials are asked for right here
  * rather than bouncing through the member sign-in page and back. Two shapes of
  * the same screen — email and password for somebody arriving cold, password
- * alone for staff already signed in whose 45-minute unlock has lapsed. The
+ * alone for staff already signed in whose 15-minute idle window has lapsed. The
  * second shape always offers a way out to the first, because the person sitting
  * down is not always the person who stood up.
  *
@@ -45,7 +45,8 @@ export function DeskLock({ name }: { name?: string }) {
   /**
    * "That is not me."
    *
-   * Two people share this machine. When the desk locks itself after 45 minutes
+   * Two people share this machine. When the desk locks itself after fifteen
+   * idle minutes
    * the browser still remembers whoever signed in last, so a password-only
    * screen quietly insists that the person in front of it is that same person.
    * Often they are not — reception went home and the owner sat down. Ending the

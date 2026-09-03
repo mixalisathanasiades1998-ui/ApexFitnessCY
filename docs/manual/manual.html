@@ -252,8 +252,9 @@
     </tr>
   </table>
 
-  <h3>The 45-minute lock</h3>
-  <p>The desk asks for the password again after 45 minutes of the console being open, even though you are still signed in. That is deliberate: this console can change balances, cancel classes and reset passwords, so an unattended counter should not stay open all afternoon.</p>
+  <h3>The 15-minute idle lock</h3>
+  <p>The desk asks for the password again after <strong>15 minutes of nobody touching it</strong>, even though you are still signed in. That is deliberate: this console can change balances, cancel classes and reset passwords, so an unattended counter in a public room should not stay open.</p>
+  <p><strong>Idle, not elapsed.</strong> Every action &mdash; a search, a booking, a sale &mdash; starts the fifteen minutes again, so working through a queue is never interrupted. It used to be a flat 45 minutes from when you typed the password, which managed to be both more annoying and less safe: it shut on you mid-queue, and it left an abandoned counter open for up to three quarters of an hour.</p>
   <p>When it lapses you are asked for the <strong>password only</strong>, so you do not have to type the email again.</p>
 
   <h3>Signing out</h3>
@@ -412,6 +413,56 @@
     <tr><td>They are told</td><td>The same confirmation they would have got, with the date, the time and the cancellation deadline. They agreed on the phone, but nobody remembers the details by Tuesday</td></tr>
     <tr><td>It is on the record</td><td>The ledger names you as the person who booked it</td></tr>
   </table>
+
+  <h3>Booking them a whole term</h3>
+  <p>Under the search box is <strong>How many weeks</strong>: <span class="btn">Just this one</span>, <span class="btn">4 weeks</span>, <span class="btn">8 weeks</span>, <span class="btn">12 weeks</span>. Pick one and the button changes to <span class="btn">Book 8 weeks</span>. It books the <strong>same class, same weekday, same hour</strong> for that many weeks in one press.</p>
+  <p>This is the call that used to take twelve. A member on a three-month pack who trains Mondays and Thursdays is two presses now instead of twenty-four, and they are the ones most likely to ask for it &mdash; the people who telephone rather than use the website are exactly the people who want a fixed slot for a term.</p>
+  <table class="wide">
+    <tr><th>What happens</th><th>Detail</th></tr>
+    <tr><td>You get a sentence to read back</td><td>Say it down the telephone as it appears. It names the reason, not just the dates, because the reason is usually a sale: <em>"6 of 8 weeks booked &middot; their sessions expire before 5 Oct and 12 Oct (they reach 3 Oct), so sell them a pack and book those weeks"</em></td></tr>
+    <tr><td>Full weeks are skipped, not refused</td><td>One week being full does not throw the other seven away. Those seven are real bookings</td></tr>
+    <tr><td>One session per class</td><td>Not one per press. A member with four sessions left gets four weeks and you are told about the rest &mdash; which is the moment to sell them a pack</td></tr>
+    <tr><td>Pressing twice is safe</td><td>The weeks they already hold come back as <em>already booked</em>. Nobody ends up with two places in one class and nothing is spent twice</td></tr>
+    <tr><td>They are told once</td><td>One notification about the first class, not twelve. All of them are in their account, and you are reading the summary to them anyway</td></tr>
+    <tr><td>Every class gets its reminder</td><td>Each booking is queued for that member's own lead time before <em>its own</em> class</td></tr>
+  </table>
+
+  <h4>The three reasons a run comes back short</h4>
+  <p>All three are normal, none of them is a fault, and the console names which one it is. The member's own screen says the same things about themselves.</p>
+  <table class="wide">
+    <tr><th>What you will see</th><th>What is actually going on</th><th>What to do</th></tr>
+    <tr>
+      <td><em>their sessions expire before 5 Oct and 12 Oct (they reach 3 Oct)</em></td>
+      <td>They have <strong>enough sessions but not enough time</strong>. A 12-session pack bought on a 30-day validity cannot reach week five, however many sessions are left in it. Four weeks get booked and eight sessions sit unspent</td>
+      <td>Sell them a pack with a longer validity and book the rest. This is the one that looks most like a bug and is the most reliable sale on the list</td>
+    </tr>
+    <tr>
+      <td><em>nothing in their balance can pay for 26 Oct</em></td>
+      <td>They have <strong>run out</strong>. Seven sessions books seven weeks and the eighth is refused. Their balance is zero, never negative</td>
+      <td>Sell them a pack and press it again. The seven already booked stay booked</td>
+    </tr>
+    <tr>
+      <td>Nothing, but the count says <em>1 already booked</em></td>
+      <td>They had <strong>already booked one of those weeks</strong>, from the website or from an earlier call. It is not a failure and it is not counted as one</td>
+      <td>Nothing. They have one place in that class and one session was spent on it, not two</td>
+    </tr>
+    <tr>
+      <td><em>21 Sept already full</em></td>
+      <td>Five reformers is five reformers</td>
+      <td>Nothing for that week. Offer them another hour on the same day</td>
+    </tr>
+  </table>
+  <p>Where a run hits more than one of these, each reason is its own phrase and the fixable ones come first, so the sale is the first thing you read.</p>
+
+  <div class="note">
+    <span class="label">Personal and Duet hours cannot be booked as a run</span>
+    <p>The week chips are not offered on a midday appointment, and that is deliberate rather than missing. Each of those hours commits somebody to come in and teach it, arranged by hand the day before. Twelve booked in one press would be twelve instructor hours promised without anybody here seeing it happen. Those stay one at a time &mdash; which means through you, deliberately.</p>
+  </div>
+
+  <div class="note">
+    <span class="label">A booking made here now gets a reminder. It did not before</span>
+    <p>Worth knowing because it was a real gap: a member who booked on the website got the reminder before their class, and a member you booked over the telephone got nothing at all. The people most likely to need reminding were the only ones not being reminded, and nobody would have found out until somebody missed a class you had put them in. Both paths now queue it.</p>
+  </div>
 
   <div class="warn">
     <span class="label">A member with no sessions is refused, and that is deliberate</span>
@@ -602,7 +653,7 @@
   <div class="note">
     <span class="label">The timetable now keeps itself full</span>
     <p>The website shows members the next <strong>90 days</strong>, because the studio sells three-month packs and somebody who has paid for twelve weeks should not be looking at a timetable that ends before their sessions do.</p>
-    <p>That is more than the rota used to be written out for, so it no longer waits for anybody to press this button: the same scheduled job that sends the reminders checks the far end of the timetable and fills it back to 90 days whenever it has drifted more than a fortnight short. In practice it fires once every couple of weeks and does nothing the rest of the time.</p>
+    <p>The window moves with the calendar: today it ends on 1 December, tomorrow on the 2nd, and so on. That is more than the rota used to be written out for, so it no longer waits for anybody to press this button &mdash; <strong>once a day</strong>, the same scheduled job that sends the reminders writes out whatever day has just come into range. Opening the timetable does the same, so it stays level even if nobody has set the scheduled job up.</p>
     <p>The button is still here and still worth knowing. It is what you use after <strong>changing the weekly templates</strong> — a new class, a moved hour — because the automatic top-up only adds the days that are missing from the end, not the classes you have just invented in the middle.</p>
   </div>
 
@@ -874,7 +925,7 @@
     </tr>
     <tr>
       <td>Asked for the password again</td>
-      <td>The 45-minute lock lapsed. Normal. Only the password is needed</td>
+      <td>The idle lock lapsed after 15 minutes of nobody touching the console. Normal. Only the password is needed</td>
     </tr>
     <tr>
       <td>A channel says "not connected yet"</td>
@@ -941,7 +992,8 @@
   </table>
 
   <h3>Το κλείδωμα των 45 λεπτών</h3>
-  <p>Η υποδοχή ζητά ξανά τον κωδικό μετά από 45 λεπτά, ακόμη κι αν είσαι ήδη συνδεδεμένος. Είναι σκόπιμο: από εδώ αλλάζουν υπόλοιπα, ακυρώνονται μαθήματα και μηδενίζονται κωδικοί, οπότε ένας αφύλακτος πάγκος δεν πρέπει να μένει ανοιχτός όλο το απόγευμα.</p>
+  <p>Η υποδοχή ζητά ξανά τον κωδικό μετά από <strong>15 λεπτά αδράνειας</strong>, ακόμη κι αν είσαι ήδη συνδεδεμένος. Είναι σκόπιμο: από εδώ αλλάζουν υπόλοιπα, ακυρώνονται μαθήματα και μηδενίζονται κωδικοί, οπότε ένας αφύλακτος πάγκος δεν πρέπει να μένει ανοιχτός.</p>
+  <p><strong>Αδράνεια, όχι συνολικός χρόνος.</strong> Κάθε ενέργεια &mdash; μια αναζήτηση, μια κράτηση, μια πώληση &mdash; ξεκινά ξανά τα δεκαπέντε λεπτά, οπότε δεν διακόπτεσαι όσο εξυπηρετείς κόσμο.</p>
   <p>Όταν λήξει, ζητείται <strong>μόνο ο κωδικός</strong>, οπότε δεν χρειάζεται να ξαναγράψεις το email.</p>
 
   <h3>Αποσύνδεση</h3>

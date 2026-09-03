@@ -20,6 +20,8 @@ import { deviceCount } from "@/lib/messaging/push";
 import { toE164 } from "@/lib/messaging/sms";
 import { getCreditSummary, grantCredits, refundOneCredit } from "@/lib/credits";
 import { bookClass } from "@/lib/booking";
+import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
+import { scheduleReminder } from "@/lib/reminders";
 import {
   notifyBooked,
   notifyInstructorChanged,
@@ -750,6 +752,26 @@ export async function bookForMember(args: {
    */
   void notifyBooked(result.bookingId).catch(() => {});
 
+  /**
+   * And the reminder, which a desk booking was not getting at all.
+   *
+   * A member booking themselves gets one queued by the booking route; a member
+   * booked over the telephone got nothing, so the people most likely to need
+   * reminding — the ones who ring up rather than use the site — were the only
+   * ones not reminded. Nobody would have noticed until somebody missed a class
+   * they had been booked into by somebody else.
+   *
+   * Here rather than in the route, so the single booking and the term booking
+   * both get it from one place. Never allowed to throw: a reminder that will not
+   * queue must not cost somebody their class.
+   */
+  try {
+    scheduleReminder(result.bookingId);
+  } catch {
+    /* Logged nowhere on purpose — the booking is what matters, and the sweep
+       will not miss a row it never had. */
+  }
+
   /* Who did it, in the ledger, next to the session it spent. The spend line is
      already there from `bookClass`; this names the hand that made it, which is
      the difference between "a session was used" and "reception booked them in
@@ -769,6 +791,141 @@ export async function bookForMember(args: {
     ok: true,
     bookingId: result.bookingId,
     guestName: result.guestName,
+    balance: (await getCreditSummary(userId)).available,
+  };
+}
+
+/* --------------------------------------------- a term of the same slot, at the desk */
+
+export type DeskRepeatResult =
+  | {
+      ok: true;
+      /** Weeks taken by this call. */
+      booked: number;
+      /** Weeks the member already held. Not a failure. */
+      alreadyHad: number;
+      /**
+       * Weeks that could not be booked, each with its date, its reason, and —
+       * where the reason is an expiry — the last date the member's sessions
+       * reach. Reception has to explain the refusal down the telephone, and
+       * "could not book the 5th" is not an explanation.
+       */
+      failed: { startsAt: string; code?: string; until?: string }[];
+      /** How many weeks were considered, so the desk can say "6 of 8". */
+      asked: number;
+      balance: number;
+    }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "EMAIL_UNVERIFIED"
+        | "SESSION_NOT_FOUND"
+        | "NOT_REPEATABLE"
+        | "BAD_WEEKS";
+    };
+
+/**
+ * "Can you put me in every Monday until Christmas?"
+ *
+ * The member's own screen has had this since the three-month packs went on sale,
+ * and the desk asked for the same thing within a day of seeing it — which is
+ * exactly right: the people who ring up rather than use the site are the ones
+ * most likely to want a fixed slot for a term, and reception was doing it twelve
+ * clicks at a time.
+ *
+ * Deliberately thin. Everything about *what may be booked* lives in
+ * `repeatWeekly`, which is the same function the member's own screen calls, so
+ * the desk cannot accidentally get a different answer from the website about the
+ * same class. What this adds is the three things that are the desk's alone: the
+ * member has to exist and be confirmed, every booking gets a ledger line naming
+ * the receptionist who took the call, and the member is told once rather than
+ * twelve times.
+ *
+ * The rules it does *not* override are the ones that would cost the studio
+ * money: no sessions, no booking. See `bookForMember` for why that is not
+ * negotiable, and note that it applies to all twelve weeks here — a member with
+ * four sessions left gets four weeks and is told about the other eight, which is
+ * a far more useful answer at a counter than a flat refusal.
+ */
+export async function repeatForMember(args: {
+  sessionId: string;
+  userId: string;
+  weeks: number;
+  staffName: string;
+  now?: Date;
+}): Promise<DeskRepeatResult> {
+  const { sessionId, userId, weeks, staffName, now } = args;
+
+  const member = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!member) return { ok: false, code: "NOT_FOUND" };
+  /* The same rule as a single desk booking: an unconfirmed address cannot hold
+     a seat, and the desk can confirm one in half a minute while the member is
+     still on the telephone. */
+  if (!isVerified(member)) return { ok: false, code: "EMAIL_UNVERIFIED" };
+
+  if (!Number.isInteger(weeks) || weeks < 2 || weeks > MAX_REPEAT_WEEKS) {
+    return { ok: false, code: "BAD_WEEKS" };
+  }
+
+  const run = repeatWeekly({ userId, sessionId, weeks, ...(now ? { now } : {}) });
+  if (!run.ok) return { ok: false, code: run.code };
+
+  /**
+   * A ledger line per booking, naming who took the call.
+   *
+   * One per week rather than one for the run. The ledger is read one member at a
+   * time to answer "where did this session go", and a single line covering
+   * twelve of them would be a line that cannot be matched to any of the classes
+   * it paid for.
+   */
+  for (const o of run.outcomes) {
+    if (!o.ok || !o.bookingId) continue;
+    db.insert(creditLedger)
+      .values({
+        userId,
+        delta: 0,
+        reason: "ADMIN_GRANT",
+        note: `Booked at the desk by ${staffName}, ${weeks}-week run`,
+        batchId: o.creditBatchId ?? null,
+        bookingId: o.bookingId,
+      })
+      .run();
+  }
+
+  /* The reminders, one per class. Each is queued at the member's own lead time
+     against its own class, which is the whole point of doing this per booking
+     rather than per run. */
+  for (const id of run.bookingIds) {
+    try {
+      scheduleReminder(id);
+    } catch {
+      /* A reminder that will not queue must not cost somebody their class. */
+    }
+  }
+
+  /**
+   * Told once, about the first class.
+   *
+   * Twelve notifications for one telephone call is a phone buzzing in somebody's
+   * hand while they are still talking to reception, and it is how a member
+   * learns to turn notifications off. The other eleven bookings are all in their
+   * account, and the desk is reading the summary back to them anyway.
+   */
+  if (run.firstBookingId) {
+    void notifyBooked(run.firstBookingId).catch(() => {});
+  }
+
+  return {
+    ok: true,
+    booked: run.booked,
+    alreadyHad: run.alreadyHad,
+    failed: run.failed.map((f) => ({
+      startsAt: f.startsAt,
+      code: f.code,
+      until: f.until,
+    })),
+    asked: run.outcomes.length,
     balance: (await getCreditSummary(userId)).available,
   };
 }

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * /admin is a door of its own. Nobody is bounced to the member sign-in page and
  * back: whoever arrives is asked for a staff email and password right here, and
  * that one form both signs them in and unlocks the desk. Staff already signed
- * in whose 45-minute unlock has lapsed are asked for the password alone.
+ * in whose 15-minute idle window has lapsed are asked for the password alone.
  *
  * Until the door is open this page loads *nothing* — no member list, no
  * takings, no phone numbers. That is the point: a locked console that has

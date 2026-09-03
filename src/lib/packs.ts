@@ -227,7 +227,9 @@ export const PACKS = [
   {
     slug: "duet",
     nameEn: "Duet · for two",
-    nameEl: "Duet · για δύο",
+    /* The product's Greek name, swept with the rest of the Greek copy. The
+       English one stays "Duet" — it is the word the studio uses out loud. */
+    nameEl: "Δυάδα · για δύο",
     /* One session, two people. Not two credits: two would let it be split
        across two solo appointments, which is not what €45 bought. */
     credits: 1,

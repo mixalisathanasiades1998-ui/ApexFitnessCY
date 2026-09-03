@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { DateField, dayKey } from "@/components/ui/DateField";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { repeatWhy } from "@/lib/repeat-why";
 import { cn } from "@/lib/utils";
 
 /**
@@ -60,9 +61,25 @@ type Appointment = {
 };
 
 export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
-  const { t, locale, fmtTime, fmtLongDate, fmtSessions } = useI18n();
+  const { t, locale, fmtTime, fmtLongDate, fmtDayMonth, fmtSessions } =
+    useI18n();
   const d = t.desk;
   const el = locale === "el";
+
+  /* "5, 12 and 19 Oct", joined the way the reader's own language joins a list.
+     Reception reads this aloud, so a bare comma-separated run of dates is the
+     one thing it must not be. */
+  const joinDates = (() => {
+    try {
+      const lf = new Intl.ListFormat(el ? "el" : "en-GB", {
+        style: "long",
+        type: "conjunction",
+      });
+      return (parts: string[]) => lf.format(parts);
+    } catch {
+      return (parts: string[]) => parts.join(", ");
+    }
+  })();
 
   /* "Tuesday 2 September, 12:00" in one string. The appointment list spans
      three weeks, so a bare time would be ambiguous on every row of it. */
@@ -216,6 +233,16 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
     const [looking, setLooking] = useState(false);
     const [guest, setGuest] = useState("");
     const [sending, setSending] = useState<string | null>(null);
+    /**
+     * How many weeks of the same slot to take, defaulting to one.
+     *
+     * Reception's usual job is one class over the telephone, so one is the
+     * default and the week chips are a second row rather than a question in the
+     * way. Not offered for an appointment: every Personal hour commits somebody
+     * to come in and teach it, and twelve booked in one press is twelve
+     * instructor hours promised without anybody seeing it happen.
+     */
+    const [weeks, setWeeks] = useState(1);
 
     /* Searched on demand rather than as they type. The membership is small and
        the desk is on the telephone: a button they press when they have finished
@@ -253,22 +280,82 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
             sessionId,
             userId,
             guestName: personal && guest.trim() ? guest.trim() : null,
+            /* Only sent when it means something, so a single booking takes the
+               exact path it always took. */
+            ...(weeks > 1 ? { weeks } : {}),
           }),
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (data.ok) {
-          onNotice(`${name}: ${d.deskBooked}`);
-          setOpen(false);
-          setQ("");
-          setHits([]);
-          setGuest("");
-          await load(day);
-        } else {
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          booked?: number;
+          alreadyHad?: number;
+          asked?: number;
+          failed?: { startsAt: string; code?: string; until?: string }[];
+        };
+
+        if (!data.ok) {
           /* The code, said as a sentence. "No sessions left" and "that class is
              full" send the person at the desk in completely different
              directions, so a single "could not book" would be useless. */
           onNotice(`${name}: ${d.deskBookErrors[data.error ?? ""] ?? data.error}`);
+          setSending(null);
+          return;
         }
+
+        /**
+         * What to read back down the telephone.
+         *
+         * A term booking is very often partial — one week full, two already
+         * theirs — and the useful sentence names the dates rather than saying
+         * "done". Reception is talking to the member while this appears, so it
+         * has to be a sentence and not a tick.
+         */
+        if (weeks > 1) {
+          const booked = data.booked ?? 0;
+          const already = data.alreadyHad ?? 0;
+          const failed = data.failed ?? [];
+          const parts = [
+            failed.length === 0 && already === 0
+              ? d.deskRepeatDone.replace("{n}", String(booked))
+              : d.deskRepeatSome
+                  .replace("{n}", String(booked))
+                  .replace("{total}", String(data.asked ?? weeks)),
+            already > 0
+              ? d.deskRepeatAlready.replace("{n}", String(already))
+              : "",
+            /**
+             * And why, grouped by reason, in reception's own voice.
+             *
+             * This is the sentence read down the telephone, so it has to carry
+             * the reason and what to do about it: "their sessions expire before
+             * the 5th and the 12th (they reach the 3rd) — sell them a pack and
+             * book those weeks" is a sale. "Could not book the 5th and the
+             * 12th" is a shrug.
+             */
+            ...repeatWhy(
+              failed,
+              {
+                expire: d.deskRepeatWhyExpire,
+                noCredits: d.deskRepeatWhyNoCredits,
+                full: d.deskRepeatWhyFull,
+                closed: d.deskRepeatWhyClosed,
+                other: d.deskRepeatWhyOther,
+              },
+              { date: (x) => fmtDayMonth(x), list: joinDates },
+            ),
+          ].filter(Boolean);
+          onNotice(`${name}: ${parts.join(" · ")}`);
+        } else {
+          onNotice(`${name}: ${d.deskBooked}`);
+        }
+
+        setOpen(false);
+        setQ("");
+        setHits([]);
+        setGuest("");
+        setWeeks(1);
+        await load(day);
       } catch {
         onNotice(d.deskBookErrors.FAILED);
       }
@@ -323,6 +410,52 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
           />
         )}
 
+        {/**
+          * A term of the same slot, for the member who rings up asking for it.
+          *
+          * The member's own screen has had this since the three-month packs
+          * went on sale, and the people who telephone rather than use the site
+          * are the ones most likely to want a fixed slot for a term — so
+          * reception was doing it twelve clicks at a time.
+          *
+          * Group classes only, and not a limitation to be lifted: every
+          * Personal or Duet hour commits somebody to come in and teach it,
+          * arranged by hand the day before, so twelve in one press is twelve
+          * instructor hours promised without anybody at the desk seeing it.
+          */}
+        {!personal && (
+          <div className="mt-3 rounded-xl border border-mocha-200/70 bg-cream-200/40 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-clay">
+              {d.deskRepeatLabel}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[1, 4, 8, 12].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setWeeks(w)}
+                  aria-pressed={weeks === w}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-[11px] transition-colors",
+                    weeks === w
+                      ? "border-mocha-600 bg-mocha-600 text-cream"
+                      : "border-mocha-200 text-mocha-600 hover:border-mocha-400",
+                  )}
+                >
+                  {w === 1
+                    ? d.deskRepeatOne
+                    : d.deskRepeatWeeks.replace("{n}", String(w))}
+                </button>
+              ))}
+            </div>
+            {weeks > 1 && (
+              <p className="mt-2 text-[10px] leading-snug text-clay">
+                {d.deskRepeatHint}
+              </p>
+            )}
+          </div>
+        )}
+
         {hits.length > 0 && (
           <ul className="mt-3 divide-y divide-mocha-200/70">
             {hits.map((m) => (
@@ -355,7 +488,11 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                   disabled={sending === m.id}
                   onClick={() => void book(m.id, m.name)}
                 >
-                  {sending === m.id ? t.common.loading : d.deskBookAdd}
+                  {sending === m.id
+                    ? t.common.loading
+                    : weeks > 1
+                      ? d.deskRepeatAdd.replace("{n}", String(weeks))
+                      : d.deskBookAdd}
                 </Button>
               </li>
             ))}

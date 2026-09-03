@@ -31,13 +31,21 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "APEX pilates",
     description: dictionaries.en.meta.description,
     /**
-     * Where the icon opens.
+     * Where the icon opens: the front door, like any other way in.
      *
-     * The timetable, not the home page: somebody who has put this on their
-     * Home Screen is a member, and a member opens it to book a class. The home
-     * page is for people arriving from a search engine.
+     * This pointed at the timetable for a while, on the reasoning that somebody
+     * who has installed the app is a member and a member wants to book. The
+     * studio's answer was that it reads as broken — you tap the studio's icon
+     * and land in the middle of the site with no way of telling you are on the
+     * same website you were shown. An installed app that starts somewhere
+     * different from the site it installed from is a small mystery nobody
+     * asked for.
+     *
+     * There is no cost to it now, either: the home page used to open with a
+     * logo animation, and starting there meant watching it. That is gone.
+     * Booking is one tap from here.
      */
-    start_url: "/timetable",
+    start_url: "/",
     scope: "/",
     /**
      * The line that makes push possible on iOS. Also what removes the Safari

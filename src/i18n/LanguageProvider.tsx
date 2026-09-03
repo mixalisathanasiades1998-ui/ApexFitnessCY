@@ -33,6 +33,8 @@ type Ctx = {
   fmtFullDate: (d: DateLike) => string;
   /** Aug 2026 */
   fmtMonthYear: (d: DateLike) => string;
+  /** Aug — the month on its own, for the timetable's day chips. */
+  fmtMonthShort: (d: DateLike) => string;
   /** 24 */
   fmtDayNumber: (d: DateLike) => string;
   /** Mon */
@@ -146,6 +148,7 @@ export function LanguageProvider({
       fmtDayMonth: (d) => `${dayNumber(d)} ${clean(monthShort(d))}`,
       fmtFullDate: (d) => `${dayNumber(d)} ${monthLong(d)} ${year(d)}`,
       fmtMonthYear: (d) => `${clean(monthShort(d))} ${year(d)}`,
+      fmtMonthShort: (d) => clean(monthShort(d)),
       fmtDayNumber: (d) => dayNumber(d),
       fmtWeekdayShort: (d) => clean(weekdayShort(d)),
       /* "€15.00" becomes "€15", "€12.50" stays. Not anchored to the end of the

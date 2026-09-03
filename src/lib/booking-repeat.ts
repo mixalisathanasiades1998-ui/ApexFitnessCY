@@ -61,6 +61,27 @@ export type RepeatOutcome = {
   ok: boolean;
   /** Why not, when not. Absent on success. */
   code?: BookingResultCode;
+  /** Set on success, for a caller that has bookkeeping of its own to do. */
+  bookingId?: string;
+  /**
+   * Which package paid for it. Only the desk needs this, and it needs it to
+   * write the ledger line that names the receptionist who took the call — see
+   * `repeatForMember`. Surfaced here rather than looked up afterwards because
+   * `bookClass` already knows and a second query per week to re-derive it would
+   * be twelve queries to learn what twelve returns already told us.
+   */
+  creditBatchId?: string | null;
+  /**
+   * The last class date their sessions reach. Only on SESSIONS_EXPIRE_FIRST.
+   *
+   * This is the one refusal a member cannot act on without a date. "Four of
+   * your eight weeks could not be booked" to somebody who can see eight
+   * sessions sitting in their balance reads as a fault in the website, and the
+   * true answer — the pack runs out on the 3rd of October — is both the reason
+   * and the thing to do about it. Carried per week rather than once, because
+   * different weeks could in principle be refused by different batches.
+   */
+  until?: string;
 };
 
 export type RepeatResult =
@@ -161,7 +182,12 @@ export function repeatWeekly(args: {
       sessionId: c.id,
       startsAt: c.startsAt.toISOString(),
       ok: res.ok,
-      ...(res.ok ? {} : { code: res.code }),
+      ...(res.ok
+        ? { bookingId: res.bookingId, creditBatchId: res.creditBatchId }
+        : {
+            code: res.code,
+            ...(res.until ? { until: res.until.toISOString() } : {}),
+          }),
     };
     outcomes.push(entry);
 

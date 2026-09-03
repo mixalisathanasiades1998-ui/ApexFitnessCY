@@ -250,8 +250,10 @@ give no way of ever knowing which 38, or why.
 ## What is behind the lock
 
 The console asks for a password again even though you are already signed in,
-because it can change balances, cancel classes and reset passwords. That unlock
-lasts 45 minutes and then asks again.
+because it can change balances, cancel classes and reset passwords. It stays
+open for **15 minutes of doing nothing**, and every action pushes that window
+out again — so working through a queue is never interrupted, and a counter
+nobody has touched for a quarter of an hour asks for the password.
 
 **Reception cannot see Analytics** — members, revenue and takings are the owner's
 business — and cannot open another desk account's profile. Both are enforced on

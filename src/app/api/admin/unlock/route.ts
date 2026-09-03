@@ -18,7 +18,7 @@ import { body } from "@/lib/api-guard";
  * checked, the site session is created and the desk is unlocked in one go, so
  * typing /admin and typing a password is the whole journey. With only a
  * password it is a re-unlock for somebody already signed in as staff, which is
- * what the 45-minute lock asks for when it lapses.
+ * what the idle lock asks for when it lapses.
  *
  * Only STAFF and ADMIN get through, and a member's correct password gets the
  * same answer as a wrong one: this route never confirms that an account exists,

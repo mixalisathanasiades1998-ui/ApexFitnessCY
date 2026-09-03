@@ -1329,6 +1329,291 @@ async function main() {
     db.delete(users).where(eq(users.id, termUser.id)).run();
   }
 
+  console.log("\n8l. Why a term booking took fewer weeks than asked for");
+  /**
+   * The three ways a run of eight weeks does not become eight bookings.
+   *
+   * These are not edge cases, they are the normal cases: a thirty-day pack
+   * cannot reach week five, seven sessions cannot pay for eight classes, and a
+   * member who already booked next week must not end up with two places in it.
+   * Each one has to refuse the right weeks, spend nothing extra, and — the part
+   * that was missing at first — say *why*, because "could not book four dates"
+   * to somebody looking at unspent sessions reads as a broken website.
+   */
+  {
+    const { repeatWeekly } = await import("../src/lib/booking-repeat");
+    const { repeatWhy } = await import("../src/lib/repeat-why");
+    const { studioParts } = await import("../src/lib/time");
+
+    /* One group slot with at least eight weeks of itself ahead of us. */
+    const seed = db
+      .select({ s: classSessions })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(
+        and(
+          eq(classTypes.kind, "GROUP"),
+          gt(classSessions.startsAt, new Date(Date.now() + 2 * 86_400_000)),
+        ),
+      )
+      .orderBy(classSessions.startsAt)
+      .all()
+      .map((r) => r.s)[0]!;
+
+    async function scratch(tag: string) {
+      return db
+        .insert(users)
+        .values({
+          email: `run-${tag}-${Date.now()}@apex.test`,
+          name: `Run ${tag}`,
+          passwordHash: await hashPassword("x".repeat(10)),
+        })
+        .returning()
+        .get();
+    }
+    function wipe(id: string) {
+      db.delete(bookings).where(eq(bookings.userId, id)).run();
+      db.delete(creditLedger).where(eq(creditLedger.userId, id)).run();
+      db.delete(creditBatches).where(eq(creditBatches.userId, id)).run();
+      db.delete(users).where(eq(users.id, id)).run();
+    }
+
+    /* ---- 1. plenty of sessions, all of them expiring too soon ---- */
+    {
+      const u = await scratch("expiry");
+      grantCredits({
+        userId: u.id,
+        credits: 12,
+        validityDays: 30,
+        note: "30-day pack",
+      });
+      const run = repeatWeekly({ userId: u.id, sessionId: seed.id, weeks: 8 });
+
+      check("a run with a short-dated pack still succeeds", run.ok === true, run);
+      if (run.ok) {
+        check(
+          "it books only the weeks the pack can reach",
+          run.booked > 0 && run.booked < 8,
+          { booked: run.booked, failed: run.failed.length },
+        );
+        check(
+          "and refuses the rest for the right reason",
+          run.failed.length > 0 &&
+            run.failed.every((f) => f.code === "SESSIONS_EXPIRE_FIRST"),
+          run.failed.map((f) => f.code),
+        );
+        /**
+         * The date the pack reaches, carried on the refusal.
+         *
+         * Without it the message cannot be written: "your sessions expire before
+         * these four dates" begs the question, and the answer — they reach the
+         * 3rd of October — is both the explanation and the thing to do about it.
+         */
+        check(
+          "carrying the last date the sessions reach",
+          run.failed.every((f) => Boolean(f.until)),
+          run.failed.map((f) => f.until),
+        );
+        check(
+          "and it spends one session per week booked, no more",
+          (await getAvailableCredits(u.id)) === 12 - run.booked,
+          { left: await getAvailableCredits(u.id), booked: run.booked },
+        );
+      }
+      wipe(u.id);
+    }
+
+    /* ---- 2. seven sessions, eight weeks asked for ---- */
+    {
+      const u = await scratch("short");
+      grantCredits({
+        userId: u.id,
+        credits: 7,
+        validityDays: 300,
+        note: "seven",
+      });
+      const run = repeatWeekly({ userId: u.id, sessionId: seed.id, weeks: 8 });
+
+      if (run.ok) {
+        check(
+          "seven sessions book seven of eight weeks",
+          run.booked === 7 && run.failed.length === 1,
+          { booked: run.booked, failed: run.failed.length },
+        );
+        check(
+          "and the eighth is refused for having nothing to pay with",
+          run.failed[0]?.code === "NO_CREDITS",
+          run.failed[0]?.code,
+        );
+        check(
+          "with the balance at zero and not below it",
+          (await getAvailableCredits(u.id)) === 0,
+          await getAvailableCredits(u.id),
+        );
+      }
+      wipe(u.id);
+    }
+
+    /* ---- 3. one of the weeks already booked ---- */
+    {
+      const u = await scratch("dup");
+      grantCredits({
+        userId: u.id,
+        credits: 12,
+        validityDays: 300,
+        note: "twelve",
+      });
+
+      /* Book the second week of the slot by hand, the way a member would have
+         done it last Tuesday. */
+      const p0 = studioParts(seed.startsAt);
+      const sameSlot = db
+        .select({ id: classSessions.id, startsAt: classSessions.startsAt })
+        .from(classSessions)
+        .where(eq(classSessions.classTypeId, seed.classTypeId))
+        .all()
+        .filter((x) => {
+          const p = studioParts(x.startsAt);
+          return (
+            x.startsAt >= seed.startsAt &&
+            p.hour === p0.hour &&
+            p.minute === p0.minute &&
+            studioDayOfWeek(x.startsAt) === studioDayOfWeek(seed.startsAt)
+          );
+        })
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+
+      const byHand = bookClass(u.id, sameSlot[1]!.id);
+      check("a member books week two on its own", byHand.ok === true, byHand);
+
+      const run = repeatWeekly({ userId: u.id, sessionId: seed.id, weeks: 8 });
+      if (run.ok) {
+        check(
+          "the run books the other seven and not the one they had",
+          run.booked === 7 && run.alreadyHad === 1,
+          { booked: run.booked, alreadyHad: run.alreadyHad },
+        );
+        check(
+          "which is not reported as a failure, because it is not one",
+          run.failed.length === 0,
+          run.failed,
+        );
+        /* One place in one class, however many times it is asked for. */
+        const places = db
+          .select({ id: bookings.id })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.userId, u.id),
+              eq(bookings.sessionId, sameSlot[1]!.id),
+              ne(bookings.status, "CANCELLED"),
+            ),
+          )
+          .all().length;
+        check("and never twice in the same class", places === 1, places);
+        check(
+          "with exactly eight sessions spent in total",
+          (await getAvailableCredits(u.id)) === 12 - 8,
+          await getAvailableCredits(u.id),
+        );
+      }
+      wipe(u.id);
+    }
+
+    /* ---- and the sentence each of those turns into ---- */
+    {
+      const words = {
+        expire: "EXPIRE {dates} until {until}",
+        noCredits: "NOCREDITS {dates}",
+        full: "FULL {dates}",
+        closed: "CLOSED {dates}",
+        other: "OTHER {dates}",
+      };
+      const fmt = {
+        date: (d: Date) => d.toISOString().slice(0, 10),
+        list: (p: string[]) => p.join("+"),
+      };
+
+      check(
+        "nothing refused means nothing to explain",
+        repeatWhy([], words, fmt).length === 0,
+      );
+
+      /* Four weeks, one cause, one sentence — not four lines. */
+      const expiry = repeatWhy(
+        [1, 2, 3, 4].map((n) => ({
+          startsAt: `2026-10-0${n}T06:00:00.000Z`,
+          code: "SESSIONS_EXPIRE_FIRST",
+          until: "2026-09-30T06:00:00.000Z",
+        })),
+        words,
+        fmt,
+      );
+      check(
+        "four weeks with one cause become one sentence",
+        expiry.length === 1 &&
+          expiry[0]!.startsWith("EXPIRE") &&
+          expiry[0]!.includes("2026-09-30"),
+        expiry,
+      );
+
+      /**
+       * Mixed causes, ordered so the fixable one comes first.
+       *
+       * A member who can solve this by buying a pack should read that before
+       * they read that the room was full on the 21st, which they can do nothing
+       * about.
+       */
+      const mixed = repeatWhy(
+        [
+          { startsAt: "2026-09-21T06:00:00.000Z", code: "CLASS_FULL" },
+          { startsAt: "2026-10-19T06:00:00.000Z", code: "NO_CREDITS" },
+        ],
+        words,
+        fmt,
+      );
+      check(
+        "and a mixture is grouped, actionable reason first",
+        mixed.length === 2 &&
+          mixed[0]!.startsWith("NOCREDITS") &&
+          mixed[1]!.startsWith("FULL"),
+        mixed,
+      );
+
+      /* The opening-week gift is not "no sessions", but it is the same
+         conversation: nothing they hold can pay for that date. */
+      const promo = repeatWhy(
+        [{ startsAt: "2026-10-19T06:00:00.000Z", code: "CREDITS_NOT_VALID_HERE" }],
+        words,
+        fmt,
+      );
+      check(
+        "a session that cannot pay here reads as a balance problem",
+        promo.length === 1 && promo[0]!.startsWith("NOCREDITS"),
+        promo,
+      );
+
+      /**
+       * An expiry with no date attached must not print "undefined" at anybody.
+       *
+       * It should not happen — the API sends it — but a template with a hole in
+       * it is the one failure mode worse than a vague message.
+       */
+      const noDate = repeatWhy(
+        [{ startsAt: "2026-10-19T06:00:00.000Z", code: "SESSIONS_EXPIRE_FIRST" }],
+        words,
+        fmt,
+      );
+      check(
+        "and an expiry with no date falls back rather than printing a hole",
+        noDate.length === 1 &&
+          noDate[0]!.startsWith("OTHER") &&
+          !noDate[0]!.includes("{until}"),
+        noDate,
+      );
+    }
+  }
+
   console.log("\n9. Ledger integrity");
   const ledgerSum =
     db

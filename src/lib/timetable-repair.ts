@@ -78,7 +78,7 @@ const FLOW = {
 const PERSONAL = {
   slug: "personal-session",
   nameEn: "Personal or Duet",
-  nameEl: "Ατομική ή Duet",
+  nameEl: "Ατομικό ή Δυάδα",
   descEn:
     "The room to yourself, or to the two of you. Fifty minutes on whatever you want to work on, booked by the end of the day before so an instructor can be there for it.",
   descEl:

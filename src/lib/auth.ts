@@ -16,14 +16,42 @@ const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
  * The desk console is behind a second door.
  *
  * Being signed in as staff is not enough to open /admin: the password has to be
- * typed again, and that unlock lasts 45 minutes. The reason is the reception
- * computer — it stands in a public room, signed in all day, and a member of the
- * public who wanders behind the desk should not be one click away from every
- * member's phone number and a password reset. A long-lived session cookie is
- * the right trade for booking a class; it is the wrong trade for this.
+ * typed again. The reason is the reception computer — it stands in a public
+ * room, signed in all day, and a member of the public who wanders behind the
+ * desk should not be one click away from every member's phone number and a
+ * password reset. A long-lived session cookie is the right trade for booking a
+ * class; it is the wrong trade for this.
+ *
+ * ---
+ *
+ * **Fifteen minutes of idleness, not forty-five minutes of wall clock.**
+ *
+ * This was a flat 45-minute window from the moment the password was typed,
+ * which is the wrong shape twice over. It shut the console on somebody in the
+ * middle of serving a queue, and it left an abandoned counter open for up to
+ * three quarters of an hour. Both of those are the same mistake: measuring the
+ * wrong thing.
+ *
+ * So the window is now short and it slides. Every desk action pushes it out
+ * again — see `touchDesk` — so reception working through a morning is never
+ * interrupted, and a counter nobody has touched for a quarter of an hour asks
+ * for the password. Shorter *and* less annoying, which is unusual enough to be
+ * worth saying out loud.
  */
 export const ADMIN_COOKIE = "apex_desk";
-const ADMIN_MAX_AGE_SECONDS = 60 * 45;
+
+/** How long the desk stays open with nobody touching it. */
+export const ADMIN_IDLE_SECONDS = 60 * 15;
+
+/**
+ * How little life a cookie must have left before an action re-issues it.
+ *
+ * Without this, every desk request would sign a fresh token and set a cookie —
+ * correct, and needless. Two thirds of the window is the sweet spot: any action
+ * inside the idle period still slides it, and a busy screen rewrites the cookie
+ * at most once every five minutes instead of on every click.
+ */
+const ADMIN_REFRESH_BELOW_SECONDS = 60 * 10;
 
 function secret() {
   const s = process.env.AUTH_SECRET;
@@ -192,7 +220,7 @@ export async function unlockDesk(user: { id: string; role: string }) {
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime(`${ADMIN_MAX_AGE_SECONDS}s`)
+    .setExpirationTime(`${ADMIN_IDLE_SECONDS}s`)
     .sign(secret());
 
   const jar = await cookies();
@@ -201,7 +229,7 @@ export async function unlockDesk(user: { id: string; role: string }) {
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: ADMIN_MAX_AGE_SECONDS,
+    maxAge: ADMIN_IDLE_SECONDS,
   });
 }
 
@@ -224,6 +252,39 @@ export async function deskUnlocked(userId: string): Promise<boolean> {
 }
 
 /**
+ * Push the idle window out again, because somebody just did something.
+ *
+ * This is what makes fifteen minutes bearable: the window measures idleness, and
+ * every desk action is proof of the opposite. Called from `requireDesk`, so
+ * every guarded route slides it without any route having to remember to.
+ *
+ * Deliberately silent about its own failure. A cookie that cannot be re-issued
+ * means the desk locks a few minutes earlier than it might have, which is a
+ * mild inconvenience; throwing here would turn it into a failed action on a
+ * screen somebody is working on.
+ *
+ * The one place it cannot run is a page render — Next refuses to set a cookie
+ * during one, which is why /admin checks `deskUnlocked` and the routes call
+ * this. In practice the console's panels call an API within a second of loading,
+ * so the difference never shows.
+ */
+async function touchDesk(user: { id: string; role: string }) {
+  try {
+    const jar = await cookies();
+    const token = jar.get(ADMIN_COOKIE)?.value;
+    if (!token) return;
+
+    const { payload } = await jwtVerify(token, secret());
+    const left = (payload.exp ?? 0) - Math.floor(Date.now() / 1000);
+    if (left > ADMIN_REFRESH_BELOW_SECONDS) return;
+
+    await unlockDesk(user);
+  } catch {
+    /* Nothing worth failing an action over. See above. */
+  }
+}
+
+/**
  * The guard on every desk action: signed in, staff, and unlocked.
  *
  * All three, every time. The unlock is checked on the API routes and not only
@@ -232,6 +293,8 @@ export async function deskUnlocked(userId: string): Promise<boolean> {
 export async function requireDesk(): Promise<User> {
   const user = await requireStaff();
   if (!(await deskUnlocked(user.id))) throw new AuthError("LOCKED");
+  /* Working is the opposite of idle, so the window starts again. */
+  await touchDesk(user);
   return user;
 }
 

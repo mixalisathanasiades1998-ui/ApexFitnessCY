@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import {
   SATURDAY_CLASS_HOURS,
   WEEKDAY_CLASS_HOURS,
@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { bookings, classSessions, classTemplates } from "@/db/schema";
 import {
   studioAddDays,
+  studioDateKey,
   studioDayOfWeek,
   studioParts,
   studioStartOfDay,
@@ -113,45 +114,76 @@ export function generateSessions(weeksAhead = TIMETABLE_WEEKS, from = new Date()
 /**
  * Keep the far end of the timetable full, without anybody remembering to.
  *
- * `generateSessions` writes a fixed number of weeks from today, which means the
- * horizon does not move on its own: every day that passes, the last bookable
- * day gets one day closer, and after three months of nobody pressing Generate
- * at the desk the timetable simply stops. That was survivable while the page
- * showed four weeks of a six-week horizon — two weeks of slack nobody saw. It
- * is not survivable now the page shows the whole ninety days, because the
- * shortfall is on screen as a run of empty days.
+ * `generateSessions` writes a fixed number of weeks from *today*, which means
+ * the horizon does not move on its own: every day that passes, the last
+ * bookable day gets one day closer, and after three months of nobody pressing
+ * Generate at the desk the timetable simply stops. That was survivable while
+ * the page showed four weeks of a six-week horizon — two weeks of slack nobody
+ * saw. It is not survivable now the page shows the whole ninety days, because
+ * the shortfall is on screen as a run of empty days at the end of the strip.
  *
- * So this runs from the cron sweep, and it is deliberately lazy. It reads one
- * number — the furthest class on the books — and does nothing at all unless the
- * horizon has drifted more than a fortnight short. On a studio whose templates
- * have not changed, that is a single `max()` per sweep and no writes for weeks
- * at a time.
+ * The page's own window is computed from today on every request, so it already
+ * advances daily: today it ends on 1 December, tomorrow on the 2nd. This is what
+ * keeps the *classes* level with it.
  *
- * The fortnight of tolerance is what stops this generating a handful of classes
- * every single day: when it does fire it fills the whole ninety days at once,
- * and then has nothing to do again for two weeks.
+ * ---
+ *
+ * **Once per studio day, and the marker is a date rather than a countdown.**
+ *
+ * The obvious implementation compares the furthest class against the horizon and
+ * generates when it falls short. It does not work, and the way it fails is
+ * instructive: the studio is shut on Sundays, so the furthest class is often a
+ * day or two behind the furthest *day*, and a naive comparison finds itself
+ * permanently short — generating, creating nothing, and finding itself short
+ * again on the next sweep, forever.
+ *
+ * So the question asked here is not "how far ahead are we" but "have we already
+ * done this today". That cannot spin: it runs once, sets the marker, and does
+ * nothing for the rest of the day. Generation is idempotent and skips everything
+ * that already exists, so the cost of the one run is a single transaction of
+ * about eight hundred no-ops — a few milliseconds, once a day.
+ *
+ * The marker lives in memory, which means a restart earns one extra run. That is
+ * the right trade: an extra idempotent run costs nothing, and the alternative is
+ * a row in the database to remember something that does not matter.
  */
+let lastRollDay = "";
+
 export function rollTimetableForward(now = new Date()) {
-  const furthest = db
-    .select({ last: sql<number>`max(${classSessions.startsAt})` })
-    .from(classSessions)
-    .get();
-
-  /* Stored as whole Unix seconds — see the schema. Null means an empty
-     timetable, which is exactly the case that needs generating. */
-  const lastAt = furthest?.last ? Number(furthest.last) * 1000 : 0;
-  const wanted = studioAddDays(studioStartOfDay(now), TIMETABLE_DAYS).getTime();
-  const slack = 14 * 86_400_000;
-
-  if (lastAt >= wanted - slack) {
-    return { rolled: false, created: 0, lastAt: lastAt || null };
+  const today = studioDateKey(now);
+  if (lastRollDay === today) {
+    return { rolled: false, created: 0, day: today };
   }
+  /* Set before the work, not after. A generation that throws must not leave
+     this retrying on every sweep for the rest of the day. */
+  lastRollDay = today;
 
   const gen = generateSessions(TIMETABLE_WEEKS, now);
-  console.log(
-    `[timetable] horizon was short, rolled forward: ${gen.created} classes created`,
-  );
-  return { rolled: true, created: gen.created, lastAt: lastAt || null };
+  if (gen.created > 0) {
+    console.log(
+      `[timetable] rolled forward for ${today}: ${gen.created} classes created`,
+    );
+  }
+  return { rolled: true, created: gen.created, day: today };
+}
+
+/**
+ * The same thing, safe to call from a page render.
+ *
+ * The cron sweep is the proper home for this, and it is what a hosted studio
+ * will use. This is the belt to that braces, for the same reason
+ * `nudgeReminders` exists: if nobody has scheduled the cron, the one page that
+ * cares about a short horizon is the timetable, and it is opened dozens of times
+ * a day. Never awaited and never allowed to throw — the timetable renders
+ * whether or not its far end got topped up.
+ */
+export function nudgeTimetable(now = new Date()) {
+  if (lastRollDay === studioDateKey(now)) return;
+  try {
+    rollTimetableForward(now);
+  } catch (err) {
+    console.error("[timetable] could not roll forward", err);
+  }
 }
 
 /**

@@ -7,6 +7,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { PushInvite } from "@/components/booking/PushInvite";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { isPersonalCancellable } from "@/lib/personal";
+import { repeatWhy } from "@/lib/repeat-why";
 import { studioAddDays, studioDateKey, studioStartOfDay } from "@/lib/time";
 import { cn, FREE_CANCELLATION_HOURS } from "@/lib/utils";
 
@@ -98,6 +99,7 @@ export function ScheduleClient({
     fmtLongDate,
     fmtDayNumber,
     fmtDayMonth,
+    fmtMonthShort,
     fmtWeekdayShort,
   } = useI18n();
   const router = useRouter();
@@ -167,6 +169,27 @@ export function ScheduleClient({
     text: string;
     cta?: { href: string; label: string };
   } | null>(null);
+
+  /**
+   * "5, 12 and 19 Oct", the way the reader's own language joins a list.
+   *
+   * Greek does not use "and" where English does, and neither language joins
+   * three things the way a comma-separated list does. `Intl.ListFormat` knows
+   * both, and this is the one place in the app that has a list of dates to read
+   * aloud.
+   */
+  const joinDates = useMemo(() => {
+    try {
+      const lf = new Intl.ListFormat(el ? "el" : "en-GB", {
+        style: "long",
+        type: "conjunction",
+      });
+      return (parts: string[]) => lf.format(parts);
+    } catch {
+      /* An engine without ListFormat still gets a readable list. */
+      return (parts: string[]) => parts.join(", ");
+    }
+  }, [el]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, ScheduleSession[]>();
@@ -412,7 +435,7 @@ export function ScheduleClient({
         ok?: boolean;
         booked?: number;
         alreadyHad?: number;
-        failed?: { startsAt: string }[];
+        failed?: { startsAt: string; code?: string; until?: string }[];
         credits?: number;
         error?: string;
       };
@@ -438,14 +461,26 @@ export function ScheduleClient({
           already > 0
             ? t.booking.repeatAlready.replace("{n}", String(already))
             : "",
-          failed.length > 0
-            ? t.booking.repeatSkipped.replace(
-                "{dates}",
-                failed
-                  .map((f) => fmtDayMonth(new Date(f.startsAt)))
-                  .join(", "),
-              )
-            : "",
+          /**
+           * And why, which is the part that matters.
+           *
+           * Grouped by reason rather than listed by date: a thirty-day pack
+           * refusing four weeks is one sentence with a date in it, not four
+           * lines. Without this a member sees four dates they "could not book"
+           * while looking at unspent sessions, which reads as a broken website
+           * rather than as a pack that runs out on the 3rd.
+           */
+          ...repeatWhy(
+            failed,
+            {
+              expire: t.booking.repeatWhyExpire,
+              noCredits: t.booking.repeatWhyNoCredits,
+              full: t.booking.repeatWhyFull,
+              closed: t.booking.repeatWhyClosed,
+              other: t.booking.repeatWhyOther,
+            },
+            { date: (d) => fmtDayMonth(d), list: joinDates },
+          ),
         ].filter(Boolean);
 
         flash({
@@ -633,8 +668,31 @@ export function ScheduleClient({
                           ? t.home.timetable.closed
                           : fmtWeekdayShort(date)}
                 </span>
-                <span className="mt-1 font-display text-2xl lining-nums tabular-nums">
-                  {fmtDayNumber(date)}
+                {/**
+                  * The day number with its month beside it.
+                  *
+                  * The month was not here while the strip held four weeks — it
+                  * could only ever be this month or the next one, and the
+                  * heading under the strip spells the date out in full anyway.
+                  * At ninety days the strip spans three months and passes
+                  * through the same day number three times, so "5" on its own
+                  * is genuinely ambiguous to somebody scrolling ahead to book a
+                  * term. Small and beside the number rather than on its own
+                  * line: it reads as a date that way, and a fourth line would
+                  * make ninety chips taller for a word.
+                  */}
+                <span className="mt-1 flex items-baseline gap-1">
+                  <span className="font-display text-2xl lining-nums tabular-nums">
+                    {fmtDayNumber(date)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[9px] uppercase tracking-widest",
+                      active ? "text-cream/60" : "text-clay",
+                    )}
+                  >
+                    {fmtMonthShort(date)}
+                  </span>
                 </span>
                 <span
                   className={cn(

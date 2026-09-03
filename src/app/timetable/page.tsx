@@ -17,7 +17,7 @@ import {
 } from "@/lib/time";
 import { pushPublicKey } from "@/lib/messaging/push";
 import { isPersonalBookable } from "@/lib/personal";
-import { TIMETABLE_DAYS } from "@/lib/schedule";
+import { nudgeTimetable, TIMETABLE_DAYS } from "@/lib/schedule";
 import { STUDIO } from "@/lib/studio";
 import { isBookable } from "@/lib/utils";
 
@@ -35,6 +35,12 @@ export const dynamic = "force-dynamic";
 const DAYS_SHOWN = TIMETABLE_DAYS;
 
 export default async function TimetablePage() {
+  /* Keep the far end of the strip stocked. Once per studio day at most, and the
+     page renders whether or not it did anything — see nudgeTimetable. The cron
+     sweep is the proper home for this; the timetable is the page that would show
+     the shortfall, and it is opened dozens of times a day. */
+  nudgeTimetable();
+
   const session = await readSession();
   const from = studioStartOfDay(new Date());
   const to = studioAddDays(from, DAYS_SHOWN);

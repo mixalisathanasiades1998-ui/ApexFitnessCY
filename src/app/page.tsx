@@ -3,7 +3,6 @@ import {
   PricingPreview,
 } from "@/components/home/CatalogueSections";
 import { Hero } from "@/components/home/Hero";
-import { IntroReveal } from "@/components/home/IntroReveal";
 import {
   FinalCta,
   HowItWorks,
@@ -35,7 +34,10 @@ export default async function HomePage() {
 
   return (
     <>
-      <IntroReveal />
+      {/* The logo animation that used to play here is gone: the studio did not
+          like it, and a splash screen between somebody and the thing they came
+          for is a cost with no return. Removed rather than made optional —
+          nobody was going to switch it back on. */}
       <Hero user={heroUser} />
       <Marquee />
       <Intro />

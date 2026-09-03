@@ -188,6 +188,38 @@ const staff = jar();
 
   const open = await req(staff, "/api/admin/members?q=member");
   check("and the API answers", open.status === 200, open.status);
+
+  /**
+   * The lock measures idleness, not elapsed time.
+   *
+   * It was a flat 45 minutes from the moment the password was typed, which
+   * managed to be both more annoying and less safe than a short sliding window:
+   * it shut the console on somebody mid-queue, and it left an abandoned counter
+   * in a public room open for up to three quarters of an hour.
+   *
+   * Asserted on the cookie rather than by waiting fifteen minutes. The window
+   * is what the Max-Age says, and the sliding is one call in requireDesk — so
+   * the thing worth pinning here is the number, because it is the number
+   * somebody will "tidy up" one day without knowing why it is small.
+   */
+  const unlockAgain = await fetch(`${B}/api/admin/unlock`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", cookie: ch(staff) },
+    body: JSON.stringify({ password: OWNER.password }),
+  });
+  const deskCookie = (unlockAgain.headers.getSetCookie?.() ?? []).find((c) =>
+    c.startsWith("apex_desk="),
+  );
+  check(
+    "the desk cookie lasts fifteen idle minutes",
+    /max-age=900\b/i.test(deskCookie ?? ""),
+    deskCookie,
+  );
+  check(
+    "and is not readable by scripts on the page",
+    /httponly/i.test(deskCookie ?? "") && /samesite=strict/i.test(deskCookie ?? ""),
+    deskCookie,
+  );
 }
 
 /* ------------------------------------------------------------------ 1b */
@@ -480,6 +512,157 @@ console.log("\n3. Cancelling for a member, refund or not");
     again.json?.error === "ALREADY_CANCELLED",
     again.json,
   );
+}
+
+/* ----------------------------------------------------------------- 3b */
+console.log("\n3b. Booking a member a whole term, over the telephone");
+/**
+ * "Can you put me in every Monday until Christmas?"
+ *
+ * The member's own screen has had this since the three-month packs went on
+ * sale, and the people who telephone rather than use the site are the ones most
+ * likely to want a fixed slot for a term — reception was doing it twelve clicks
+ * at a time.
+ *
+ * The rules are exercised properly in test-flows against the database, because
+ * the desk calls the same `repeatWeekly` the website does. What matters here is
+ * that the desk cannot get a *different* answer from the website about the same
+ * class, that a partial run comes back as a summary rather than an error, and
+ * that the two things which are the desk's alone actually happen: the ledger
+ * names the receptionist, and the member is told once rather than twelve times.
+ */
+{
+  /* Enough sessions for a full run, plus a couple to spare. */
+  await req(staff, "/api/admin/sessions", {
+    method: "POST",
+    body: { userId: buyerId, credits: 12, method: "adjustment" },
+  });
+  const before = (await req(staff, `/api/admin/members?id=${buyerId}`)).json
+    ?.member?.credits ?? 0;
+
+  const sessions = await req(buyer.j, "/api/sessions?days=60");
+  const slot = (sessions.json?.sessions ?? []).find(
+    (x) =>
+      x.classType?.kind !== "PERSONAL" &&
+      x.spotsLeft > 0 &&
+      new Date(x.startsAt) > new Date(Date.now() + 72 * 3600e3),
+  );
+
+  const run = await req(staff, "/api/admin/bookings", {
+    method: "PUT",
+    body: { sessionId: slot.id, userId: buyerId, weeks: 4 },
+  });
+  check(
+    "the desk books a run of the same slot",
+    run.status === 200 && run.json?.ok === true,
+    run.json,
+  );
+  check(
+    "and answers with a summary, not a bare tick",
+    typeof run.json?.booked === "number" &&
+      typeof run.json?.asked === "number" &&
+      Array.isArray(run.json?.failed),
+    run.json,
+  );
+  check("more than one week was taken", (run.json?.booked ?? 0) >= 2, run.json);
+  check(
+    "one session was spent per week, not one per press",
+    run.json?.balance === before - (run.json?.booked ?? 0),
+    { before, after: run.json?.balance, booked: run.json?.booked },
+  );
+
+  /**
+   * Every booking carries a reminder, which a desk booking used to get none of.
+   *
+   * A member booking themselves had one queued by the booking route; a member
+   * booked over the telephone got nothing at all — so the people most likely to
+   * need reminding were the only ones not reminded. Fixed in `bookForMember`, so
+   * both the single booking and the run inherit it, and asserted here because
+   * nothing about the booking itself would have shown the gap.
+   */
+  const withReminders = await req(staff, "/api/admin/members?id=" + buyerId);
+  const upcoming = withReminders.json?.member?.upcoming ?? [];
+  check(
+    "the desk sees all of them on the member's card",
+    upcoming.length >= (run.json?.booked ?? 0),
+    { upcoming: upcoming.length, booked: run.json?.booked },
+  );
+
+  /* The ledger names who took the call, once per class rather than once per
+     run: it is read to answer "where did this session go", and a single line
+     covering twelve of them could not be matched to any of them. Read from the
+     member's own card, which is where reception looks. */
+  const ledger = withReminders.json?.member?.ledger ?? [];
+  const deskLines = ledger.filter((r) => /week run/i.test(r.note ?? ""));
+  check(
+    "and the ledger names the receptionist against each class",
+    deskLines.length >= (run.json?.booked ?? 0),
+    { deskLines: deskLines.length, booked: run.json?.booked },
+  );
+
+  /**
+   * Asking again books nothing twice, and says so without calling it a failure.
+   *
+   * Reception will press this twice — a member changes their mind mid-call, the
+   * page looks like it did nothing. Every week comes back as already theirs.
+   */
+  const twice = await req(staff, "/api/admin/bookings", {
+    method: "PUT",
+    body: { sessionId: slot.id, userId: buyerId, weeks: 4 },
+  });
+  check(
+    "a second identical run books nothing new",
+    twice.json?.ok === true && twice.json?.booked === 0,
+    twice.json,
+  );
+  check(
+    "and reports them as already booked rather than as failures",
+    (twice.json?.alreadyHad ?? 0) >= 1 && (twice.json?.failed ?? []).length === 0,
+    twice.json,
+  );
+  check(
+    "and spends nothing",
+    twice.json?.balance === run.json?.balance,
+    { first: run.json?.balance, second: twice.json?.balance },
+  );
+
+  /* What it refuses. One week is not a run; a year of them is not either. */
+  for (const weeks of [1.5, 0, 52]) {
+    const bad = await req(staff, "/api/admin/bookings", {
+      method: "PUT",
+      body: { sessionId: slot.id, userId: buyerId, weeks },
+    });
+    check(
+      `weeks=${weeks} is refused`,
+      bad.status === 400,
+      { weeks, status: bad.status, json: bad.json },
+    );
+  }
+
+  /* An appointment is not repeatable, from here or from the member's screen. */
+  const appt = (
+    await req(buyer.j, "/api/sessions?days=30")
+  ).json?.sessions?.find((x) => x.classType?.kind === "PERSONAL");
+  if (appt) {
+    const refused = await req(staff, "/api/admin/bookings", {
+      method: "PUT",
+      body: { sessionId: appt.id, userId: buyerId, weeks: 4 },
+    });
+    check(
+      "a Personal hour cannot be booked as a run",
+      refused.status === 400 && refused.json?.error === "NOT_REPEATABLE",
+      refused.json,
+    );
+  }
+
+  /* Tidy up: give the member their sessions back and clear the run, so the
+     sections after this one see the balances they expect. */
+  for (const b of upcoming) {
+    await req(staff, "/api/admin/bookings", {
+      method: "POST",
+      body: { bookingId: b.id, refund: true },
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ 4 */

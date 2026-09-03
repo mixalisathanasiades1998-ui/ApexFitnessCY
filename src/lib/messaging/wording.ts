@@ -440,7 +440,7 @@ export function personalBookedWords(a: {
       url: "/account",
     },
     el: {
-      subject: two ? "Η Duet συνεδρία σας κλείστηκε" : "Η συνεδρία σας κλείστηκε",
+      subject: two ? "Η συνεδρία Δυάδας σας κλείστηκε" : "Η συνεδρία σας κλείστηκε",
       body:
         (two
           ? `Εσείς και ${a.guestName} έχετε το στούντιο ${whenWords(a.startsAt, "el")}.`
@@ -559,7 +559,7 @@ export function studioAppointmentWords(a: {
   const who = two ? `${a.memberName} and ${a.guestName}` : a.memberName;
   const whoEl = two ? `${a.memberName} και ${a.guestName}` : a.memberName;
   const kindEn = two ? "Duet, two people" : "Personal, one person";
-  const kindEl = two ? "Duet, δύο άτομα" : "Ατομική, ένα άτομο";
+  const kindEl = two ? "Δυάδα, δύο άτομα" : "Ατομική, ένα άτομο";
   const contact = [a.memberEmail, a.memberPhone].filter(Boolean).join(", ");
 
   if (a.cancelled) {

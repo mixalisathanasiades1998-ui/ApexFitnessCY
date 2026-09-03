@@ -52,11 +52,11 @@ export async function POST(req: Request) {
    * Here rather than in a second scheduled job, for the same reason the
    * housekeeping is: the studio has one thing knocking on one door, and every
    * additional URL somebody has to remember to schedule is a job that silently
-   * never runs. Cheap enough to belong on a five-minute sweep — it reads one
-   * number and does nothing at all unless the horizon has drifted a fortnight
-   * short. See rollTimetableForward.
+   * never runs. Cheap enough to belong on a five-minute sweep: it runs once per
+   * studio day and does nothing at all on the two hundred and eighty-seven
+   * sweeps after that. See rollTimetableForward.
    */
-  let timetable: { rolled: boolean; created: number } = {
+  let timetable: { rolled: boolean; created: number; day?: string } = {
     rolled: false,
     created: 0,
   };
