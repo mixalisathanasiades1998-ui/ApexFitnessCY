@@ -11,9 +11,10 @@ import { studioAddDays, studioDateKey, studioStartOfDay } from "@/lib/time";
 import { cn, FREE_CANCELLATION_HOURS } from "@/lib/utils";
 
 /**
- * One class type, sent once per page rather than once per class. Four weeks of
- * timetable is ~230 classes; repeating the names and level on each of them
- * added tens of kilobytes to the HTML for no new information.
+ * One class type, sent once per page rather than once per class. Ninety days of
+ * timetable is around 750 classes; repeating the names and level on each of them
+ * added hundreds of kilobytes to the HTML for no new information. That saving
+ * mattered at four weeks and matters three times as much now.
  */
 export type ScheduleClassType = {
   slug: string;
@@ -90,8 +91,15 @@ export function ScheduleClient({
    */
   pushPublicKey?: string;
 }) {
-  const { t, locale, fmtTime, fmtLongDate, fmtDayNumber, fmtWeekdayShort } =
-    useI18n();
+  const {
+    t,
+    locale,
+    fmtTime,
+    fmtLongDate,
+    fmtDayNumber,
+    fmtDayMonth,
+    fmtWeekdayShort,
+  } = useI18n();
   const router = useRouter();
   const el = locale === "el";
 
@@ -119,6 +127,16 @@ export function ScheduleClient({
    * be worse than leaving it.
    */
   const [justBooked, setJustBooked] = useState(false);
+  /**
+   * How many weeks a term booking should cover, and whether one is running.
+   *
+   * Null means the member has not opened the repeat control. Kept out here
+   * rather than inside the panel for the same reason the guest name is: the
+   * panel is re-keyed whenever they glance at another hour, which would reset a
+   * choice they had already made.
+   */
+  const [repeatWeeks, setRepeatWeeks] = useState<number | null>(null);
+  const [repeating, setRepeating] = useState(false);
   /**
    * The appointment panel's two questions: how many of you, and who is the
    * second one.
@@ -175,10 +193,13 @@ export function ScheduleClient({
   useEffect(() => {
     setTwoOfUs(false);
     setGuestName("");
+    setRepeatWeeks(null);
   }, [activeDay]);
 
-  /* The date strip holds four weeks, so it scrolls horizontally. The arrows
-     move it a week at a time and keep the active chip in view. */
+  /* The date strip holds three months, so it scrolls horizontally. The arrows
+     move it a week at a time and keep the active chip in view — which is why
+     they are worth having at ninety chips in a way they barely were at
+     twenty-eight. */
   function nudge(dir: -1 | 1) {
     const box = strip.current;
     if (!box) return;
@@ -362,6 +383,85 @@ export function ScheduleClient({
       flash({ kind: "error", text: t.common.somethingWrong });
     } finally {
       setBusy(null);
+    }
+  }
+
+  /**
+   * Book the same slot for several weeks in one press.
+   *
+   * The server books each week on its own terms and reports what it could not
+   * take, so the interesting work here is saying so honestly: "booked 6 of 7,
+   * the 24th was full" rather than a bare tick or a bare cross. A member who is
+   * told six went through and one did not can go and look at that one; a member
+   * told only "done" discovers the hole in November.
+   *
+   * The whole timetable is reloaded afterwards rather than patched in place.
+   * Up to thirteen classes changed on days that are not the one being looked at,
+   * and reconciling that by hand is a lot of code to arrive at what the server
+   * already knows.
+   */
+  async function repeat(s: ScheduleSession, weeks: number) {
+    setRepeating(true);
+    try {
+      const res = await fetch("/api/bookings/repeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: s.id, weeks }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        booked?: number;
+        alreadyHad?: number;
+        failed?: { startsAt: string }[];
+        credits?: number;
+        error?: string;
+      };
+
+      if (!data.ok) {
+        flash({ kind: "error", text: t.booking.repeatFailed });
+        return;
+      }
+
+      const booked = data.booked ?? 0;
+      const already = data.alreadyHad ?? 0;
+      const failed = data.failed ?? [];
+
+      if (booked === 0 && already > 0 && failed.length === 0) {
+        flash({ kind: "ok", text: t.booking.repeatNothing });
+      } else {
+        const parts = [
+          failed.length === 0 && already === 0
+            ? t.booking.repeatDone.replace("{n}", String(booked))
+            : t.booking.repeatDoneSome
+                .replace("{n}", String(booked))
+                .replace("{total}", String(weeks)),
+          already > 0
+            ? t.booking.repeatAlready.replace("{n}", String(already))
+            : "",
+          failed.length > 0
+            ? t.booking.repeatSkipped.replace(
+                "{dates}",
+                failed
+                  .map((f) => fmtDayMonth(new Date(f.startsAt)))
+                  .join(", "),
+              )
+            : "",
+        ].filter(Boolean);
+
+        flash({
+          kind: failed.length > 0 ? "warn" : "ok",
+          text: parts.join(" "),
+        });
+      }
+
+      if (typeof data.credits === "number") setBalance(data.credits);
+      setRepeatWeeks(null);
+      setJustBooked(booked > 0);
+      router.refresh();
+    } catch {
+      flash({ kind: "error", text: t.booking.repeatFailed });
+    } finally {
+      setRepeating(false);
     }
   }
 
@@ -821,8 +921,23 @@ export function ScheduleClient({
                       {picked.myBookingId ? (
                         <>
                           <Button
-                            variant="outline"
+                            /**
+                              * Filled grey once cancelling has closed, rather
+                              * than the outline at 45% opacity it used to be.
+                              *
+                              * A faded outline reads as "this is still a
+                              * button and the page has not finished loading",
+                              * which is the wrong impression at exactly the
+                              * moment somebody is trying to get out of a class.
+                              * A solid grey block reads as a door that is shut.
+                              * The sentence underneath then explains why.
+                              */
+                            variant={canCancelPicked ? "outline" : "solid"}
                             size="sm"
+                            className={cn(
+                              !canCancelPicked &&
+                                "bg-mocha-200 text-mocha-500 shadow-none hover:bg-mocha-200 hover:translate-y-0 disabled:opacity-100",
+                            )}
                             disabled={busy === picked.id || !canCancelPicked}
                             onClick={() => cancel(picked)}
                           >
@@ -855,6 +970,7 @@ export function ScheduleClient({
                           <Button
                             disabled={
                               busy === picked.id ||
+                              repeating ||
                               /* A duet with nobody named is a booking the
                                  instructor cannot prepare for. */
                               (pickedPersonal &&
@@ -873,6 +989,83 @@ export function ScheduleClient({
                             <span className="text-[10px] leading-snug text-clay">
                               {t.booking.personalCutoff}
                             </span>
+                          )}
+
+                          {/**
+                            * Booking the same slot for a term.
+                            *
+                            * Members train on a fixed slot and the studio sells
+                            * three-month packs, so a term of Mondays was twelve
+                            * separate visits to this page. Two days a week is
+                            * two presses now instead of twenty-four.
+                            *
+                            * Group classes only, and that is a studio decision
+                            * rather than a gap: every Personal hour commits
+                            * somebody to come in and teach it, arranged by hand
+                            * the day before, so twelve of them booked in one
+                            * press is twelve instructor hours promised without
+                            * anybody at the desk seeing it happen.
+                            *
+                            * Collapsed until asked for. It is the second thing
+                            * anybody wants from this panel and putting a row of
+                            * week counts above the Book button would make the
+                            * common case read as a decision.
+                            */}
+                          {!pickedPersonal && signedIn && (
+                            <div className="mt-1 w-full">
+                              {repeatWeeks === null ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setRepeatWeeks(4)}
+                                  className="text-[10px] uppercase tracking-widest text-clay underline decoration-mocha-200 underline-offset-4 transition-colors hover:text-mocha-600"
+                                >
+                                  {t.booking.repeatTitle}
+                                </button>
+                              ) : (
+                                <div className="rounded-2xl border border-mocha-200/70 bg-white/70 p-4">
+                                  <p className="text-[10px] uppercase tracking-widest text-clay">
+                                    {t.booking.repeatTitle}
+                                  </p>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {[4, 8, 12].map((w) => (
+                                      <button
+                                        key={w}
+                                        type="button"
+                                        onClick={() => setRepeatWeeks(w)}
+                                        aria-pressed={repeatWeeks === w}
+                                        className={cn(
+                                          "rounded-xl border px-3 py-2 text-[12px] transition-all duration-400",
+                                          repeatWeeks === w
+                                            ? "border-mocha-600 bg-mocha-600 text-cream"
+                                            : "border-mocha-200/70 bg-white/60 text-mocha-600 hover:border-mocha-400",
+                                        )}
+                                      >
+                                        {t.booking.repeatWeeks.replace(
+                                          "{n}",
+                                          String(w),
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p className="mt-3 text-[10px] leading-snug text-clay">
+                                    {t.booking.repeatHint}
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    className="mt-3"
+                                    disabled={repeating || busy === picked.id}
+                                    onClick={() => repeat(picked, repeatWeeks)}
+                                  >
+                                    {repeating
+                                      ? t.booking.repeatWorking
+                                      : t.booking.repeatGo.replace(
+                                          "{n}",
+                                          String(repeatWeeks),
+                                        )}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </>
                       )}

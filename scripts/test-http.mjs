@@ -547,6 +547,84 @@ check(
   maniJson?.icons?.map((i) => i.sizes),
 );
 
+console.log("\n8a-iv. Booking one slot for a whole term");
+/**
+ * The repeat-booking route, over HTTP.
+ *
+ * The rules themselves are exercised properly in test-flows, against the
+ * database. What this checks is the shape of the door: that it is closed to
+ * anybody not signed in, that it refuses a request for one week or for a year,
+ * and that a genuine run answers 200 with a summary rather than an error when
+ * some weeks could not be taken — which is the whole design decision. A run of
+ * twelve classes where the fourth is full has eleven perfectly good bookings in
+ * it, and throwing those away to return a clean error would be worse for
+ * everybody.
+ */
+{
+  const anon = await fetch(`${BASE}/api/bookings/repeat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId: "whatever", weeks: 4 }),
+  });
+  check(
+    "a signed-out caller is refused",
+    anon.status === 401,
+    anon.status,
+  );
+
+  const slot = (await req("/api/sessions?days=30")).json?.sessions?.find(
+    (x) => x.spotsLeft > 0 && x.classType?.kind !== "PERSONAL",
+  );
+
+  const oneWeek = await req("/api/bookings/repeat", {
+    method: "POST",
+    body: { sessionId: slot?.id, weeks: 1 },
+  });
+  check(
+    "one week is not a repeat and is refused",
+    oneWeek.status === 400 && oneWeek.json?.error === "BAD_WEEKS",
+    oneWeek.json,
+  );
+
+  const aYear = await req("/api/bookings/repeat", {
+    method: "POST",
+    body: { sessionId: slot?.id, weeks: 52 },
+  });
+  check(
+    "and neither is a year of them",
+    aYear.status === 400 && aYear.json?.error === "BAD_WEEKS",
+    aYear.json,
+  );
+
+  const missing = await req("/api/bookings/repeat", {
+    method: "POST",
+    body: { sessionId: "not-a-class", weeks: 4 },
+  });
+  check(
+    "a class that does not exist is a 404",
+    missing.status === 404,
+    missing.status,
+  );
+
+  const run = await req("/api/bookings/repeat", {
+    method: "POST",
+    body: { sessionId: slot?.id, weeks: 4 },
+  });
+  check(
+    "a real run answers with a summary, not an error",
+    run.status === 200 &&
+      run.json?.ok === true &&
+      typeof run.json?.booked === "number" &&
+      Array.isArray(run.json?.failed),
+    run.json,
+  );
+  check(
+    "and says what the balance is afterwards",
+    typeof run.json?.credits === "number",
+    run.json?.credits,
+  );
+}
+
 console.log("\n8a-iii. Which language a phone notification goes out in");
 /**
  * The language of a push notification, which used to be English for everybody.

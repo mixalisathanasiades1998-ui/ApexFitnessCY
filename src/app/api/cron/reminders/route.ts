@@ -5,6 +5,7 @@ import {
   sweepUnverifiedAccounts,
 } from "@/lib/housekeeping";
 import { runDueReminders } from "@/lib/messaging/events";
+import { rollTimetableForward } from "@/lib/schedule";
 
 /**
  * The reminder sweep, on a schedule.
@@ -45,7 +46,33 @@ export async function POST(req: Request) {
 
   const result = await runDueReminders();
 
-  return NextResponse.json({ ok: true, ...result, ...housekeeping() });
+  /**
+   * And keep the far end of the timetable full.
+   *
+   * Here rather than in a second scheduled job, for the same reason the
+   * housekeeping is: the studio has one thing knocking on one door, and every
+   * additional URL somebody has to remember to schedule is a job that silently
+   * never runs. Cheap enough to belong on a five-minute sweep — it reads one
+   * number and does nothing at all unless the horizon has drifted a fortnight
+   * short. See rollTimetableForward.
+   */
+  let timetable: { rolled: boolean; created: number } = {
+    rolled: false,
+    created: 0,
+  };
+  try {
+    timetable = rollTimetableForward();
+  } catch (err) {
+    /* A failure here must not swallow the reminders that just went out. */
+    console.error("[cron] could not roll the timetable forward", err);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    ...result,
+    ...housekeeping(),
+    timetable,
+  });
 }
 
 /**

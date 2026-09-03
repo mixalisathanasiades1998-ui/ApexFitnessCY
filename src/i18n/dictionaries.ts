@@ -355,7 +355,7 @@ export const en = {
     privateTitle: "How the midday hours work",
     privateBody:
       "Personal and Duet sessions run at 12:00, 13:00 and 14:00, Monday to Friday. Book yours by the end of the day before and we arrange an instructor for it. A Duet is one session for two people, bought and booked by one of you.",
-    privateCta: "See what is free",
+    privateCta: "Check availability",
     corporateTitle: "Gym members",
     corporateBody:
       "APEX Fitness Centre members receive preferential pricing on every session pack. Ask at reception to have member rates applied to your account.",
@@ -768,7 +768,7 @@ export const en = {
        "notifications", which is a permission dialog nobody wants. */
     pushInviteTitle: "Shall we tell you if this class changes?",
     pushInviteBody:
-      "If a class is cancelled or the instructor changes, your phone will say so. We also send a reminder before you are due in. Nothing else.",
+      "If a class is cancelled or the instructor changes, your phone will say so. We also send a reminder before you are due in.",
     pushInviteYes: "Yes, tell me",
     pushInviteLater: "Not now",
     pushInviteDone: "Done. Your phone will let you know.",
@@ -948,6 +948,21 @@ export const en = {
     heldDuet: "and {n} Duet session",
     heldDuetPlural: "and {n} Duet sessions",
     /** In place of the level, which an appointment does not have. */
+    /* ---- booking the same slot for a term ---- */
+    repeatTitle: "Book this time every week",
+    repeatWeeks: "{n} weeks",
+    repeatGo: "Book {n} weeks",
+    repeatWorking: "Booking your weeks",
+    /* Said before they press, because the honest thing about a term booking is
+       that some weeks may already be full. */
+    repeatHint:
+      "Same class, same day, same time. Weeks that are full or past are skipped and named.",
+    repeatDone: "Booked {n} weeks.",
+    repeatDoneSome: "Booked {n} of {total}.",
+    repeatAlready: "{n} you already had.",
+    repeatSkipped: "Could not book: {dates}.",
+    repeatNothing: "Nothing to book. You already have every one of these weeks.",
+    repeatFailed: "That did not go through. Nothing was booked.",
     personalTag: "Personal or Duet",
     personalFree: "Available",
     personalTaken: "Booked",
@@ -1423,7 +1438,7 @@ export const el: typeof en = {
   },
   timetablePage: {
     eyebrow: "Ζωντανό πρόγραμμα",
-    title: "Κράτα τον reformer σου.",
+    title: "Κράτα το reformer σου.",
     body: "Μία συνεδρία ανά μάθημα, δωρεάν ακύρωση έως 12 ώρες πριν.",
     signedOut:
       "Συνδέσου για να κλείσεις θέση. Παίρνει ελάχιστο χρόνο, και οι συνεδρίες μένουν στον λογαριασμό σου.",
@@ -1478,7 +1493,7 @@ export const el: typeof en = {
     privateTitle: "Πώς δουλεύουν οι μεσημεριανές ώρες",
     privateBody:
       "Οι Ατομικές και οι Duet συνεδρίες γίνονται στις 12:00, 13:00 και 14:00, Δευτέρα με Παρασκευή. Κάνε την κράτηση μέχρι το τέλος της προηγούμενης μέρας και κανονίζουμε εκπαιδευτή για αυτή. Μια Duet είναι μία συνεδρία για δύο άτομα, με αγορά και κράτηση από τον ένα από τους δύο.",
-    privateCta: "Δες τι είναι ελεύθερο",
+    privateCta: "Έλεγχος διαθεσιμότητας",
     corporateTitle: "Μέλη γυμναστηρίου",
     corporateBody:
       "Τα μέλη του APEX Fitness Centre έχουν προνομιακή τιμή σε κάθε πακέτο συνεδριών. Ζήτα στη ρεσεψιόν να ενεργοποιηθεί η τιμή μέλους στον λογαριασμό σου.",
@@ -1854,7 +1869,7 @@ export const el: typeof en = {
       "Αυτός ο browser δεν υποστηρίζει ειδοποιήσεις. Σε iPhone, πρόσθεσε πρώτα τη σελίδα στην αρχική οθόνη.",
     pushInviteTitle: "Να σου πούμε αν αλλάξει αυτό το μάθημα;",
     pushInviteBody:
-      "Αν ακυρωθεί το μάθημα ή αλλάξει ο εκπαιδευτής, θα το δεις στο κινητό σου. Στέλνουμε και μια υπενθύμιση πριν το μάθημα. Τίποτε άλλο.",
+      "Αν ακυρωθεί το μάθημα ή αλλάξει ο εκπαιδευτής, θα το δεις στο κινητό σου. Στέλνουμε και μια υπενθύμιση πριν το μάθημα.",
     pushInviteYes: "Ναι, να ξέρω",
     pushInviteLater: "Όχι τώρα",
     pushInviteDone: "Έγινε. Το κινητό σου θα σε ενημερώνει.",
@@ -2026,7 +2041,19 @@ export const el: typeof en = {
     heldPersonalPlural: "και {n} Ατομικές συνεδρίες",
     heldDuet: "και {n} Duet συνεδρία",
     heldDuetPlural: "και {n} Duet συνεδρίες",
-    personalTag: "Ατομική ή Duet",
+    repeatTitle: "Κράτησε αυτή την ώρα κάθε εβδομάδα",
+    repeatWeeks: "{n} εβδομάδες",
+    repeatGo: "Κράτησε {n} εβδομάδες",
+    repeatWorking: "Γίνονται οι κρατήσεις",
+    repeatHint:
+      "Ίδιο μάθημα, ίδια μέρα, ίδια ώρα. Οι εβδομάδες που είναι γεμάτες ή έχουν περάσει παραλείπονται και σου λέμε ποιες.",
+    repeatDone: "Κρατήθηκαν {n} εβδομάδες.",
+    repeatDoneSome: "Κρατήθηκαν {n} από {total}.",
+    repeatAlready: "{n} τις είχες ήδη.",
+    repeatSkipped: "Δεν κρατήθηκαν: {dates}.",
+    repeatNothing: "Δεν υπάρχει κάτι να κρατηθεί. Έχεις ήδη όλες αυτές τις εβδομάδες.",
+    repeatFailed: "Δεν ολοκληρώθηκε. Δεν έγινε καμία κράτηση.",
+    personalTag: "Ατομικό ή Δυάδα",
     personalFree: "Διαθέσιμη",
     personalTaken: "Κλεισμένη",
     personalExplainer:
@@ -2047,7 +2074,7 @@ export const el: typeof en = {
     personalBookedBody:
       "Το στούντιο ενημερώθηκε και θα έχει εκπαιδευτή εκεί για εσένα.",
     personalTooLate:
-      "Αυτή η ώρα χρειαζόταν κράτηση μέχρι το τέλος της προηγούμενης μέρας, για να κανονιστεί εκπαιδευτής. Διάλεξε μια επόμενη μέρα.",
+      "Αυτή η ώρα χρειαζόταν κράτηση μέχρι το τέλος της προηγούμενης μέρας, για να ανατεθεί εκπαιδευτής. Διάλεξε μια άλλη μέρα.",
     personalCancelTooLate:
       "Η ακύρωση έκλεισε στο τέλος της προηγούμενης μέρας, γιατί έχει ήδη ζητηθεί από εκπαιδευτή να έρθει για αυτή την ώρα.",
     needsPersonal:

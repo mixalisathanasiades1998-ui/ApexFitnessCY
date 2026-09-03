@@ -1169,11 +1169,35 @@ console.log("\n18. The membership list pages and filters");
 /* ----------------------------------------------------------------- 19 */
 console.log("\n19. Rolling the rota forward, and taking it back");
 {
+  /**
+   * Further ahead than the timetable already runs, which is the whole trick.
+   *
+   * This asked for ten weeks once, back when the app generated six and showed
+   * four. Then the horizon went to thirteen weeks for the three-month packs, a
+   * ten-week roll created nothing at all, and six of the assertions below —
+   * every one about undoing a roll — quietly stopped running while the suite
+   * still reported ALL PASS. Six fewer checks is not a failure anybody sees.
+   *
+   * So this deliberately overshoots the standing horizon, and the check under it
+   * asserts that classes were actually created. If the horizon ever grows past
+   * this number the suite now says so, instead of testing less and looking
+   * green.
+   */
+  const BEYOND_HORIZON_WEEKS = 18;
+
   const once = await req(staff, "/api/admin/generate", {
     method: "POST",
-    body: { weeks: 10 },
+    body: { weeks: BEYOND_HORIZON_WEEKS },
   });
   check("it rolls forward", once.json?.ok === true, once.json);
+  check(
+    "and actually creates classes, so the undo below is exercised",
+    (once.json?.created ?? 0) > 0,
+    {
+      created: once.json?.created,
+      hint: `raise BEYOND_HORIZON_WEEKS above the app's TIMETABLE_WEEKS`,
+    },
+  );
   check(
     "and reports the ids of what it created",
     Array.isArray(once.json?.createdIds),
@@ -1188,7 +1212,7 @@ console.log("\n19. Rolling the rota forward, and taking it back");
   /* The property that makes an accidental press harmless. */
   const twice = await req(staff, "/api/admin/generate", {
     method: "POST",
-    body: { weeks: 10 },
+    body: { weeks: BEYOND_HORIZON_WEEKS },
   });
   check(
     "running it again creates nothing at all",
@@ -1224,16 +1248,27 @@ console.log("\n19. Rolling the rota forward, and taking it back");
   check("an empty undo is refused rather than doing something odd", empty.status === 400, empty.status);
 
   /* And a booked class survives an undo. */
-  const roll = await req(staff, "/api/admin/generate", { method: "POST", body: { weeks: 10 } });
+  const roll = await req(staff, "/api/admin/generate", {
+    method: "POST",
+    body: { weeks: BEYOND_HORIZON_WEEKS + 4 },
+  });
   const fresh = roll.json?.createdIds ?? [];
+  check(
+    "a second roll further out creates more to undo",
+    fresh.length > 2,
+    fresh.length,
+  );
   if (fresh.length > 2) {
     const buyer = await member("undo");
     /* Give them a session so they can book. */
     const list = await req(staff, `/api/admin/members?q=${encodeURIComponent(buyer.email)}`);
     const buyerId = list.json?.members?.[0]?.id;
+    /* Valid long enough to reach a class five months out. Ninety days of
+       validity would be refused with SESSIONS_EXPIRE_FIRST — correctly — and
+       that refusal has nothing to do with what this section is testing. */
     await req(staff, "/api/admin/grant", {
       method: "POST",
-      body: { userId: buyerId, credits: 2, validityDays: 90, note: "undo test" },
+      body: { userId: buyerId, credits: 2, validityDays: 400, note: "undo test" },
     });
     /**
      * A group class among the new ones, not simply the last of them.
@@ -1245,9 +1280,21 @@ console.log("\n19. Rolling the rota forward, and taking it back");
      * nothing to do with what it is testing, which is that an undo leaves a
      * booked class alone.
      */
-    /* Ninety days, because the roll above went ten weeks ahead and a window
-       that stops at six would not contain any of the classes it just made. */
-    const timetable = await req(buyer.j, "/api/sessions?days=90");
+    /**
+     * The window is moved to where the new classes are, not widened.
+     *
+     * Everything this roll created is *past* the standing ninety-day horizon —
+     * that is what makes it new — and /api/sessions caps its window at 92 days.
+     * So asking for the next 90 days finds none of these classes and the filter
+     * below silently matched nothing, which is how this block came to try
+     * booking an appointment with class sessions. `from` is what the route has
+     * for exactly this.
+     */
+    const from = new Date(Date.now() + 88 * 86_400_000).toISOString();
+    const timetable = await req(
+      buyer.j,
+      `/api/sessions?from=${encodeURIComponent(from)}&days=92`,
+    );
     const groupIds = new Set(
       (timetable.json?.sessions ?? [])
         .filter((s) => s.classType?.kind !== "PERSONAL" && s.spotsLeft > 0)

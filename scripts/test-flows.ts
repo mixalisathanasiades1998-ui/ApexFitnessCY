@@ -5,7 +5,7 @@
  * It creates a throwaway user, so it is safe to run against dev.db.
  */
 import Database from "better-sqlite3";
-import { and, eq, getTableColumns, gt, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, gt, ne, sql } from "drizzle-orm";
 import { ensureSchema } from "../src/db/migrate";
 import { db, sqlite } from "../src/db";
 import {
@@ -1113,6 +1113,220 @@ async function main() {
     );
 
     db.delete(purchases).where(eq(purchases.id, sale.id)).run();
+  }
+
+  console.log("\n8k. Booking one slot for a whole term");
+  /**
+   * "Book my Monday ten o'clock for the next eight weeks."
+   *
+   * The studio sells three-month packs and members train on a fixed slot, so a
+   * term of Mondays used to be twelve separate visits to the timetable. The
+   * interesting properties are not that it books things — a loop does that —
+   * but that it books the *right* things and tells the truth about the rest.
+   */
+  {
+    const { repeatWeekly, MAX_REPEAT_WEEKS } = await import(
+      "../src/lib/booking-repeat"
+    );
+    const { studioDayOfWeek, studioParts } = await import("../src/lib/time");
+
+    /* A member of their own, so nothing here disturbs the balances the rest of
+       this suite has been counting. */
+    const termUser = db
+      .insert(users)
+      .values({
+        email: `term-${Date.now()}@apex.test`,
+        name: "Term Booker",
+        passwordHash: await hashPassword("x".repeat(10)),
+      })
+      .returning()
+      .get();
+    grantCredits({
+      userId: termUser.id,
+      credits: 20,
+      validityDays: 200,
+      note: "term pack",
+    });
+
+    /* A group class far enough ahead that six more of the same slot exist. */
+    const seed = db
+      .select({ s: classSessions })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(
+        and(
+          gt(classSessions.startsAt, new Date(Date.now() + 2 * 86_400_000)),
+          eq(classTypes.kind, "GROUP"),
+        ),
+      )
+      .orderBy(classSessions.startsAt)
+      .all()
+      .map((r) => r.s)[0]!;
+
+    const run = repeatWeekly({
+      userId: termUser.id,
+      sessionId: seed.id,
+      weeks: 6,
+    });
+
+    check("a term booking succeeds", run.ok === true, run);
+    if (run.ok) {
+      check(
+        "it books more than one week",
+        run.booked >= 2,
+        { booked: run.booked, failed: run.failed.length },
+      );
+      check(
+        "and never more weeks than were asked for",
+        run.outcomes.length <= 6,
+        run.outcomes.length,
+      );
+
+      /**
+       * The same weekday and the same minute, every time.
+       *
+       * This is the assertion that matters, and the reason the implementation
+       * matches on the studio's own weekday and minute-of-day rather than adding
+       * seven days repeatedly. Cyprus changes its clocks in late October, so a
+       * naive "+7 days" from September lands an hour out for the back half of a
+       * twelve-week booking and quietly moves somebody's 10:00 to 09:00.
+       */
+      const wd = studioDayOfWeek(seed.startsAt);
+      const p0 = studioParts(seed.startsAt);
+      const sameSlot = run.outcomes.every((o) => {
+        const d = new Date(o.startsAt);
+        const p = studioParts(d);
+        return (
+          studioDayOfWeek(d) === wd &&
+          p.hour === p0.hour &&
+          p.minute === p0.minute
+        );
+      });
+      check(
+        "every week is the same weekday and the same clock time",
+        sameSlot,
+        run.outcomes.map((o) => o.startsAt),
+      );
+
+      /* Each one really is booked, not merely reported. */
+      const held = run.bookingIds.length;
+      const rows = db
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(
+          and(eq(bookings.userId, termUser.id), ne(bookings.status, "CANCELLED")),
+        )
+        .all().length;
+      check(
+        "the bookings are actually on the books",
+        rows === held && held === run.booked,
+        { rows, held, booked: run.booked },
+      );
+
+      /* One credit per class, and not one per press. */
+      check(
+        "one session was spent per week booked",
+        (await getAvailableCredits(termUser.id)) === 20 - run.booked,
+        {
+          left: await getAvailableCredits(termUser.id),
+          booked: run.booked,
+        },
+      );
+
+      /**
+       * Asking twice is not a way to book the same class twice.
+       *
+       * A member who presses it again — impatience, a double tap, a refresh —
+       * must not end up with two places in one class. Every week comes back as
+       * "you already had this", which is deliberately counted apart from a
+       * failure: they asked for their Monday slot and they have their Monday
+       * slot, and reporting that as an error would be a refusal nobody needs to
+       * act on.
+       */
+      const again = repeatWeekly({
+        userId: termUser.id,
+        sessionId: seed.id,
+        weeks: 6,
+      });
+      check(
+        "pressing it again books nothing new",
+        again.ok === true && again.booked === 0,
+        again,
+      );
+      check(
+        "and says the weeks were already theirs rather than calling it a failure",
+        again.ok === true &&
+          again.alreadyHad === run.booked &&
+          again.failed.length === 0,
+        again,
+      );
+      check(
+        "no second session was spent",
+        (await getAvailableCredits(termUser.id)) === 20 - run.booked,
+      );
+    }
+
+    /* --- what it refuses --- */
+    const one = repeatWeekly({
+      userId: termUser.id,
+      sessionId: seed.id,
+      weeks: 1,
+    });
+    check(
+      "one week is not a repeat, and is refused",
+      one.ok === false && one.code === "BAD_WEEKS",
+      one,
+    );
+    const tooMany = repeatWeekly({
+      userId: termUser.id,
+      sessionId: seed.id,
+      weeks: MAX_REPEAT_WEEKS + 1,
+    });
+    check(
+      "and neither is a year of them",
+      tooMany.ok === false && tooMany.code === "BAD_WEEKS",
+      tooMany,
+    );
+
+    /**
+     * An appointment cannot be repeated, and that is a studio decision.
+     *
+     * Every Personal or Duet hour commits somebody to come in and teach it,
+     * arranged by hand the day before. Twelve booked in one press is twelve
+     * instructor hours the studio has promised without anybody at the desk
+     * seeing it happen.
+     */
+    const appointment = db
+      .select({ s: classSessions })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(
+        and(
+          gt(classSessions.startsAt, new Date(Date.now() + 2 * 86_400_000)),
+          eq(classTypes.kind, "PERSONAL"),
+        ),
+      )
+      .all()
+      .map((r) => r.s)[0];
+
+    if (appointment) {
+      const refused = repeatWeekly({
+        userId: termUser.id,
+        sessionId: appointment.id,
+        weeks: 4,
+      });
+      check(
+        "a Personal hour is not repeatable from the timetable",
+        refused.ok === false && refused.code === "NOT_REPEATABLE",
+        refused,
+      );
+    }
+
+    /* Tidy up, so a repeat run starts clean. */
+    db.delete(bookings).where(eq(bookings.userId, termUser.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.userId, termUser.id)).run();
+    db.delete(creditBatches).where(eq(creditBatches.userId, termUser.id)).run();
+    db.delete(users).where(eq(users.id, termUser.id)).run();
   }
 
   console.log("\n9. Ledger integrity");

@@ -17,6 +17,7 @@ import {
 } from "@/lib/time";
 import { pushPublicKey } from "@/lib/messaging/push";
 import { isPersonalBookable } from "@/lib/personal";
+import { TIMETABLE_DAYS } from "@/lib/schedule";
 import { STUDIO } from "@/lib/studio";
 import { isBookable } from "@/lib/utils";
 
@@ -28,7 +29,10 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const DAYS_SHOWN = 28;
+/* Ninety days, from the one constant that also drives the generator. The studio
+   sells three-month packs, and a member who has paid for twelve weeks of classes
+   should not be looking at a timetable that ends before their sessions do. */
+const DAYS_SHOWN = TIMETABLE_DAYS;
 
 export default async function TimetablePage() {
   const session = await readSession();

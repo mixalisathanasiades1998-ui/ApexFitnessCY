@@ -584,9 +584,11 @@ async function main() {
     console.log("  ✓ demo member granted 10 credits");
   }
 
-  /* Six weeks of bookable classes */
-  const { generateSessions } = await import("@/lib/schedule");
-  const gen = generateSessions(6);
+  /* The whole timetable horizon, from the constant the pages read. Seeding
+     fewer weeks than the timetable shows leaves a fresh install with a strip
+     that ends in empty days. */
+  const { generateSessions, TIMETABLE_WEEKS } = await import("@/lib/schedule");
+  const gen = generateSessions(TIMETABLE_WEEKS);
   console.log(
     `  ✓ sessions generated: ${gen.created} new, ${gen.skipped} already existed/past`,
   );

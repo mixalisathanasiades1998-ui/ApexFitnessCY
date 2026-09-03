@@ -5,7 +5,7 @@ import {
   PERSONAL_SLOT_HOURS,
 } from "./personal";
 import { classHoursOn } from "./rota";
-import { generateSessions } from "./schedule";
+import { generateSessions, TIMETABLE_WEEKS } from "./schedule";
 import { STUDIO } from "./studio";
 import { studioStartOfDay } from "./time";
 
@@ -334,5 +334,12 @@ export function repairTimetable(now = new Date()): TimetableSync {
   return out;
 }
 
-/** How far ahead to roll the new appointment slots. Six weeks, as the desk does. */
-const GENERATE_WEEKS = 6;
+/**
+ * How far ahead to roll the new appointment slots.
+ *
+ * The same horizon the timetable shows, from the same constant. These were two
+ * different numbers once — six weeks generated against four weeks displayed —
+ * and the day the display caught up with the generator was the day the last
+ * fortnight of the strip went blank.
+ */
+const GENERATE_WEEKS = TIMETABLE_WEEKS;
