@@ -9,7 +9,7 @@ import type { Outgoing, SendResult, Transport } from "./types";
  *   EMAIL_PROVIDER=smtp      SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
  *   EMAIL_PROVIDER=resend    RESEND_API_KEY
  *   EMAIL_PROVIDER=brevo     BREVO_API_KEY
- *   EMAIL_FROM="APEX pilates <info@ergonsite.com>"
+ *   EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
  *
  * The difference that matters is what each one asks of you before it will send.
  *
@@ -32,7 +32,8 @@ import type { Outgoing, SendResult, Transport } from "./types";
  * domain is already trusted to send its own mail.
  */
 
-const FROM = process.env.EMAIL_FROM ?? "APEX pilates <hello@apexpilates.cy>";
+const FROM =
+  process.env.EMAIL_FROM ?? "APEX pilates <info@apexfitnesscentrecy.com>";
 
 /** The plain-text body wrapped in something that does not look like a robot. */
 function html(msg: Outgoing) {

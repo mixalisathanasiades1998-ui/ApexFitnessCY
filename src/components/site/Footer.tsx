@@ -12,6 +12,7 @@ import { Monogram } from "@/components/ui/Monogram";
 import { Wordmark } from "@/components/ui/Wordmark";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { SocialLinks } from "@/components/ui/SocialLinks";
+import { StudioEmail } from "@/components/site/StudioEmail";
 import { STUDIO } from "@/lib/studio";
 
 /**
@@ -168,12 +169,7 @@ export function Footer() {
               className="gap-3"
               itemClassName="text-cream/80 hover:text-cream"
             />
-            <a
-              href={`mailto:${STUDIO.email}`}
-              className="mt-4 block link-underline text-sm text-cream/80 hover:text-cream"
-            >
-              {STUDIO.email}
-            </a>
+            <StudioEmail className="mt-4 link-underline text-sm text-cream/80 hover:text-cream" />
             <a
               href={`tel:${STUDIO.phone.replace(/\s/g, "")}`}
               className="mt-2 block link-underline text-sm text-cream/80 hover:text-cream"

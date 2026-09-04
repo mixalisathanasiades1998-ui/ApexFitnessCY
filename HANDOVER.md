@@ -24,9 +24,10 @@ What is finished, what is placeholder, and what to decide next.
 
 ## Placeholder — replace before launch
 
-1. **Studio details** — address, phone, email and Google Maps link in
-   `src/lib/studio.ts` are placeholders (`+357 22 000 000`,
-   `hello@apexpilates.cy`).
+1. **Studio details** — the address, phone (`+357 99 649 052`) and email
+   (`info@apexfitnesscentrecy.com`) in `src/lib/studio.ts` are the
+   studio's real ones as of September 2026. Still empty: `mapsEmbedUrl`, which
+   turns the map on the contact page from a link into an embedded map.
 2. **Instructor names and bios** — invented for the demo, in `src/db/seed.ts`.
 3. **Prices** — the packs are a sensible market-rate proposal built around your
    €200 / 10-class example. Confirm all five with the studio.

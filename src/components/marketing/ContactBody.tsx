@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
 import { SocialLinks } from "@/components/ui/SocialLinks";
+import { StudioEmail } from "@/components/site/StudioEmail";
 import { Reveal } from "@/components/ui/Reveal";
 import { Section, SectionHead } from "@/components/ui/Section";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -268,12 +269,7 @@ export function ContactBody() {
               itemClassName="text-mocha-600 hover:text-mocha-700"
             />
             <div className="mt-4 space-y-2 text-[15px]">
-              <a
-                href={`mailto:${STUDIO.email}`}
-                className="link-underline block text-mocha-600"
-              >
-                {STUDIO.email}
-              </a>
+              <StudioEmail className="link-underline text-mocha-600" />
               <a
                 href={`tel:${STUDIO.phone.replace(/\s/g, "")}`}
                 className="link-underline block text-mocha-600"

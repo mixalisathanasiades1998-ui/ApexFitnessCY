@@ -15,16 +15,19 @@ async function main() {
   const asReal = process.argv[2] === "real";
 
   if (asReal) {
-    /* Set only inside this process, for this preview. Never written anywhere,
-       and deliberately not the studio's real details — the point is to see the
-       layout with something of the right shape in every field. */
+    /* Set only inside this process, for this preview. Never written anywhere.
+       The legal identifiers are invented on purpose — an invoice carrying a
+       made-up VAT number cannot be mistaken for a real one if it leaks out of
+       a screenshot — while the contact address is the studio's own, because
+       the point of the preview is to see the layout with something of the
+       right shape in every field. */
     process.env.INVOICE_LEGAL_NAME = "Apex Wellness Ltd";
     process.env.INVOICE_ADDRESS =
       "Grigori Afxentiou 9, Livadia, Larnaca 7060, Cyprus";
     process.env.INVOICE_VAT_NUMBER = "CY10456789J";
     process.env.INVOICE_REG_NUMBER = "HE 456789";
     process.env.INVOICE_VAT_RATE = "19";
-    process.env.INVOICE_EMAIL = "info@ergonsite.com";
+    process.env.INVOICE_EMAIL = "info@apexfitnesscentrecy.com";
     process.env.INVOICE_PHONE = "+357 24 000000";
   }
 

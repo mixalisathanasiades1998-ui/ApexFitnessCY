@@ -12,10 +12,26 @@ export const STUDIO = {
     "Cyprus",
   ],
   city: "Larnaca",
-  /** TODO: confirm the public phone number */
-  phone: "+357 22 000 000",
-  /** TODO: confirm the public email */
-  email: "hello@apexpilates.cy",
+  /**
+   * The studio's published number, given by the studio on 4 September 2026.
+   *
+   * Written with the country code and spaced for reading. Every place that
+   * dials it strips the spaces itself — `tel:` will not accept them — so this
+   * stays the one human-readable copy: the footer, the contact page, the share
+   * card at /link and the printed QR sheet all read from here.
+   */
+  phone: "+357 99 649 052",
+  /**
+   * The studio's mailbox, given by the studio on 4 September 2026.
+   *
+   * This is the address a member sees: the footer, the contact page and the
+   * share card at /link all read it from here. It is also the mailbox the site
+   * sends *from* — see `EMAIL_FROM` in .env.example — and the two being the
+   * same address is the point. Mail that arrives from one address and asks to
+   * be answered at another is the shape of every phishing email ever written,
+   * and a member who replies to a confirmation should reach the studio.
+   */
+  email: "info@apexfitnesscentrecy.com",
   instagram: "https://www.instagram.com/pilatesbyapex/",
   instagramHandle: "@pilatesbyapex",
   facebook: "https://www.facebook.com/profile.php?id=61593707540014",

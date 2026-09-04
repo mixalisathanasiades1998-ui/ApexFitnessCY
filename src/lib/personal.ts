@@ -35,11 +35,16 @@ export const PERSONAL_DURATION_MINUTES = 50;
  * Where the studio wants to be told about a new appointment.
  *
  * A person, not a queue: an appointment is a rota change, and somebody has to
- * read it and ring an instructor. Kept here rather than in `studio.ts` because
- * it is an operations address and not one the site publishes anywhere.
+ * read it and ring an instructor.
+ *
+ * Today this is the same mailbox as `STUDIO.email`, because the studio has one.
+ * It stays a separate setting anyway: the published address and the address
+ * that gets woken up by an appointment are different jobs, and the day the
+ * studio wants appointments going to a manager rather than to the front desk
+ * that is one environment variable, not a code change.
  */
 export const STUDIO_OPS_EMAIL =
-  process.env.STUDIO_OPS_EMAIL || "info@ergonsite.com";
+  process.env.STUDIO_OPS_EMAIL || "info@apexfitnesscentrecy.com";
 
 /**
  * The moment booking closes: midnight at the end of the day before.

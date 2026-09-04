@@ -20,9 +20,9 @@ import type { Outgoing, SendResult, Transport } from "./types";
  *   EMAIL_PROVIDER=smtp
  *   SMTP_HOST=smtp.gmail.com
  *   SMTP_PORT=465
- *   SMTP_USER=info@ergonsite.com
+ *   SMTP_USER=info@apexfitnesscentrecy.com
  *   SMTP_PASS=<app password, not the account password>
- *   EMAIL_FROM="APEX pilates <info@ergonsite.com>"
+ *   EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
  *
  * The honest limits, because they decide whether this stays or is replaced:
  *

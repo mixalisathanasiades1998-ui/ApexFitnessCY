@@ -103,8 +103,11 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      # Not a secret and not a contact address anybody reads: the push services
+      # want a way to reach whoever is sending, if a batch of notifications
+      # starts misbehaving. The studio's own mailbox is the honest answer.
       - key: VAPID_SUBJECT
-        value: mailto:info@ergonsite.com
+        value: mailto:info@apexfitnesscentrecy.com
       - key: AUTH_SECRET
         generateValue: true
 
@@ -131,19 +134,24 @@ services:
         # 465 is implicit TLS, which the transport infers from the port, so
         # SMTP_SECURE does not need setting.
         value: "465"
+      # The studio's mailbox. An address, not a secret, so it is written here
+      # rather than left for somebody to type into a panel and mistype.
       - key: SMTP_USER
-        sync: false
+        value: info@apexfitnesscentrecy.com
       # A Google **app password**, not the mailbox's own password: sixteen
       # characters, generated at myaccount.google.com/apppasswords with 2-step
       # verification switched on. Google refuses a normal password here.
+      #
+      # This is the only email setting that is a secret, and the only one left
+      # to the dashboard.
       - key: SMTP_PASS
         sync: false
+      # Shown as the sender. Has to be the mailbox above, or an alias Google
+      # has been told it may send as, or Gmail rewrites it.
       - key: EMAIL_FROM
-        # Shown as the sender. Has to be the mailbox above, or an alias Google
-        # has been told it may send as, or Gmail rewrites it.
-        sync: false
+        value: "APEX pilates <info@apexfitnesscentrecy.com>"
       - key: STUDIO_OPS_EMAIL
-        value: info@ergonsite.com
+        value: info@apexfitnesscentrecy.com
 
       # ------------------------------------------------------------------ money
       - key: PAYMENT_PROVIDER
@@ -180,7 +188,7 @@ services:
       - key: INVOICE_VAT_RATE
         sync: false
       - key: INVOICE_EMAIL
-        value: info@ergonsite.com
+        value: info@apexfitnesscentrecy.com
       - key: INVOICE_PHONE
         sync: false
 

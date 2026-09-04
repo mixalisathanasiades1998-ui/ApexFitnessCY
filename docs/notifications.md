@@ -94,7 +94,7 @@ This signs in to an ordinary mailbox and sends as it — the same credentials a
 mail client uses. **Nothing about the domain changes, no DNS records are added.**
 It is running in the ten minutes it takes to create an app password.
 
-For `info@ergonsite.com`, which is on Google Workspace:
+For `info@apexfitnesscentrecy.com`, the studio's Google mailbox:
 
 1. The mailbox needs 2-Step Verification on — Google will not issue an app
    password without it. <https://myaccount.google.com/security>
@@ -106,9 +106,9 @@ For `info@ergonsite.com`, which is on Google Workspace:
 EMAIL_PROVIDER=smtp
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
-SMTP_USER=info@ergonsite.com
+SMTP_USER=info@apexfitnesscentrecy.com
 SMTP_PASS=xxxxxxxxxxxxxxxx
-EMAIL_FROM="APEX pilates <info@ergonsite.com>"
+EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
 ```
 
 4. Restart, then:
@@ -150,7 +150,7 @@ generous free tier):
 ```
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_xxxxxxxx
-EMAIL_FROM="APEX pilates <hello@apexpilates.cy>"
+EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
 ```
 
 or **Brevo**, which does SMS too, so one account covers both:
@@ -158,7 +158,7 @@ or **Brevo**, which does SMS too, so one account covers both:
 ```
 EMAIL_PROVIDER=brevo
 BREVO_API_KEY=xkeysib-xxxxxxxx
-EMAIL_FROM="APEX pilates <hello@apexpilates.cy>"
+EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
 ```
 
 Either way the important part is not the API key — it is **verifying the sending
@@ -173,17 +173,26 @@ an existing mailbox's domain is already trusted to send its own mail.
 Do not use a Gmail or Hotmail address as the `From` with a provider. Google and
 Microsoft publish rules that make other providers reject it.
 
-#### While the studio has no domain of its own
+#### The address, and why it is the studio's own
 
-`info@ergonsite.com` is a **testing** address, and it should not outlive the
-testing. A member receiving mail whose display name says APEX pilates and whose
-address says `ergonsite.com` is looking at exactly the shape of a phishing email
-— and the message is telling them their class is cancelled or that they have been
-charged €200, which is precisely the mail you most need believed.
+Until September 2026 this ran from `info@ergonsite.com`, the builder's mailbox,
+and that was always meant to be temporary. A member receiving mail whose display
+name says APEX pilates and whose address says somebody else's domain is looking
+at exactly the shape of a phishing email — and the message is telling them their
+class is cancelled or that they have been charged €200, which is precisely the
+mail you most need believed.
 
-So: send to yourself from it as much as you like. Before a real member gets one,
-change `EMAIL_FROM` to an address on the studio's own domain. It is one line,
-plus that domain's own DNS records if you have moved to a provider by then.
+The studio now has `info@apexfitnesscentrecy.com`, so the display name and the
+address agree and that problem is gone. It is the address a member sees in the
+footer, the address mail arrives from, and the address a reply lands in.
+One mailbox doing all three is not laziness: a member who hits reply on a
+booking confirmation should reach the studio, and any arrangement where they do
+not is one the studio will find out about from a complaint rather than from a
+setting.
+
+The one thing still worth doing eventually: if the studio outgrows a mailbox and
+moves to Resend or Brevo, that domain needs its own SPF and DKIM records. Not
+today, and nothing is broken without them while the route is `smtp`.
 
 #### Which messages actually use it
 
@@ -702,7 +711,7 @@ what stops them duplicating.
 **1. A scheduled call (do this in production).** Every five minutes:
 
 ```
-POST https://apexpilates.cy/api/cron/reminders
+POST https://apexfitnesscentrecy.onrender.com/api/cron/reminders
 authorization: Bearer <CRON_SECRET>
 ```
 
@@ -710,7 +719,7 @@ Set `CRON_SECRET` in `.env` to any long random string. Most hosting has a
 scheduler built in; on a Windows machine, Task Scheduler running:
 
 ```
-curl -X POST -H "authorization: Bearer YOUR_SECRET" https://apexpilates.cy/api/cron/reminders
+curl -X POST -H "authorization: Bearer YOUR_SECRET" https://apexfitnesscentrecy.onrender.com/api/cron/reminders
 ```
 
 The sweep sends everything that has come due, so a missed run catches up on the

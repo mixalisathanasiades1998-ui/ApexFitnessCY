@@ -51,7 +51,7 @@ if (printOnly) {
 
 VAPID_PUBLIC_KEY=${keys.publicKey}
 VAPID_PRIVATE_KEY=${keys.privateKey}
-VAPID_SUBJECT=mailto:hello@apexpilates.cy
+VAPID_SUBJECT=mailto:info@apexfitnesscentrecy.com
 
   The public key is sent to browsers and is not a secret. The private key is:
   do not commit it, and do not paste it into a chat window.
@@ -87,7 +87,7 @@ if (!/# notifications/.test(next)) {
 }
 next = upsert(next, "VAPID_PUBLIC_KEY", keys.publicKey);
 next = upsert(next, "VAPID_PRIVATE_KEY", keys.privateKey);
-next = upsert(next, "VAPID_SUBJECT", "mailto:hello@apexpilates.cy");
+next = upsert(next, "VAPID_SUBJECT", "mailto:info@apexfitnesscentrecy.com");
 
 /* The reminder sweep needs a secret to be woken from outside. Generated here
    too, so there is one fewer thing to remember. */
@@ -105,7 +105,7 @@ console.log(`
 
     VAPID_PUBLIC_KEY    ${keys.publicKey.length} characters
     VAPID_PRIVATE_KEY   ${keys.privateKey.length} characters — secret, never commit it
-    VAPID_SUBJECT       mailto:hello@apexpilates.cy
+    VAPID_SUBJECT       mailto:info@apexfitnesscentrecy.com
     CRON_SECRET         for waking the reminder sweep
 
   Next:

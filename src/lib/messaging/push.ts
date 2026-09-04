@@ -9,7 +9,7 @@ import type { Outgoing, SendResult } from "./types";
  * control.
  *
  *   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY   npm run push:keys
- *   VAPID_SUBJECT=mailto:hello@apexpilates.cy
+ *   VAPID_SUBJECT=mailto:info@apexfitnesscentrecy.com
  *
  * There is no company in the middle to sign up with — the message goes straight
  * to Google's, Apple's or Mozilla's push service, signed with our own keys. What
@@ -53,7 +53,7 @@ function ready() {
    */
   try {
     webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT ?? "mailto:hello@apexpilates.cy",
+      process.env.VAPID_SUBJECT ?? "mailto:info@apexfitnesscentrecy.com",
       pub,
       priv,
     );

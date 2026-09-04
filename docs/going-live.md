@@ -158,8 +158,8 @@ ID photograph ready — that is the step people stall on.
 **"Create your Stripe profile"** is the public-facing part, and members do see
 it: it becomes the name on the card statement and on Stripe's receipt. Set the
 public business name to **APEX pilates**, the support email to
-`info@ergonsite.com` for now, and the support site to the studio's address once
-it exists.
+`info@apexfitnesscentrecy.com`, and the support site to the studio's own domain
+once it exists.
 
 ---
 
@@ -189,32 +189,45 @@ This is "10 sessions added to your balance — €200. They expire on 25 Novembe
   **Now `push,email`.** Without this, no provider in the world produces an email.
 - No provider is configured, so it writes to the server log instead of sending.
 
-To make it actually send, from `ergonsite.com` for now:
+To make it actually send, through the studio's own mailbox:
 
-1. Sign up at <https://resend.com> (free tier is far more than a studio needs).
-2. Add the domain `ergonsite.com`. Resend gives you two or three DNS records —
-   SPF, DKIM, usually a DMARC suggestion. Add them wherever `ergonsite.com`'s DNS
-   lives. This is the part that takes an hour, not the API key.
-3. Wait for it to show **Verified**, then in `.env`:
+1. `info@apexfitnesscentrecy.com` needs **2-Step Verification** switched on.
+   Google will not issue an app password without it.
+   <https://myaccount.google.com/security>
+2. Then **App passwords** at <https://myaccount.google.com/apppasswords> →
+   create one → Google shows sixteen characters in four groups. The spaces do
+   not matter.
+3. In `.env`, and in the host's environment panel:
 
 ```
-EMAIL_PROVIDER=resend
-RESEND_API_KEY=re_xxxxxxxx
-EMAIL_FROM="APEX pilates <info@ergonsite.com>"
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=info@apexfitnesscentrecy.com
+SMTP_PASS=xxxxxxxxxxxxxxxx
+EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"
 ```
 
-4. Restart, buy a test pack, and the email arrives — **this one works in
-   sandbox**, because it is our server sending it, not Stripe's.
+4. Restart, then `npm run doctor` to check the settings hang together, then
+   `npm run email:test -- you@example.com` to send one real message and read the
+   entire conversation with the mail server. Then buy a test pack and the
+   payment email arrives — **this one works in sandbox**, because it is our
+   server sending it, not Stripe's.
 
-Skipping the DNS records and sending anyway is worse than not sending: Gmail and
-Outlook drop it silently, so the studio believes forty people were told their
-class was cancelled. Do not send with a Gmail address as the `From` either;
-Google and Microsoft publish rules that make other providers reject it.
+Two things this route insists on, both enforced by Google rather than by us:
+the password must be the **app password** and not the one used to sign in
+(the real one gives `535 Username and Password not accepted`, which reads like
+a typo and is not one), and `SMTP_USER` and the address inside `EMAIL_FROM`
+must be the **same mailbox**. `npm run doctor` checks the second.
 
-Swap `EMAIL_FROM` to `hello@apexpilates.cy` when that domain exists — one line,
-plus its own DNS records. A member reading mail from `ergonsite.com` about their
-pilates class will wonder who that is, so treat this as the testing address it
-is.
+**Why a mailbox rather than Resend.** A provider needs the sending domain
+verified with DNS records before it will send anything, which is an hour of
+waiting on DNS; a mailbox is already trusted to send its own mail and needs
+none of it. The trade is volume: Google allows roughly 2,000 messages a day and
+throttles bursts, so confirmations are comfortable and one announcement to 400
+members is at the edge. That is the day to move to Resend or Brevo, add the SPF
+and DKIM records for `apexfitnesscentrecy.com`, and change two lines. Until
+then this is fewer moving parts, not a compromise.
 
 ---
 
@@ -285,7 +298,7 @@ and you have spent about a euro.
 3. The session count on your photograph goes up **without a refresh**.
 4. Notifications shows "Payment received", with the right expiry date.
 5. Stripe's receipt email arrives (the one you switched on in Part 3).
-6. The studio's own email arrives, from `info@ergonsite.com`.
+6. The studio's own email arrives, from `info@apexfitnesscentrecy.com`.
 7. Stripe → Payments shows it: Amount €5.00, Fee, Net.
 8. The desk's Analytics revenue figure moves by €5.
 9. Book a class, then cancel it, and check both notices and the balance.

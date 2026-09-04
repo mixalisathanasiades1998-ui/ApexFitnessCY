@@ -931,7 +931,7 @@ async function main() {
     const pdf = Buffer.from("%PDF-1.3 pretend");
 
     const plain = buildMessage({
-      from: "APEX pilates <hello@apexpilates.cy>",
+      from: "APEX pilates <info@apexfitnesscentrecy.com>",
       to: "member@example.com",
       msg: { subject: "Payment received", body: "Five sessions." },
       html: "<p>Five sessions.</p>",
@@ -943,7 +943,7 @@ async function main() {
     );
 
     const withFile = buildMessage({
-      from: "APEX pilates <hello@apexpilates.cy>",
+      from: "APEX pilates <info@apexfitnesscentrecy.com>",
       to: "member@example.com",
       msg: {
         subject: "Payment received",
@@ -1646,7 +1646,7 @@ async function main() {
 
     /* What a deliberate placeholder looks like. */
     const PLACEHOLDER =
-      /^$|change-?me|xxx|placeholder|example\.com|your-|<|\.\.\.|dev\.db|localhost|127\.0\.0\.1|mailto:|apexpilates\.cy|ergonsite\.com|Larnaca|^\d+$|^(true|false|log|smtp|stripe|smsto|eur|en|el)$/i;
+      /^$|change-?me|xxx|placeholder|example\.com|your-|<|\.\.\.|dev\.db|localhost|127\.0\.0\.1|mailto:|apexfitnesscentrecy\.com|smtp\.gmail\.com|Larnaca|^\d+$|^(true|false|log|smtp|stripe|smsto|eur|en|el)$/i;
 
     /* Shapes that are a live credential wherever they appear. */
     const LIVE = [

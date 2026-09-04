@@ -285,7 +285,7 @@ console.log("\nGetting a message out");
 
     if (!sender) {
       warn("email: EMAIL_FROM is not set, so the default address will be used",
-           'EMAIL_FROM="APEX pilates <info@ergonsite.com>"');
+           'EMAIL_FROM="APEX pilates <info@apexfitnesscentrecy.com>"');
     } else if (sender.toLowerCase() !== process.env.SMTP_USER.toLowerCase()) {
       isMailbox
         ? bad(
@@ -428,17 +428,45 @@ if (tables.has("credit_packages")) {
     .prepare("select slug from credit_packages where active = 1 order by sort_order")
     .all()
     .map((p) => p.slug);
-  const expected = [
-    "single",
-    "month-1", "month-2", "month-3", "month-4",
-    "quarter-1", "quarter-2", "quarter-3", "quarter-4",
-    /* The two that buy an hour rather than a place in a class. */
-    "personal", "duet",
-  ];
-  const same = active.length === expected.length && active.every((s, i) => s === expected[i]);
-  same
-    ? ok(`packs on sale: ${active.join(", ")}`)
-    : bad(`packs on sale are ${active.join(", ") || "none"}`, "load any page, or npm run db:seed");
+  /**
+   * What the catalogue *should* hold, read out of the catalogue itself.
+   *
+   * This was a list typed out by hand, and it went stale the moment the studio
+   * added the six, nine and twelve-month terms: twenty-three packs in the
+   * database against eleven in the list, so `npm run doctor` reported a red
+   * failure and told somebody to reseed a database that was perfectly correct.
+   * A health check that cries wolf is worse than no health check, because the
+   * next real failure arrives in a list of things known to be lies.
+   *
+   * `packs.ts` is TypeScript and this is a plain script, so the slugs are read
+   * with a regex rather than an import — the same trick `db:mirror` uses on the
+   * schema. It matches the `slug: "…"` lines inside the PACKS array and nothing
+   * else; the `p.slug` references further down the file have no quoted string.
+   */
+  const catalogue = readFileSync("src/lib/packs.ts", "utf8");
+  const expected = [...catalogue.matchAll(/^\s*slug: "([^"]+)"/gm)].map((m) => m[1]);
+
+  /* Compared as sets. Presence is what matters: a pack missing from the
+     database cannot be bought, and one in the database that the code no longer
+     knows about prices itself from a row nothing maintains. The order rows come
+     back in is a display concern and belongs to sort_order, not here. */
+  const inDb = new Set(active);
+  const missing = expected.filter((s) => !inDb.has(s));
+  const strays = active.filter((s) => !expected.includes(s));
+  const faults = [
+    missing.length ? `missing ${missing.join(", ")}` : "",
+    strays.length ? `unknown ${strays.join(", ")}` : "",
+  ].filter(Boolean);
+
+  if (!expected.length) {
+    warn("packs: could not read the catalogue from src/lib/packs.ts",
+         "this check is stale rather than the packs being wrong");
+  } else if (faults.length) {
+    bad(`packs on sale do not match the catalogue: ${faults.join("; ")}`,
+        "load any page, or npm run db:seed");
+  } else {
+    ok(`${active.length} packs on sale, all of them in the catalogue`);
+  }
 }
 
 console.log("\nTaking money");

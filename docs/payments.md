@@ -231,7 +231,7 @@ not need a deploy.
 | `INVOICE_VAT_NUMBER` | `CY10456789J` | CY, eight digits, one letter. Empty if not registered |
 | `INVOICE_REG_NUMBER` | `HE 456789` | Optional |
 | `INVOICE_VAT_RATE` | `19` | A percentage. **Ask the accountant which rate applies** |
-| `INVOICE_EMAIL` | `info@ergonsite.com` | Where a member writes about an invoice |
+| `INVOICE_EMAIL` | `info@apexfitnesscentrecy.com` | Where a member writes about an invoice |
 | `INVOICE_PHONE` | `+357 24 000000` | Optional |
 
 Check the result without taking a payment:
@@ -351,7 +351,9 @@ it is visible in a diff.
 Two things the wallets need that code cannot provide:
 
 - **Apple Pay needs the domain registered with Stripe.** Dashboard → Settings →
-  Payments → Apple Pay → add `apexpilates.cy`. Until then the Apple Pay button
+  Payments → Apple Pay → add whichever domain the site is actually served on
+  (`apexfitnesscentrecy.onrender.com` today, the studio's own domain the day it
+  has one — register both if the site answers on both). Until then the Apple Pay button
   does not appear, on any device.
 - **Both need HTTPS.** They will not show on plain `http://`, and Apple Pay needs
   Safari or an Apple device. On a Windows desktop in Chrome you will correctly see
