@@ -109,6 +109,24 @@ export function recipientsFor(
   if (!includeTest) rules.push(eq(users.isTest, false));
 
   /**
+   * An erased account is not a member the studio can write to.
+   *
+   * This was missing, and it was missing for a reason that looks like care from
+   * the wrong angle: erasure deliberately *keeps* `serviceOptInAt`, because the
+   * record that consent was given on a date is evidence the studio may need
+   * precisely when somebody disputes its relationship with them. Which is
+   * right — and it left every erased account sitting in the ALL audience.
+   *
+   * The effect was quiet. Their email and SMS flags are forced false and their
+   * devices are deleted, so nothing was ever actually sent to a `.invalid`
+   * address. What they did was inflate the number above the Send button, and
+   * collect an in-app notice on an account nobody can sign into. So the desk's
+   * "38 members match" counted people the studio had erased, and the read rate
+   * for every campaign was measured against a denominator that included them.
+   */
+  rules.push(isNull(users.erasedAt));
+
+  /**
    * Accounts that never confirmed their email address are not written to.
    *
    * Three reasons, and each would be enough on its own. The address may not
@@ -185,16 +203,76 @@ export function recipientsFor(
   }));
 }
 
-/** What each channel would reach right now — shown at the desk before sending. */
+/**
+ * What each channel would reach right now — shown at the desk before sending.
+ *
+ * ---
+ *
+ * **`onAnyOf` exists because the headline number was answering the wrong
+ * question.**
+ *
+ * The desk saw "5 members match" above a Send button and reasonably read it as
+ * "five people will get this". It is not what it counted. `people` is the
+ * *audience* — everyone whose consent and confirmed address let the studio
+ * write to them at all — and it is the right number for the in-app copy, which
+ * always lands for all of them. It says nothing about whether those five have a
+ * phone that will buzz.
+ *
+ * Pick SMS only and perhaps two of the five have a number and have agreed to
+ * texts. Pick SMS and push and the answer is not two plus two: somebody may
+ * have both, so the honest figure is the deduplicated union, and it is
+ * somewhere between the larger of the two and their sum. There is no way to get
+ * that from three separate counts, which is why three separate counts were the
+ * bug rather than an incomplete feature.
+ *
+ * So every combination is counted directly, in one pass, by the code that
+ * already knows which member can be reached how. Seven subsets of three
+ * channels — cheap, and it means the screen does no arithmetic of its own.
+ * Inclusion–exclusion on the client would have been six numbers and one formula
+ * to get subtly wrong, and nobody would notice a union that was two too high.
+ *
+ * The keys are the selected channels sorted and joined with "+", so the screen
+ * looks its answer up rather than deriving it.
+ */
 export function reachOf(audience: Audience, includeTest = false, segment: Segment = {}) {
   const people = recipientsFor(audience, includeTest, segment);
   const withPush = new Set(subscriptionsFor(people.map((p) => p.id)).map((s) => s.userId));
 
+  /* The same three questions the send loop asks, asked once per member here so
+     the prediction and the delivery cannot disagree. */
+  const reachable = people.map((p) => ({
+    push: withPush.has(p.id),
+    email: Boolean(p.notifyEmail && p.email),
+    sms: Boolean(p.notifySms && toE164(p.phone)),
+  }));
+
+  const onAnyOf: Record<string, number> = {};
+  for (const subset of [
+    ["email"],
+    ["push"],
+    ["sms"],
+    ["email", "push"],
+    ["email", "sms"],
+    ["push", "sms"],
+    ["email", "push", "sms"],
+  ] as const) {
+    onAnyOf[subset.join("+")] = reachable.filter((r) =>
+      subset.some((c) => r[c]),
+    ).length;
+  }
+
   return {
     people: people.length,
-    push: people.filter((p) => withPush.has(p.id)).length,
-    email: people.filter((p) => p.notifyEmail && p.email).length,
-    sms: people.filter((p) => p.notifySms && toE164(p.phone)).length,
+    push: reachable.filter((r) => r.push).length,
+    email: reachable.filter((r) => r.email).length,
+    sms: reachable.filter((r) => r.sms).length,
+    /**
+     * How many distinct members each combination of channels would reach.
+     *
+     * Keyed by the channels sorted and joined: "push", "email+sms",
+     * "email+push+sms". Counted, not derived — see the note above.
+     */
+    onAnyOf,
     /**
      * So the desk can say "4 test accounts excluded" rather than leaving somebody
      * to wonder why the count dropped.

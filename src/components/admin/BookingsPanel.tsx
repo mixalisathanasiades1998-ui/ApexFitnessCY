@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Chevron } from "@/components/ui/Chevron";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateField, dayKey } from "@/components/ui/DateField";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { repeatWhy } from "@/lib/repeat-why";
@@ -20,12 +22,26 @@ import { cn } from "@/lib/utils";
 
 type Attendee = {
   bookingId: string;
+  userId: string;
   status: string;
   name: string;
   email: string;
   phone: string | null;
   /** The second person on a duet. Not a member, so this is the only record. */
   guestName: string | null;
+  /**
+   * What the instructor needs before the class.
+   *
+   * `level` is a word and sits on the row. `condition` and `notes` are
+   * collapsed behind a press, because this list is read on a monitor in a room
+   * with other people in it — see the note in lib/admin.ts on why they are
+   * sent at all, and why being *shown* only on request is what makes that safe.
+   */
+  level: string | null;
+  condition: string | null;
+  notes: string | null;
+  /** Whether anybody has ever asked them. Not the same as "nothing to declare". */
+  asked: boolean;
 };
 
 type SessionRow = {
@@ -112,6 +128,26 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * Which attendee's detail is open, as `bookingId:condition` or
+   * `bookingId:notes`.
+   *
+   * One at a time, and closed by default. This screen lives on a monitor at a
+   * counter, so a member's condition and the studio's note about them are one
+   * press away rather than on display — and the previous press closes when the
+   * next opens, so the desk cannot walk away having left three of them showing.
+   */
+  const [openDetail, setOpenDetail] = useState<string | null>(null);
+  /**
+   * Who the desk is about to take off a class, if anybody.
+   *
+   * A confirmation step, and not because removing is dangerous — it is
+   * reversible, the desk can book them straight back in. It is because the two
+   * ways of doing it are not the same thing and the difference is somebody's
+   * money. One Remove button with a refund policy behind it would decide that
+   * for the person at the counter who is the only one who knows which it is.
+   */
+  const [removing, setRemoving] = useState<Attendee | null>(null);
 
   const load = useCallback(async (date: string) => {
     setSessions(null);
@@ -203,6 +239,51 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
         onNotice(t.common.somethingWrong);
         return;
       }
+      await load(day);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Take somebody off a class, and decide whose session it was.
+   *
+   * Two outcomes, both of them legitimate and neither of them a default worth
+   * guessing at: the member who rang in with a good reason gets the session
+   * back, and the member who simply did not come does not. Which is why this
+   * asks rather than having one Remove button and a policy.
+   *
+   * It goes to the same route the member's own card uses, so both spellings of
+   * "cancel this booking" apply the same rules, write the same ledger line
+   * naming whoever pressed it, cancel the queued reminder, and tell the member.
+   * See `cancelForMember`.
+   */
+  async function remove(a: Attendee, refund: boolean) {
+    setBusy(a.bookingId);
+    try {
+      const res = await fetch("/api/admin/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: a.bookingId,
+          refund,
+          /* Lands in the ledger beside the staff name, so a balance that
+             changed can be traced back to this screen and not only to "the
+             desk". */
+          note: "Removed from the class list",
+        }),
+      });
+      if (!res.ok) {
+        onNotice(t.common.somethingWrong);
+        return;
+      }
+      setRemoving(null);
+      onNotice(
+        (refund ? d.rosterRemoved : d.rosterRemovedKept).replace(
+          "{name}",
+          a.name,
+        ),
+      );
       await load(day);
     } finally {
       setBusy(null);
@@ -733,10 +814,8 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                 ) : (
                   <ul className="mt-5 divide-y divide-mocha-200/70">
                     {live.map((a) => (
-                      <li
-                        key={a.bookingId}
-                        className="flex flex-wrap items-center justify-between gap-3 py-3"
-                      >
+                      <li key={a.bookingId} className="py-3">
+                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <span>
                           <span className="text-[14px] text-mocha-600">
                             {a.name}
@@ -782,7 +861,88 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                           >
                             {d.noShow}
                           </Button>
+                          {/* Ghost, and last. It is the one action here that
+                              takes something away, and it should not sit at the
+                              same weight as the two that record what happened. */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy === a.bookingId}
+                            onClick={() => setRemoving(a)}
+                          >
+                            {d.rosterRemove}
+                          </Button>
                         </span>
+                       </div>
+
+                        {/**
+                          * The level on the row, the rest behind a press.
+                          *
+                          * The level is the one an instructor wants at a glance
+                          * for all five people at once — who is new — and it is
+                          * a single word about how somebody trains, not about
+                          * their body. The other two are the opposite: long,
+                          * personal, and needed for one member at a time.
+                          *
+                          * "Not asked yet" is deliberately different from
+                          * "nothing to declare". Showing an empty condition as
+                          * "nothing to watch" for somebody nobody has ever
+                          * asked would be the screen inventing an answer.
+                          */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          {a.level ? (
+                            <span className="rounded-full bg-mocha-100 px-2 py-0.5 text-[10px] uppercase tracking-widest text-mocha-500">
+                              {t.intake.levels[
+                                a.level as keyof typeof t.intake.levels
+                              ] ?? a.level}
+                            </span>
+                          ) : null}
+
+                          {a.condition ? (
+                            <Marker
+                              on={openDetail === `${a.bookingId}:condition`}
+                              tone="warn"
+                              onClick={() =>
+                                setOpenDetail((k) =>
+                                  k === `${a.bookingId}:condition`
+                                    ? null
+                                    : `${a.bookingId}:condition`,
+                                )
+                              }
+                            >
+                              {d.rosterCondition}
+                            </Marker>
+                          ) : (
+                            <span className="text-[10px] uppercase tracking-widest text-clay/60">
+                              {a.asked ? d.rosterNothing : d.rosterNotAsked}
+                            </span>
+                          )}
+
+                          {a.notes ? (
+                            <Marker
+                              on={openDetail === `${a.bookingId}:notes`}
+                              tone="plain"
+                              onClick={() =>
+                                setOpenDetail((k) =>
+                                  k === `${a.bookingId}:notes`
+                                    ? null
+                                    : `${a.bookingId}:notes`,
+                                )
+                              }
+                            >
+                              {d.rosterNotes}
+                            </Marker>
+                          ) : null}
+                        </div>
+
+                        {openDetail === `${a.bookingId}:condition` && (
+                          <Detail label={d.rosterConditionFull}>
+                            {a.condition}
+                          </Detail>
+                        )}
+                        {openDetail === `${a.bookingId}:notes` && (
+                          <Detail label={d.rosterNotesFull}>{a.notes}</Detail>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -806,24 +966,93 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
           })}
         </ul>
       )}
+
+      {/* Two ways to remove somebody, asked rather than assumed. See
+          `remove` above for why neither is a default. */}
+      {removing && (
+        <ConfirmDialog
+          title={d.rosterRemoveTitle.replace("{name}", removing.name)}
+          body={d.rosterRemoveBody}
+          cancelLabel={d.rosterRemoveCancel}
+          onClose={() => setRemoving(null)}
+          actions={[
+            {
+              label: d.rosterRemoveRefund,
+              busy: busy === removing.bookingId,
+              onClick: () => void remove(removing, true),
+            },
+            {
+              label: d.rosterRemoveKeep,
+              variant: "outline",
+              busy: busy === removing.bookingId,
+              onClick: () => void remove(removing, false),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-function Chevron({ className }: { className?: string }) {
+/**
+ * A small press-to-open marker on a roster row.
+ *
+ * Deliberately not a `Button`: the desk buttons on the same row are actions
+ * that change something, and a marker only reveals what is already there.
+ * Giving them the same weight would put "Came", "No show" and "read her health
+ * note" side by side looking like three equal decisions.
+ *
+ * `tone="warn"` is the health one, in the same gold the site uses everywhere
+ * else for "look at this". The studio's own note is plain: it is useful, not
+ * urgent.
+ */
+function Marker({
+  on,
+  tone,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  tone: "warn" | "plain";
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <svg
-      viewBox="0 0 12 8"
-      aria-hidden
-      className={cn("h-2.5 w-2.5", className)}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={on}
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest transition-colors duration-300",
+        tone === "warn"
+          ? on
+            ? "border-[#8a6f1a] bg-gold/25 text-[#8a6f1a]"
+            : "border-gold/50 text-[#8a6f1a] hover:bg-gold/15"
+          : on
+            ? "border-mocha-500 bg-mocha-100 text-mocha-600"
+            : "border-mocha-200 text-mocha-500 hover:bg-mocha-100",
+      )}
     >
-      <path
-        d="M1 1l5 5 5-5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
+      {children}
+    </button>
   );
 }
+
+/** The box a marker opens. Pre-wrapped, because people write paragraphs. */
+function Detail({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-2 rounded-2xl border border-mocha-200 bg-cream-200/50 p-3">
+      <p className="text-[10px] uppercase tracking-widest text-clay">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-mocha-600">
+        {children}
+      </p>
+    </div>
+  );
+}
+

@@ -29,6 +29,10 @@ export async function PATCH(req: Request) {
     pilatesLevel?: string;
     pilatesSince?: string;
     healthCondition?: string;
+    /* The desk's own note about a member. Any desk account may write it, the
+       same as the health answers beside it — the studio's instruction was that
+       reception keeps these, not only the owner. */
+    notes?: string;
   }>(req);
 
   if (!data?.userId) {

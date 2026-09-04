@@ -1109,6 +1109,91 @@ check(
   hook.status,
 );
 
+/* -------------------------------------------------------------------- 14 */
+console.log("\n14. The studio's private note about a member stays private");
+/**
+ * The one leak that would be worst and least visible.
+ *
+ * `users.notes` is what the desk writes about somebody — springs, an injury,
+ * who they book with — and the member is never meant to read it. Nothing
+ * enforces that with a flag: it is enforced by no member-facing query
+ * selecting the column. Which is a rule that holds right up until somebody
+ * adds a `select()` without a field list to a route a member can reach.
+ *
+ * So this asks the actual HTTP surface, with a real member session, whether a
+ * phrase only the desk ever typed comes back anywhere.
+ */
+{
+  jar.clear();
+  const owner = await req("/api/auth/login", {
+    method: "POST",
+    body: { email: "owner@apexpilates.cy", password: "ownerdev123" },
+  });
+  check("the owner signs in", owner.json?.ok === true, owner.json);
+  await req("/api/admin/unlock", {
+    method: "POST",
+    body: { password: "ownerdev123" },
+  });
+
+  const found = await req("/api/admin/members?q=member@example.com");
+  const memberId = found.json?.members?.[0]?.id;
+  check("the demo member is findable at the desk", Boolean(memberId), found.json);
+
+  const PHRASE = "SPRINGSECRET-desk-only";
+  if (memberId) {
+    const wrote = await req("/api/admin/member", {
+      method: "PATCH",
+      body: { userId: memberId, notes: `${PHRASE} note for staff` },
+    });
+    check("the desk can write a note", wrote.json?.ok === true, wrote.json);
+
+    const readBack = await req(`/api/admin/members?id=${memberId}`);
+    check(
+      "and read it back",
+      String(readBack.json?.member?.notes ?? "").includes(PHRASE),
+      readBack.json?.member?.notes,
+    );
+  }
+
+  /* Now as the member themselves. */
+  jar.clear();
+  const asMember = await req("/api/auth/login", {
+    method: "POST",
+    body: { email: "member@example.com", password: "member123" },
+  });
+  check("the member signs in", asMember.json?.ok === true, asMember.json);
+
+  for (const path of [
+    "/api/profile",
+    "/api/bookings",
+    "/api/sessions",
+    "/account",
+    "/account?tab=classes",
+    "/account?tab=notifications",
+    "/timetable",
+  ]) {
+    const res = await req(path);
+    check(`${path} does not carry the studio's note`, !res.text.includes(PHRASE));
+  }
+
+  /* Put it back, so a repeat run and the desk suite start from a clean member. */
+  jar.clear();
+  await req("/api/auth/login", {
+    method: "POST",
+    body: { email: "owner@apexpilates.cy", password: "ownerdev123" },
+  });
+  await req("/api/admin/unlock", {
+    method: "POST",
+    body: { password: "ownerdev123" },
+  });
+  if (memberId) {
+    await req("/api/admin/member", {
+      method: "PATCH",
+      body: { userId: memberId, notes: "" },
+    });
+  }
+}
+
 console.log(
   `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
 );

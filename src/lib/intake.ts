@@ -56,6 +56,25 @@ export function isPilatesExperience(v: unknown): v is PilatesExperience {
 export const CONDITION_MAX_CHARS = 600;
 
 /**
+ * How much the desk may write about a member, in its own notes field.
+ *
+ * Three times the member's own box, because the use is different: a member
+ * describes one thing once, while a staff note accretes over a year of classes
+ * — "prefers the window reformer", "shoulder still stiff in March", "books for
+ * her daughter too". Bounded anyway, because an unbounded text column is how a
+ * database ends up with somebody's life story pasted into it.
+ *
+ * Here rather than in `reception.ts` for a mechanical reason worth knowing:
+ * `MemberDesk` is a client component and this limit is the `maxLength` on its
+ * textarea, so the constant has to come from a module the browser can be given.
+ * `reception.ts` imports the database, which imports `better-sqlite3`, which
+ * imports `node:fs` — and importing that into a client component fails the
+ * build outright. This file has no such imports, and it is where the box next
+ * to it already gets its limit from.
+ */
+export const STAFF_NOTES_MAX_CHARS = 2000;
+
+/**
  * When the studio started asking.
  *
  * The instruction was that this is for new sign-ups: members who already had

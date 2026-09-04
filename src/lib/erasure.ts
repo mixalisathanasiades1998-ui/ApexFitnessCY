@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
   classSessions,
+  contactMessages,
   emailVerifications,
   purchases,
   pushSubscriptions,
@@ -78,6 +79,8 @@ export type ErasureResult =
       upcomingBookings: number;
       /** Devices unregistered and photographs removed. */
       devicesRemoved: number;
+      /** Contact-form messages deleted, matched on the old address. */
+      messagesRemoved: number;
     }
   | { ok: false; code: ErasureRefusal };
 
@@ -160,6 +163,32 @@ export async function erasePersonalData(
     .where(eq(emailVerifications.userId, userId))
     .run();
 
+  /**
+   * And anything they wrote through the contact form.
+   *
+   * This was missed, and it was missed for a structural reason: the contact
+   * form takes messages from people who have no account, so `contact_messages`
+   * has no `user_id` to cascade from. Nine tables hang off `users` and this one
+   * does not, so a function written by following the foreign keys walked
+   * straight past it.
+   *
+   * What it left behind was the worst possible residue. A member who asked to
+   * be forgotten had their name, email, telephone number and whatever they had
+   * typed still sitting in a table with no expiry and nothing to clean it up —
+   * while every screen said the erasure had completed. Matched on the address
+   * because that is the only thing the two records share, and against the
+   * address as it was *before* it is overwritten, which is why this runs here
+   * and not after the update below.
+   *
+   * Messages from people who never registered are untouched. Those are not this
+   * function's business, and they are covered by the studio's own retention
+   * instead.
+   */
+  const messagesRemoved = db
+    .delete(contactMessages)
+    .where(sql`lower(${contactMessages.email}) = ${user.email.toLowerCase()}`)
+    .run().changes;
+
   const handle = freshHandle();
 
   db.update(users)
@@ -212,5 +241,8 @@ export async function erasePersonalData(
     paymentsKept,
     upcomingBookings,
     devicesRemoved: devices,
+    /* Reported, because it is the one part of an erasure that touches something
+       the member may not remember writing. */
+    messagesRemoved,
   };
 }

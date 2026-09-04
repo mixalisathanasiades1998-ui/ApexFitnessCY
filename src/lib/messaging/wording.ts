@@ -371,6 +371,79 @@ export function repeatBookedWords(a: {
   };
 }
 
+/**
+ * The last thing a member hears at night: what they have booked tomorrow.
+ *
+ * ---
+ *
+ * **Why this is not the same as a reminder.**
+ *
+ * The reminder before each class answers "it starts soon" and is timed to the
+ * member's own lead — thirty minutes, two hours, whatever they chose. This
+ * answers a different question, asked at a different moment: what have I got on
+ * tomorrow, asked while somebody is deciding what time to set an alarm for.
+ *
+ * Which is why it is one message about a day rather than one per class. A
+ * member with a 09:00 and an 18:00 gets a single line naming both, and still
+ * gets each class's own reminder on the day.
+ *
+ * ---
+ *
+ * The times are the content, so they lead. The class name is the same phrase
+ * on every line for a studio that teaches one kind of class, so it is said once
+ * and not repeated per time.
+ */
+export function tomorrowWords(a: {
+  /** Every class they have booked tomorrow, earliest first. */
+  classes: { startsAt: Date; classEn: string; classEl: string }[];
+}): Bilingual {
+  const times = (lang: "en" | "el") =>
+    a.classes.map((c) =>
+      new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+        timeZone: STUDIO.timezone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(c.startsAt),
+    );
+
+  /* "09:00 and 18:00", joined the way the reader's own language joins a list.
+     Falls back to commas where Intl.ListFormat is missing, which is only very
+     old runtimes but is one line to survive. */
+  const joined = (lang: "en" | "el") => {
+    const parts = times(lang);
+    if (parts.length === 1) return parts[0];
+    try {
+      return new Intl.ListFormat(lang === "el" ? "el" : "en-GB", {
+        style: "long",
+        type: "conjunction",
+      }).format(parts);
+    } catch {
+      return parts.join(", ");
+    }
+  };
+
+  /* One class type in the studio today, so the name is said once. If the
+     studio ever teaches two on one day this still reads correctly: the name of
+     the first, and the times of all of them. */
+  const nameEn = a.classes[0]?.classEn ?? "";
+  const nameEl = a.classes[0]?.classEl ?? nameEn;
+  const many = a.classes.length > 1;
+
+  return {
+    en: {
+      subject: many ? "Your classes tomorrow" : "Your class tomorrow",
+      body: `${nameEn}, tomorrow at ${joined("en")}. See you at the studio.`,
+      url: "/account?tab=classes",
+    },
+    el: {
+      subject: many ? "Τα μαθήματά σου αύριο" : "Το μάθημά σου αύριο",
+      body: `${nameEl}, αύριο στις ${joined("el")}. Σας περιμένουμε στο στούντιο.`,
+      url: "/account?tab=classes",
+    },
+  };
+}
+
 export function cancelledWords(a: {
   classEn: string;
   classEl: string;

@@ -7,6 +7,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { PushInvite } from "@/components/booking/PushInvite";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { isPersonalCancellable } from "@/lib/personal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { repeatWhy } from "@/lib/repeat-why";
 import { studioAddDays, studioDateKey, studioStartOfDay } from "@/lib/time";
 import { cn, FREE_CANCELLATION_HOURS } from "@/lib/utils";
@@ -163,6 +164,13 @@ export function ScheduleClient({
      swaps in place. */
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * The class the member is being asked to give up a session for, if any.
+   *
+   * Only ever set for a booking past the free window. Inside the window there
+   * is nothing to warn about and the cancel is one press — see `cancel`.
+   */
+  const [forfeiting, setForfeiting] = useState<ScheduleSession | null>(null);
   /**
    * Whether a booking has just gone through, which is the only moment the
    * studio asks about notifications. See PushInvite for why here and not on
@@ -607,14 +615,27 @@ export function ScheduleClient({
     }
   }
 
-  async function cancel(s: ScheduleSession) {
+  /**
+   * Cancel, and ask first only when there is something to lose.
+   *
+   * Inside the free window this is one press: the session comes straight back
+   * and a dialog confirming a reversible thing is a dialog people learn to
+   * dismiss without reading, which is how a confirmation stops working on the
+   * day it matters.
+   *
+   * Past the window the session is gone, so the words have to be said and
+   * agreed to. `forfeit` is what carries that agreement to the server, and the
+   * server refuses without it — so the question cannot be skipped by a stale
+   * page or a second tab.
+   */
+  async function cancel(s: ScheduleSession, forfeit = false) {
     if (!s.myBookingId) return;
     setBusy(s.id);
     try {
       const res = await fetch("/api/bookings/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: s.myBookingId }),
+        body: JSON.stringify({ bookingId: s.myBookingId, forfeit }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -636,13 +657,22 @@ export function ScheduleClient({
           ),
         );
         if (typeof data.credits === "number") setBalance(data.credits);
+        setForfeiting(null);
+        /* Says which of the two happened. "Cancelled" alone would leave
+           somebody who has just given up a session wondering whether it came
+           back, which is the one thing they want to know. */
         flash({
-          kind: "ok",
-          text: `${t.booking.cancelled} ${t.booking.cancelRefund}`,
+          kind: data.refunded ? "ok" : "warn",
+          text: `${t.booking.cancelled} ${
+            data.refunded ? t.booking.cancelRefund : t.booking.cancelKept
+          }`,
         });
         router.refresh();
       } else if (data.error === "TOO_LATE_TO_CANCEL") {
-        flash({ kind: "warn", text: t.booking.cancelTooLate });
+        /* The server refused because nobody has confirmed yet. Ask. Reached
+           when the window closed while the page was open, so the button the
+           member pressed was the plain one. */
+        setForfeiting(s);
         router.refresh();
       } else {
         flash({ kind: "error", text: t.common.somethingWrong });
@@ -1163,24 +1193,25 @@ export function ScheduleClient({
                         <>
                           <Button
                             /**
-                             * Filled grey once cancelling has closed, rather
-                             * than the outline at 45% opacity it used to be.
+                             * One button, in one style, whichever side of the
+                             * window this booking is on.
                              *
-                             * A faded outline reads as "this is still a
-                             * button and the page has not finished loading",
-                             * which is the wrong impression at exactly the
-                             * moment somebody is trying to get out of a class.
-                             * A solid grey block reads as a door that is shut.
-                             * The sentence underneath then explains why.
+                             * It used to be a solid grey block and disabled
+                             * once cancelling had closed — a door that is
+                             * shut, which is what it was. Now the door opens
+                             * and the price of walking through it is a
+                             * session, so it has to look pressable. The line
+                             * underneath says what it costs before the press,
+                             * and the dialog says it again after.
                              */
-                            variant={canCancelPicked ? "outline" : "solid"}
+                            variant="outline"
                             size="sm"
-                            className={cn(
-                              !canCancelPicked &&
-                                "bg-mocha-200 text-mocha-500 shadow-none hover:bg-mocha-200 hover:translate-y-0 disabled:opacity-100",
-                            )}
-                            disabled={busy === picked.id || !canCancelPicked}
-                            onClick={() => cancel(picked)}
+                            disabled={busy === picked.id}
+                            onClick={() =>
+                              canCancelPicked
+                                ? cancel(picked)
+                                : setForfeiting(picked)
+                            }
                           >
                             {busy === picked.id
                               ? t.common.loading
@@ -1188,9 +1219,7 @@ export function ScheduleClient({
                           </Button>
                           {!canCancelPicked && (
                             <span className="text-[10px] leading-snug text-clay">
-                              {pickedPersonal
-                                ? t.booking.personalCancelTooLate
-                                : t.booking.cancelTooLate}
+                              {t.booking.cancelForfeitHint}
                             </span>
                           )}
                         </>
@@ -1323,6 +1352,30 @@ export function ScheduleClient({
           </>
         )}
       </div>
+
+      {/**
+        * The words the studio asked for, before a session is given up.
+        *
+        * Only ever reached for a booking past the free window: inside it the
+        * cancel is one press and there is nothing to warn about. The server
+        * refuses the same cancel without the `forfeit` this dialog sets, so
+        * the question cannot be walked around by a stale tab.
+        */}
+      {forfeiting && (
+        <ConfirmDialog
+          title={t.booking.cancelForfeitTitle}
+          body={t.booking.cancelForfeitBody}
+          cancelLabel={t.booking.cancelForfeitNo}
+          onClose={() => setForfeiting(null)}
+          actions={[
+            {
+              label: t.booking.cancelForfeitYes,
+              busy: busy === forfeiting.id,
+              onClick: () => void cancel(forfeiting, true),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

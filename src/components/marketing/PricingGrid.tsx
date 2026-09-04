@@ -6,7 +6,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { CARD_GROUPS, type PackGroup } from "@/lib/packs";
+import { BUILDER_AFTER, CARD_GROUPS, type PackGroup } from "@/lib/packs";
 import { PlanBuilder } from "@/components/marketing/PlanBuilder";
 
 export type PackageCard = {
@@ -35,6 +35,23 @@ export type PackageCard = {
   /** Set when the plan allows only so many classes a day. */
   perDayLimit?: number | null;
 };
+
+/**
+ * The grid a row of cards sits in.
+ *
+ * Four across only when the row divides by four, so the monthly and three-month
+ * rows land as one clean line of four and a row of two or one is not left with
+ * three empty columns beside it. Asked for by a function rather than written at
+ * each call site because the builder section needs the same answer, and a lone
+ * builder card 272px wide under a lone day pass card 370px wide read as two
+ * different kinds of card.
+ */
+function gridFor(count: number) {
+  return cn(
+    "grid gap-6 sm:grid-cols-2",
+    count % 4 === 0 ? "xl:grid-cols-4" : "xl:grid-cols-3",
+  );
+}
 
 export function PricingGrid({
   packages,
@@ -69,17 +86,43 @@ export function PricingGrid({
      by side in a plain grid nobody can tell what separates them. Under a heading
      that says how long you are committing and how long you have to use them, the
      choice reads as two questions — how often, and for how long. */
-  /* Which groups get a row of cards, from lib/packs.ts. Everything else is
-     chosen in the builder below rather than shown as its own card. */
+  /* Which groups get a row of cards, and in what order, from lib/packs.ts.
+     The long terms are chosen in the builder card instead, which is dropped in
+     after the section named by BUILDER_AFTER. */
   const grouped = CARD_GROUPS.map((g) => ({
     key: g,
     heading: t.pricingPage.groups[g],
     packs: packages.filter((p) => (p.group ?? "month") === g),
   })).filter((g) => g.packs.length > 0);
 
+  /**
+   * The builder's own section, rendered inline between two card sections.
+   *
+   * It sits after three months and before the appointments because that is
+   * where it belongs in the argument the page is making: a month, a term, a
+   * longer term, and then the thing that is not a class at all. Its position is
+   * a fact about the catalogue rather than about this component, which is why
+   * `BUILDER_AFTER` lives beside the groups it orders.
+   */
+  const builderSection = (
+    <section key="builder">
+      <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
+        <h3 className="h-display text-[1.6rem] text-mocha-600">
+          {t.pricingPage.builder.title}
+        </h3>
+      </div>
+      {/* The same grid a card row gets, asked for with the same function, so a
+          lone builder card is exactly as wide as the lone day pass card above
+          it rather than the narrower width a four-across row would give it. */}
+      <div className={gridFor(1)}>
+        <PlanBuilder packages={packages} signedIn={signedIn} />
+      </div>
+    </section>
+  );
+
   return (
     <div className="space-y-14">
-      {grouped.map((section) => (
+      {grouped.flatMap((section) => [
         <section key={section.key}>
           <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
             <h3 className="h-display text-[1.6rem] text-mocha-600">
@@ -87,14 +130,7 @@ export function PricingGrid({
             </h3>
             <p className="text-[13px] text-clay">{section.heading.note}</p>
           </div>
-          <RevealGroup
-            className={cn(
-              "grid gap-6 sm:grid-cols-2",
-              section.packs.length % 4 === 0
-                ? "xl:grid-cols-4"
-                : "xl:grid-cols-3",
-            )}
-          >
+          <RevealGroup className={gridFor(section.packs.length)}>
             {section.packs.map((p) => {
               const seats = p.seats ?? 1;
               /* Per class on a plan; per person on a duet, where "€45 a class" is
@@ -260,25 +296,9 @@ export function PricingGrid({
               );
             })}
           </RevealGroup>
-        </section>
-      ))}
-
-      {/**
-       * The plans, as two questions rather than twenty cards.
-       *
-       * Its own section with its own heading, below the single sessions, because
-       * the story of the page is still the same one: try one, or commit to a
-       * term. What changed is that committing to a term is now a choice made in
-       * place instead of a scroll through every combination of it.
-       */}
-      <section>
-        <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
-          <h3 className="h-display text-[1.6rem] text-mocha-600">
-            {t.pricingPage.builder.title}
-          </h3>
-        </div>
-        <PlanBuilder packages={packages} signedIn={signedIn} />
-      </section>
+        </section>,
+        section.key === BUILDER_AFTER ? builderSection : null,
+      ])}
 
       {showIncludes && (
         <div className="mt-16 grid gap-10 rounded-3xl border border-mocha-200/70 bg-cream-200/60 p-8 md:grid-cols-[1fr_1.2fr] md:p-10">

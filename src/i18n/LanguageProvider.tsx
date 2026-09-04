@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { preferencesAllowed } from "@/lib/consent";
 import { STUDIO } from "@/lib/studio";
 import {
   DEFAULT_LOCALE,
@@ -78,7 +79,23 @@ export function LanguageProvider({
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
-    document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+    /**
+     * Remembered between visits only if the visitor said it could be.
+     *
+     * The switch works either way: this page turns Greek the moment it is
+     * pressed, because that is React state and not a cookie. What the cookie
+     * buys is the *next* visit opening in Greek, and that is a convenience
+     * stored on somebody's device, which is exactly what the cookie notice
+     * asks about.
+     *
+     * Without this check, "reject all" would clear the cookie once and the next
+     * press of the language switch would put it straight back, which would make
+     * that button a lie. A cookie banner whose refusal does not refuse is worse
+     * than no banner at all.
+     */
+    if (preferencesAllowed()) {
+      document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+    }
     document.documentElement.lang = l;
 
     /**

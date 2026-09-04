@@ -4,7 +4,7 @@ import {
   sweepDeadChallenges,
   sweepUnverifiedAccounts,
 } from "@/lib/housekeeping";
-import { runDueReminders } from "@/lib/messaging/events";
+import { runDueReminders, runNightlyDigest } from "@/lib/messaging/events";
 import { rollTimetableForward } from "@/lib/schedule";
 
 /**
@@ -67,11 +67,34 @@ export async function POST(req: Request) {
     console.error("[cron] could not roll the timetable forward", err);
   }
 
+  /**
+   * And the note about tomorrow, at 23:30.
+   *
+   * Riding the same sweep for the same reason as the timetable roll above: one
+   * door, knocked on every minute by `instrumentation.ts`, rather than a second
+   * URL somebody has to remember to schedule. It decides for itself whether the
+   * moment has come and whether it has already been, so calling it on every
+   * sweep is the intended use and not a shortcut. See `runNightlyDigest`.
+   */
+  let nightly: { ran: boolean; told: number; pushed: number } = {
+    ran: false,
+    told: 0,
+    pushed: 0,
+  };
+  try {
+    nightly = await runNightlyDigest();
+  } catch (err) {
+    /* Same rule as the timetable: a courtesy that failed must not swallow the
+       reminders that went out in the same call. */
+    console.error("[cron] could not send the nightly digest", err);
+  }
+
   return NextResponse.json({
     ok: true,
     ...result,
     ...housekeeping(),
     timetable,
+    nightly,
   });
 }
 

@@ -2,13 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Chevron } from "@/components/ui/Chevron";
 import { Pager } from "@/components/ui/Pager";
 import { useI18n } from "@/i18n/LanguageProvider";
-import {
-  MAX_SEGMENTS,
-  smsBodyFor,
-  smsCost,
-} from "@/lib/messaging/segments";
+import { MAX_SEGMENTS, smsBodyFor, smsCost } from "@/lib/messaging/segments";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,6 +47,14 @@ type Reach = {
   push: number;
   email: number;
   sms: number;
+  /**
+   * How many distinct members each combination of channels would reach.
+   *
+   * Keyed by the channels sorted and joined with "+": "sms",
+   * "email+push+sms". Looked up rather than worked out here, so the screen
+   * cannot disagree with the server about a union — see `reachOf`.
+   */
+  onAnyOf: Record<string, number>;
   /** How many accounts are marked as tests, so their exclusion can be stated. */
   testAccounts: number;
   unverifiedAccounts: number;
@@ -71,8 +76,9 @@ type SmsMeta = {
 type Channel = "push" | "email" | "sms";
 
 export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
-  const { t, fmtFullDate } = useI18n();
+  const { t, locale, fmtFullDate } = useI18n();
   const d = t.desk;
+  const el = locale === "el";
 
   const [history, setHistory] = useState<Sent[]>([]);
   const [title, setTitle] = useState("");
@@ -115,7 +121,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
   const [neverPaid, setNeverPaid] = useState(false);
   const [noSessionsLeft, setNoSessionsLeft] = useState(false);
   const [awayValue, setAwayValue] = useState(0);
-  const [awayUnit, setAwayUnit] = useState<"days" | "weeks" | "months">("months");
+  const [awayUnit, setAwayUnit] = useState<"days" | "weeks" | "months">(
+    "months",
+  );
 
   /* Months are 30 days. The desk is choosing a rough cohort — "people we have
      not seen since the summer" — not computing a billing period, and a filter
@@ -126,8 +134,59 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
       ? 0
       : awayValue * (awayUnit === "days" ? 1 : awayUnit === "weeks" ? 7 : 30);
 
+  /**
+   * How many narrowing filters are on, so the collapsed title can say so.
+   *
+   * The one state that must never be invisible is a filter left on from the
+   * last message. `includeTest` is counted with them: it changes who the
+   * message reaches, which is the only thing this badge is about.
+   */
+  const activeSegments =
+    (neverPaid ? 1 : 0) +
+    (noSessionsLeft ? 1 : 0) +
+    (awayDays > 0 ? 1 : 0) +
+    (includeTest ? 1 : 0);
+
+  /**
+   * How many distinct members the ticked channels would actually reach.
+   *
+   * Looked up by the sorted channel key rather than added up here: two on SMS
+   * and two on push is three people when one of them has both, and there is no
+   * way to get that from three separate totals. The server counts every
+   * combination directly — see `reachOf`.
+   */
+  const channelKey = [...channels].sort().join("+");
+  const selectedReach = channels.length === 0 ? 0 : (reach?.onAnyOf?.[channelKey] ?? 0);
+
+  /* "SMS and push", in the reader's own language, for the sentence below. */
+  const channelWords = (() => {
+    const label: Record<Channel, string> = {
+      push: d.chanPush,
+      email: d.chanEmail,
+      sms: d.chanSms,
+    };
+    /* A stable order, not the order somebody happened to tick them in.
+       "SMS, Push notification and Email" one moment and "Email and SMS" the
+       next reads as the sentence being rebuilt rather than the answer
+       changing. */
+    const parts = (["push", "email", "sms"] as const)
+      .filter((c) => channels.includes(c))
+      .map((c) => label[c]);
+    if (parts.length <= 1) return parts[0] ?? "";
+    try {
+      return new Intl.ListFormat(el ? "el" : "en-GB", {
+        style: "long",
+        type: "conjunction",
+      }).format(parts);
+    } catch {
+      return parts.join(", ");
+    }
+  })();
+
   /* Which channel's history to show, and where in it. */
   const [channel, setChannel] = useState<Channel | null>(null);
+  /* The narrowing filters, shut to begin with. See the note on the title. */
+  const [segOpen, setSegOpen] = useState(false);
   const [meta, setMeta] = useState<HistoryMeta | null>(null);
   const [paging, setPaging] = useState(false);
 
@@ -197,7 +256,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
   }
 
   const toggle = (c: Channel) =>
-    setChannels((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
+    setChannels((cs) =>
+      cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c],
+    );
 
   /* The price, worked out from exactly the same code the server bills from —
      imported, not reimplemented. A cost shown at the desk that disagrees with
@@ -271,7 +332,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
             `${r.channel} ${r.sent}${r.failed ? ` (${r.failed} failed)` : ""}`,
         )
         .join(" · ");
-      onNotice(summary ? d.sentReport.replace("{summary}", summary) : d.noticeSent);
+      onNotice(
+        summary ? d.sentReport.replace("{summary}", summary) : d.noticeSent,
+      );
       setTitle("");
       setText("");
       setTitleEl("");
@@ -387,7 +450,6 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
               </button>
             ))}
           </div>
-
         </div>
 
         {/* ------------------------------------------------ how it goes out */}
@@ -435,7 +497,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                   </span>
                   <span className="flex-1">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] text-mocha-700">{label}</span>
+                      <span className="text-[13px] text-mocha-700">
+                        {label}
+                      </span>
                       {/* The count is the point of this screen: nobody should
                           press send wondering who it reaches. */}
                       <span className="text-[11px] text-clay lining-nums tabular-nums">
@@ -653,9 +717,44 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
             own below. It is the same kind of thing: not "who may we write to"
             but "which of them is this actually for". */}
         <div className="mt-8 border-t border-mocha-200/70 pt-6">
-          <p className="text-[10px] uppercase tracking-brand text-clay">
-            {d.segTitle}
-          </p>
+          {/**
+            * The title opens it, and it is shut to begin with.
+            *
+            * Most announcements go to everybody and never touch these, and four
+            * controls sitting open under a heading read as four more decisions
+            * to make before the Send button means anything. Behind a press they
+            * are a thing you go and get.
+            *
+            * The summary beside the title is what makes that safe: closed, it
+            * still says whether anything is narrowing the audience, so the one
+            * state that must never be invisible — a filter left on from the last
+            * message — is the one state it reports.
+            */}
+          <button
+            type="button"
+            data-segments-toggle
+            aria-expanded={segOpen}
+            onClick={() => setSegOpen((v) => !v)}
+            className="flex w-full items-center gap-2 text-left"
+          >
+            <span className="text-[10px] uppercase tracking-brand text-clay">
+              {d.segTitle}
+            </span>
+            {activeSegments > 0 && (
+              <span className="rounded-full bg-gold/20 px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#8a6f1a]">
+                {d.segOn.replace("{n}", String(activeSegments))}
+              </span>
+            )}
+            <Chevron
+              className={cn(
+                "ml-auto text-clay transition-transform duration-300",
+                segOpen && "rotate-180",
+              )}
+            />
+          </button>
+
+          {segOpen && (
+          <>
           <p className="mt-2 text-[11px] leading-relaxed text-clay">
             {d.segHelp}
           </p>
@@ -663,7 +762,13 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
           <div className="mt-4 space-y-2">
             {(
               [
-                ["neverPaid", d.segNeverPaid, d.segNeverPaidWhy, neverPaid, setNeverPaid],
+                [
+                  "neverPaid",
+                  d.segNeverPaid,
+                  d.segNeverPaidWhy,
+                  neverPaid,
+                  setNeverPaid,
+                ],
                 [
                   "noSessions",
                   d.segNoSessions,
@@ -690,7 +795,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                   aria-hidden
                   className={cn(
                     "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[11px]",
-                    on ? "border-mocha-600 bg-mocha-600 text-cream" : "border-mocha-300",
+                    on
+                      ? "border-mocha-600 bg-mocha-600 text-cream"
+                      : "border-mocha-300",
                   )}
                 >
                   {on ? "✓" : ""}
@@ -722,7 +829,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                   max={120}
                   value={awayValue}
                   data-segment="awayValue"
-                  onChange={(e) => setAwayValue(Math.max(0, Number(e.target.value) || 0))}
+                  onChange={(e) =>
+                    setAwayValue(Math.max(0, Number(e.target.value) || 0))
+                  }
                   className="input w-20 lining-nums tabular-nums"
                   aria-label={d.segAway}
                 />
@@ -772,70 +881,105 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
           {/* Only shown when there is at least one test account. A checkbox that
             can never change anything is one more thing to read. */}
           {reach && reach.testAccounts > 0 && (
-          <button
-            type="button"
-            data-include-test={includeTest ? "on" : "off"}
-            aria-pressed={includeTest}
-            onClick={() => setIncludeTest((v) => !v)}
-            className={cn(
-              "mt-6 flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors duration-300",
-              includeTest
-                ? "border-mocha-600 bg-mocha-600/[0.06]"
-                : "border-mocha-200 hover:border-mocha-400",
-            )}
-          >
-            <span
-              aria-hidden
+            <button
+              type="button"
+              data-include-test={includeTest ? "on" : "off"}
+              aria-pressed={includeTest}
+              onClick={() => setIncludeTest((v) => !v)}
               className={cn(
-                "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[11px]",
-                includeTest ? "border-mocha-600 bg-mocha-600 text-cream" : "border-mocha-300",
+                "mt-6 flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors duration-300",
+                includeTest
+                  ? "border-mocha-600 bg-mocha-600/[0.06]"
+                  : "border-mocha-200 hover:border-mocha-400",
               )}
             >
-              {includeTest ? "✓" : ""}
-            </span>
-            <span className="flex-1">
-              <span className="text-[13px] text-mocha-700">
-                {d.noticeIncludeTest}
-              </span>
-              <span className="mt-1 block text-[11px] leading-relaxed text-clay">
-                {(includeTest ? d.noticeIncludeTestOn : d.noticeIncludeTestOff).replace(
-                  "{n}",
-                  String(reach.testAccounts),
+              <span
+                aria-hidden
+                className={cn(
+                  "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[11px]",
+                  includeTest
+                    ? "border-mocha-600 bg-mocha-600 text-cream"
+                    : "border-mocha-300",
                 )}
+              >
+                {includeTest ? "✓" : ""}
               </span>
-            </span>
-          </button>
-        )}
+              <span className="flex-1">
+                <span className="text-[13px] text-mocha-700">
+                  {d.noticeIncludeTest}
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-clay">
+                  {(includeTest
+                    ? d.noticeIncludeTestOn
+                    : d.noticeIncludeTestOff
+                  ).replace("{n}", String(reach.testAccounts))}
+                </span>
+              </span>
+            </button>
+          )}
+          </>
+          )}
 
-          {/* The number that matters, last in the section — after the test
-              switch, because that switch is one of the things that changes it.
-              It used to sit above the switch, where it read as a total that the
-              control below could then contradict. Filters can also narrow an
-              audience to nobody, and pressing send on nobody should not be a
-              surprise. */}
+          {/**
+            * The number that matters, and it changed meaning.
+            *
+            * It used to read "5 members match", which is the size of the
+            * audience: everybody whose consent and confirmed address let the
+            * studio write to them. Above a Send button that reads as "five
+            * people will get this", and it is not the same claim. Tick SMS only
+            * and perhaps two of the five have a number the studio may text.
+            *
+            * So the headline is now the deduplicated union of the channels
+            * actually ticked — two on SMS plus two on push is three people when
+            * one has both — and the audience total moved to the line underneath,
+            * where it belongs: it is the number that gets the in-app copy, which
+            * always lands whatever is ticked.
+            *
+            * Stays visible with the filters collapsed, because it is the answer
+            * the whole panel exists to give.
+            */}
           {reach && (
-            <p
+            <div
               data-reach-total
-              className={cn(
-                "mt-5 text-[12px] leading-relaxed",
-                reach.people === 0 ? "text-red-700" : "text-mocha-600",
-              )}
+              className="mt-5 text-[12px] leading-relaxed"
             >
-              {reach.people === 0
-                ? d.segNobody
-                : d.segMatches.replace("{n}", String(reach.people))}
+              {reach.people === 0 ? (
+                <p className="text-red-700">{d.segNobody}</p>
+              ) : (
+                <>
+                  <p
+                    data-reach-selected={selectedReach}
+                    className={
+                      selectedReach === 0 ? "text-gold" : "text-mocha-600"
+                    }
+                  >
+                    {channels.length === 0
+                      ? d.reachNoChannels
+                      : selectedReach === 0
+                        ? d.reachNoneOnThese
+                        : d.reachOnChannels
+                            .replace("{n}", String(selectedReach))
+                            .replace("{channels}", channelWords)}
+                  </p>
+                  {/* The in-app copy, which is not a channel and cannot be
+                      switched off. Said second because it is the constant. */}
+                  <p className="mt-1 text-clay">
+                    {d.reachInApp.replace("{n}", String(reach.people))}
+                  </p>
+                </>
+              )}
               {/* Said rather than left to be noticed. An unconfirmed account is
                   left out of every channel, including the in-app copy, because it
                   cannot reach the list the copy would be filed in. */}
               {reach.unverifiedAccounts > 0 && (
-                <span className="mt-1 block text-clay">
+                <p className="mt-1 text-clay">
                   {d.segUnverifiedOut.replace(
                     "{n}",
                     String(reach.unverifiedAccounts),
                   )}
-                </span>
+                </p>
               )}
-            </p>
+            </div>
           )}
         </div>
 
@@ -846,6 +990,10 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
             busy === "send" ||
             title.trim().length < 3 ||
             text.trim().length < 3 ||
+            /* Keyed off the audience and not off the channels: with nothing
+               ticked this still sends the in-app copy, which is a real thing to
+               do and the studio's main channel. Only an audience of nobody has
+               nothing to send. */
             reach?.people === 0
           }
           onClick={send}
@@ -939,6 +1087,33 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                       .join(" · ")}
                   </p>
                 )}
+                {/**
+                 * Why it failed, not just that it did.
+                 *
+                 * The reason was already being fetched — `detail` has been on
+                 * this type the whole time and carries the gateway's own words,
+                 * `sms.to 400: {"success":false,...}` — and then nothing
+                 * rendered it. So the desk read "1 failed" and had nowhere to
+                 * go, which is how a five-second answer becomes a phone call to
+                 * whoever built the website.
+                 *
+                 * Only on failure: a successful send has nothing to explain, and
+                 * a line of gateway chatter under every notice would train
+                 * everybody to stop reading this area.
+                 */}
+                {h.deliveries
+                  .filter((x) => x.failed > 0 && x.detail)
+                  .map((x) => (
+                    <p
+                      key={x.channel}
+                      className="mt-1 rounded-lg bg-mocha-50 px-2 py-1.5 text-[11px] text-mocha-500 [overflow-wrap:anywhere]"
+                    >
+                      <span className="uppercase tracking-wider text-clay">
+                        {x.channel}
+                      </span>{" "}
+                      {x.detail}
+                    </p>
+                  ))}
                 <p className="mt-2 line-clamp-2 text-[13px] text-mocha-500">
                   {h.bodyEn}
                 </p>

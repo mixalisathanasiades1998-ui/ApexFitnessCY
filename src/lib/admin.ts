@@ -410,6 +410,9 @@ export async function daySessions(day = new Date()) {
       .filter((r) => r.b.sessionId === s.id)
       .map((r) => ({
         bookingId: r.b.id,
+        /* So the desk can open the member's own card from the roster, and so a
+           remove action knows whose balance it is refunding. */
+        userId: r.u.id,
         status: r.b.status,
         name: r.u.name,
         email: r.u.email,
@@ -417,6 +420,36 @@ export async function daySessions(day = new Date()) {
         /* The second person on a duet, who is not a member and has no row of
            their own anywhere else. */
         guestName: r.b.guestName,
+        /**
+         * What the instructor needs to know before the class, and the reversal
+         * of a decision worth explaining.
+         *
+         * These three used to be on the member's own card and nowhere else, on
+         * the reasoning that a class list is read on a monitor in a room with
+         * other people in it. That reasoning was right about the room and wrong
+         * about the job: an instructor with five people on a reformer each needs
+         * to know who is new and whose shoulder to watch *at the class*, and
+         * looking five members up one at a time before every hour is not a
+         * thing anybody does. So they were being carried in somebody's head, or
+         * not at all.
+         *
+         * The room is still a real problem, so the answer is where they are
+         * *shown* rather than whether they are sent: the level is a word and
+         * sits on the row, while the condition and the studio's note are
+         * collapsed until pressed. Nothing about a member's body is on the
+         * screen until somebody deliberately asks for it. See BookingsPanel.
+         *
+         * `notes` is the studio's own and is never returned to a member by any
+         * route — this is a desk endpoint behind `desk()`, same as the member's
+         * card.
+         */
+        level: r.u.pilatesLevel,
+        condition: r.u.healthCondition,
+        notes: r.u.notes,
+        /* Told apart from "nothing to declare": an empty condition on a member
+           who was never asked is not the same fact, and the roster should not
+           show "nothing to watch" for somebody nobody has asked yet. */
+        asked: Boolean(r.u.intakeAt),
       })),
   }));
 }

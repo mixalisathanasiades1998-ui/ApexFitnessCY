@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   ProfilePanel,
   type ProfileValues,
@@ -257,13 +258,21 @@ export function AccountBody(props: Props) {
     );
   }
 
-  async function cancel(b: BookingRow) {
+  /**
+   * Cancel, refunded or not, saying which.
+   *
+   * `forfeit` is passed straight through from the dialog, which only offers it
+   * once the free window has closed. The server refunds whenever the window is
+   * still open regardless of what this sends, so the flag can only ever cost a
+   * session that was already gone. See `cancelBooking`.
+   */
+  async function cancel(b: BookingRow, forfeit = false) {
     setBusy(b.id);
     try {
       const res = await fetch("/api/bookings/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: b.id }),
+        body: JSON.stringify({ bookingId: b.id, forfeit }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -271,7 +280,11 @@ export function AccountBody(props: Props) {
         error?: string;
       };
       if (data.ok) {
-        setNotice(`${t.booking.cancelled} ${t.booking.cancelRefund}`);
+        setNotice(
+          `${t.booking.cancelled} ${
+            data.refunded ? t.booking.cancelRefund : t.booking.cancelKept
+          }`,
+        );
         setConfirming(null);
         router.refresh();
       } else if (data.error === "TOO_LATE_TO_CANCEL") {
@@ -287,6 +300,18 @@ export function AccountBody(props: Props) {
       setBusy(null);
     }
   }
+
+  /**
+   * Is this booking still inside the free window?
+   *
+   * Read from the server-computed `freeCancellationUntil` rather than
+   * recomputed from the 12-hour rule here, so the page and the server cannot
+   * disagree about a boundary a member is standing right on. Asked at render
+   * time rather than stored, because a dialog left open across that boundary
+   * should change its mind.
+   */
+  const free = (b: BookingRow) =>
+    new Date(b.freeCancellationUntil) > new Date();
 
   /* A document load, not a client navigation — see lib/sign-out.ts. */
   const signOut = signOutAndGoHome;
@@ -489,7 +514,10 @@ export function AccountBody(props: Props) {
           ) : (
             <ul className="mt-6 divide-y divide-mocha-200/70 border-y border-mocha-200/70">
               {props.upcoming.map((b) => {
-                const free = new Date(b.freeCancellationUntil) > new Date();
+                /* The same question the dialog asks, asked by the same
+                   function. It was a second copy of the comparison here, which
+                   is one rule in two places on one screen. */
+                const stillFree = free(b);
                 return (
                   <li
                     key={b.id}
@@ -526,10 +554,10 @@ export function AccountBody(props: Props) {
                       <p
                         className={cn(
                           "mt-2 text-[11px]",
-                          free ? "text-clay" : "text-gold",
+                          stillFree ? "text-clay" : "text-gold",
                         )}
                       >
-                        {free
+                        {stillFree
                           ? `${t.account.cancelFree} ${fmtDayMonth(
                               b.freeCancellationUntil,
                             )} ${fmtTime(b.freeCancellationUntil)}`
@@ -751,45 +779,56 @@ export function AccountBody(props: Props) {
         </div>
       </div>
 
-      {/* cancel confirmation */}
+      {/**
+        * The cancel confirmation, now the shared dialog.
+        *
+        * This was thirty lines of hand-built modal that did not freeze the page
+        * behind it, did not close on Escape and did not move focus — three
+        * things `LegalModal` had got right in the same codebase. Both are now
+        * `ConfirmDialog`, which is where that behaviour lives once.
+        *
+        * The confirm button used to be *disabled* past the free window, because
+        * the server refused the cancel and offering an action that fails is
+        * worse than not offering it. The server no longer refuses when the
+        * member has agreed to lose the session, so instead the button changes
+        * what it says and what it asks for. A member who cannot come can now
+        * say so either way, which is the whole reason to have the button.
+        */}
       {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-mocha-900/40 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-cream p-8 shadow-lift">
-            <h3 className="h-display text-2xl">
-              {t.booking.cancelConfirmTitle}
-            </h3>
-            <p className="mt-3 text-sm text-mocha-500">
-              {el ? confirming.className.el : confirming.className.en} ·{" "}
-              {fmtDayMonth(confirming.startsAt)} {fmtTime(confirming.startsAt)}
-            </p>
-            <p className="mt-4 text-sm text-mocha-600">
-              {new Date(confirming.freeCancellationUntil) > new Date()
-                ? t.booking.cancelRefund
-                : t.booking.cancelTooLate}
-            </p>
-            <div className="mt-8 flex gap-3">
-              <Button
-                className="flex-1"
-                /* Past the window the booking is locked, so the action that
-                   would fail on the server is not offered. */
-                disabled={
-                  busy === confirming.id ||
-                  new Date(confirming.freeCancellationUntil) <= new Date()
-                }
-                onClick={() => cancel(confirming)}
-              >
-                {busy === confirming.id ? t.common.loading : t.common.confirm}
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setConfirming(null)}
-              >
-                {t.common.back}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={
+            free(confirming)
+              ? t.booking.cancelConfirmTitle
+              : t.booking.cancelForfeitTitle
+          }
+          body={
+            <>
+              <p>
+                {el ? confirming.className.el : confirming.className.en} ·{" "}
+                {fmtDayMonth(confirming.startsAt)}{" "}
+                {fmtTime(confirming.startsAt)}
+              </p>
+              <p className="mt-3 text-mocha-600">
+                {free(confirming)
+                  ? t.booking.cancelRefund
+                  : t.booking.cancelForfeitBody}
+              </p>
+            </>
+          }
+          cancelLabel={
+            free(confirming) ? t.common.back : t.booking.cancelForfeitNo
+          }
+          onClose={() => setConfirming(null)}
+          actions={[
+            {
+              label: free(confirming)
+                ? t.common.confirm
+                : t.booking.cancelForfeitYes,
+              busy: busy === confirming.id,
+              onClick: () => void cancel(confirming, !free(confirming)),
+            },
+          ]}
+        />
       )}
     </Section>
   );

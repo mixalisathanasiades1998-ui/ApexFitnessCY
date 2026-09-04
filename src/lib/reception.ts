@@ -1,6 +1,7 @@
 import { and, desc, eq, gt } from "drizzle-orm";
 import {
   CONDITION_MAX_CHARS,
+  STAFF_NOTES_MAX_CHARS,
   isPilatesExperience,
   isPilatesLevel,
 } from "./intake";
@@ -21,9 +22,10 @@ import { toE164 } from "@/lib/messaging/sms";
 import { getCreditSummary, grantCredits, refundOneCredit } from "@/lib/credits";
 import { bookClass } from "@/lib/booking";
 import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
-import { scheduleReminder } from "@/lib/reminders";
+import { cancelReminder, scheduleReminder } from "@/lib/reminders";
 import {
   notifyBooked,
+  notifyCancelled,
   notifyRepeatBooked,
   notifyInstructorChanged,
   notifyPurchased,
@@ -249,14 +251,33 @@ export async function memberDetail(userId: string) {
     erasedBy: user.erasedBy,
     /**
      * What the member said about their own pilates, and anything to be careful
-     * of. Shown on their page and nowhere else: it is on the member's card
-     * where reception already looks them up, and deliberately not on the day
-     * view or a class list, both of which are read on a screen in a room with
-     * other people in it.
+     * of.
+     *
+     * This used to say "on their page and nowhere else", and the class roster
+     * deliberately left it out, because a day view is read on a monitor in a
+     * room with other people in it. The studio asked for it on the roster and
+     * they were right: an instructor with five people on reformers needs to
+     * know who is new and whose shoulder to watch at the class, and nobody
+     * looks five members up one at a time beforehand.
+     *
+     * So the rule changed from "not sent" to "not shown until asked for": the
+     * roster carries it, and `BookingsPanel` keeps the condition and the
+     * studio's note collapsed behind a press. The monitor in the shared room is
+     * still a real concern; a collapsed box answers it, and withholding the
+     * information from the person teaching the class did not.
      */
     pilatesLevel: user.pilatesLevel,
     pilatesSince: user.pilatesSince,
     healthCondition: user.healthCondition,
+    /**
+     * The studio's own notes. Staff-only, and there is no route anywhere that
+     * returns this to a member: `listMyBookings`, the profile route and the
+     * account page all read a fixed set of columns and this is not in any of
+     * them. Worth stating rather than assuming, because the difference between
+     * "the desk's private note" and "a thing the member reads" is one careless
+     * `select *` in a member-facing query.
+     */
+    notes: user.notes,
     /* Told apart from "nothing to declare", which is also an answer. */
     intakeAt: user.intakeAt,
     upcoming,
@@ -482,6 +503,26 @@ export type DeskCancelResult =
  * when somebody rings the studio an hour before with a good reason, the person
  * at the desk is the one who decides, and the software should not overrule
  * them. Which way it went is written to the ledger either way.
+ *
+ * ---
+ *
+ * **Two things this did not do, and had to.**
+ *
+ * The member's own cancel route has always cancelled the queued reminder and
+ * sent a notice. This path did neither, and nothing pointed at it because both
+ * failures are silent in the same direction: the booking really was cancelled,
+ * the balance really was right, and the screen said so.
+ *
+ * What actually happened was that a member removed from a class by the desk
+ * still had a reminder sitting in the queue, and got "your class starts in two
+ * hours" for a class they were no longer in — from a studio that had never told
+ * them they had been taken off it. The studio asked for the notification when
+ * they asked for the remove buttons on the roster, which is how it surfaced.
+ *
+ * Both live here rather than in the routes because there are now three callers
+ * (the member's card, and the two remove buttons on the roster) and a courtesy
+ * that depends on which button somebody pressed is a courtesy that will
+ * eventually be missed.
  */
 export async function cancelForMember(args: {
   bookingId: string;
@@ -518,6 +559,19 @@ export async function cancelForMember(args: {
       .run();
   });
 
+  /* Outside the transaction, and neither allowed to fail the cancellation: the
+     booking is already gone and the balance is already right, so a push service
+     being slow must not turn that into an error at the counter. */
+  try {
+    cancelReminder(bookingId);
+  } catch {
+    /* A reminder that will not delete is a stray message, not a lost class.
+       The sweep drops reminders for classes that have already started. */
+  }
+  /* Says whether the session came back, which is the only part the member
+     cannot work out for themselves. */
+  void notifyCancelled(bookingId, refund).catch(() => {});
+
   return {
     ok: true,
     refunded: refund,
@@ -547,6 +601,18 @@ export type ContactPatch = {
   pilatesLevel?: string;
   pilatesSince?: string;
   healthCondition?: string;
+  /**
+   * The studio's own notes about a member. Staff write it, the member never
+   * sees it, and it is deliberately a different field from `healthCondition`.
+   *
+   * That separation is the whole point and it is worth saying why, because one
+   * box would have been less work. `healthCondition` is what the member said
+   * about themselves; this is what an instructor observed. Merging them would
+   * let the desk overwrite somebody's own words about their own body, and it
+   * would put a staff note in front of the member on their account page. Two
+   * fields, two audiences, and neither can quietly become the other.
+   */
+  notes?: string;
 };
 
 export async function updateContact(userId: string, patch: ContactPatch) {
@@ -625,6 +691,15 @@ export async function updateContact(userId: string, patch: ContactPatch) {
       return { ok: false as const, code: "CONDITION_TOO_LONG" as const };
     }
     next.healthCondition = text.length ? text : null;
+  }
+  /* The staff note. Emptied to null rather than to "", so "nothing written
+     here" is one value and not two that look the same on a screen. */
+  if (patch.notes !== undefined) {
+    const text = patch.notes.trim();
+    if (text.length > STAFF_NOTES_MAX_CHARS) {
+      return { ok: false as const, code: "NOTES_TOO_LONG" as const };
+    }
+    next.notes = text.length ? text : null;
   }
 
   /* Answering any of the three at the desk marks the step done, so a member

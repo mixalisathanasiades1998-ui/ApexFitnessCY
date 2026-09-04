@@ -7,6 +7,7 @@ import {
   CONDITION_MAX_CHARS,
   PILATES_EXPERIENCE,
   PILATES_LEVELS,
+  STAFF_NOTES_MAX_CHARS,
 } from "@/lib/intake";
 import { Pager } from "@/components/ui/Pager";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,8 @@ type Detail = {
   pilatesLevel: string | null;
   pilatesSince: string | null;
   healthCondition: string | null;
+  /** The studio's own note. Never returned to the member by any route. */
+  notes: string | null;
   intakeAt: string | null;
   upcoming: { id: string; startsAt: string; className: string }[];
   payments: {
@@ -136,6 +139,9 @@ export function MemberDesk({
   const [level, setLevel] = useState<string>("");
   const [since, setSince] = useState<string>("");
   const [condition, setCondition] = useState<string>("");
+  /* The desk's own note, kept separate from `condition` above so neither can
+     overwrite the other. See ContactPatch.notes in lib/reception.ts. */
+  const [notes, setNotes] = useState<string>("");
   const [newPassword, setNewPassword] = useState("");
   /* Cleared whenever a different member is loaded, below: a typed confirmation
      left sitting in the box while the desk clicks onto somebody else is the one
@@ -203,6 +209,7 @@ export function MemberDesk({
     setLevel(data.member.pilatesLevel ?? "");
     setSince(data.member.pilatesSince ?? "");
     setCondition(data.member.healthCondition ?? "");
+    setNotes(data.member.notes ?? "");
     setNewPassword("");
     setEraseConfirm("");
   }, []);
@@ -746,6 +753,39 @@ export function MemberDesk({
               />
             </div>
 
+            {/**
+              * The studio's own notes, under the questionnaire and not in it.
+              *
+              * A separate box on purpose, and the border between them is the
+              * point: the field above is what the member said about their own
+              * body, and this is what the studio thinks. One box would have
+              * been less code and would let the desk type over somebody's own
+              * words, or put a staff observation on the member's account page.
+              *
+              * The member never sees this. Nothing about that is enforced by a
+              * flag — it is enforced by there being no route that returns it to
+              * them, which is why `memberDetail` says so where it is selected.
+              * The label says it out loud as well, because a note somebody
+              * believes is private and is not is worse than no note at all,
+              * and the person typing has to be able to trust the box.
+              */}
+            <div className="mt-4 rounded-2xl border border-mocha-200 bg-cream-200/40 p-4">
+              <p className="text-[13px] text-mocha-700">{d.notesTitle}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-clay">
+                {d.notesHelp}
+              </p>
+              <textarea
+                id="md-notes"
+                data-member-notes
+                rows={4}
+                maxLength={STAFF_NOTES_MAX_CHARS}
+                className="input mt-3 resize-y"
+                value={notes}
+                placeholder={d.notesPlaceholder}
+                onChange={(e) => setNotes(e.currentTarget.value)}
+              />
+            </div>
+
             {/* A marker, not a preference. Deliberately below the channels and
                 deliberately spelt out: an account switched to a test stops
                 receiving campaigns and stops being counted as a member, and
@@ -801,6 +841,10 @@ export function MemberDesk({
                     ...(condition !== (member.healthCondition ?? "")
                       ? { healthCondition: condition }
                       : {}),
+                    /* Sent only when it changed, for the same reason: an
+                       untouched box must not clear a note somebody else wrote
+                       from a screen that happened to load it. */
+                    ...(notes !== (member.notes ?? "") ? { notes } : {}),
                   },
                   "contact",
                   "PATCH",

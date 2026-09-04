@@ -27,7 +27,15 @@
  * it is not selling.
  */
 export type PackGroup =
-  "single" | "month" | "quarter" | "half" | "nine" | "year";
+  | "single"
+  | "month"
+  | "quarter"
+  | "half"
+  | "nine"
+  | "year"
+  /** The midday appointments. Their own group again, and at the foot of the
+   *  page: see the note on CARD_GROUPS. */
+  | "personal";
 
 /**
  * What a pack's sessions can be spent on.
@@ -42,21 +50,55 @@ export type PackGroup =
 export type CreditKind = "CLASS" | "PERSONAL" | "DUET";
 
 /**
- * Which groups the pricing page renders as a row of cards.
+ * The pricing page, in the order somebody reads it.
  *
- * Everything else is reachable through the plan builder instead — see
- * `PlanBuilder.tsx`. Five terms times four cadences is twenty plans, and twenty
- * cards was fourteen thousand pixels of near-identical rectangles on a phone.
+ * ---
  *
- * So this is deliberately *not* "every group that has packs in it". The `month`,
- * `quarter`, `half`, `nine` and `year` packs are all still real, still priced,
- * still bought through the same checkout; they are just chosen with two chips
- * rather than found among twenty cards.
+ * **How this settled where it is.**
  *
- * Exported because the pricing dictionary needs a heading for exactly these and
- * for nothing else, and `test-personal` asserts that both ways round.
+ * It began as twenty-three cards, which was fourteen thousand pixels of
+ * near-identical rectangles on a phone. Then it became one card and a builder
+ * for everything, which fixed the length and went too far the other way: the
+ * two plans people actually buy — a month and a term — stopped being things you
+ * could see and compare, and became something you had to operate a control to
+ * find out about.
+ *
+ * So the split is by how the decision is made, not by how many cards it costs.
+ * A month and three months are the ordinary choices, so they are cards you can
+ * read side by side. Six, nine and twelve months are the same product bought
+ * for longer, and nobody browses those: somebody arrives already knowing they
+ * want a year, and one control is a better way to say so than twelve cards.
+ *
+ * **And the appointments moved to the bottom.** Personal and Duet sat at the
+ * top with the day pass under "One at a time", which is true and put the two
+ * most expensive per-session things on the page in front of everything else.
+ * They are a different product for a different reason, they cost more per hour
+ * than any plan costs per class, and leading with them makes the studio look
+ * expensive before anybody has seen what a class costs.
  */
-export const CARD_GROUPS = ["single"] as const;
+export const CARD_GROUPS = [
+  "single",
+  "month",
+  "quarter",
+  "personal",
+] as const;
+
+/**
+ * The terms the builder covers, and deliberately have no cards.
+ *
+ * Kept beside `CARD_GROUPS` because the invariant that matters is the two of
+ * them together: every group a pack claims has to be reachable one way or the
+ * other, or the studio has a pack it cannot sell and nothing says so.
+ * `test-personal` asserts exactly that.
+ */
+export const BUILDER_TERMS = [
+  { group: "half", months: 6 },
+  { group: "nine", months: 9 },
+  { group: "year", months: 12 },
+] as const;
+
+/** Which card section the builder sits after. */
+export const BUILDER_AFTER: PackGroup = "quarter";
 
 export const PACKS = [
   {
@@ -462,7 +504,7 @@ export const PACKS = [
     validityDays: 30,
     badge: null as string | null,
     sortOrder: 22,
-    group: "single" as PackGroup,
+    group: "personal" as PackGroup,
     kind: "PERSONAL" as CreditKind,
     perDayLimit: null as number | null,
     seats: 1,
@@ -480,7 +522,7 @@ export const PACKS = [
     validityDays: 30,
     badge: null as string | null,
     sortOrder: 23,
-    group: "single" as PackGroup,
+    group: "personal" as PackGroup,
     kind: "DUET" as CreditKind,
     perDayLimit: null as number | null,
     seats: 2,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { preferencesAllowed } from "@/lib/consent";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/i18n/LanguageProvider";
 import {
@@ -94,6 +95,10 @@ export function PushInvite({
   }
 
   function remember() {
+    /* Only if the visitor agreed to being remembered. Refusing the preference
+       cookies means being asked again, which is the honest consequence rather
+       than a broken feature: nothing here is needed for anything to work. */
+    if (!preferencesAllowed()) return;
     try {
       window.localStorage.setItem(SNOOZE_KEY, String(Date.now()));
     } catch {

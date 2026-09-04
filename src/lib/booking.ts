@@ -279,21 +279,55 @@ export type CancelResult =
     };
 
 /**
- * Cancel a booking and return the session to the member's balance.
+ * Cancel a booking, returning the session to the member's balance or not.
  *
- * Cancellation is only open until FREE_CANCELLATION_HOURS before the start.
- * Inside that window the booking is locked rather than silently swallowing the
- * session: with five reformers in the room, a spot given up an hour before the
- * class cannot be refilled, so the honest answer is "you can no longer cancel"
- * rather than "cancelled, and you lost it".
+ * ---
  *
- * The refund goes back to the exact batch the session was spent from, so it
- * keeps that batch's original expiry instead of being extended by a cancel.
+ * **Inside the window: cancel and refund. That part has not changed.**
+ *
+ * Free cancellation runs until FREE_CANCELLATION_HOURS before the start, and
+ * the refund goes back to the exact batch the session was spent from, so it
+ * keeps that batch's original expiry rather than being extended by a cancel.
+ *
+ * ---
+ *
+ * **Past the window: refused, unless the member says to do it anyway.**
+ *
+ * This used to be a flat refusal, on the reasoning that a spot given up an hour
+ * before cannot be refilled, so "you can no longer cancel" is more honest than
+ * "cancelled, and you lost it".
+ *
+ * Half of that was right and the half that was wrong was the important half. It
+ * is honest, and it leaves a member who knows they cannot come looking at a
+ * Cancel button that refuses them — with no way to say so, and their name on a
+ * roster the instructor will read out to an empty reformer. The studio asked for
+ * it to be possible, and the reasoning above is what makes the shape obvious:
+ * the session is genuinely gone, so the member has to be *told* that and has to
+ * agree to it. Hence `forfeit`, which the caller only sets after the member has
+ * confirmed those exact words on screen.
+ *
+ * And the spot is not always unrefillable — the studio can offer it to somebody,
+ * and cannot offer what it does not know is free. That is the part that was
+ * being thrown away to protect a member from a loss they had already taken.
+ *
+ * `forfeit` is deliberately not a default. Without it this behaves exactly as
+ * before and answers TOO_LATE_TO_CANCEL, so nothing that has not been changed
+ * on purpose can quietly start eating people's sessions.
  */
 export function cancelBooking(
   userId: string,
   bookingId: string,
   now = new Date(),
+  opts: {
+    /**
+     * Cancel past the free window, keeping the session rather than refunding.
+     *
+     * Set only when the member has confirmed in words that the session will not
+     * come back. Ignored inside the free window, where a refund is theirs by
+     * right and a confirmation dialog cannot sign it away.
+     */
+    forfeit?: boolean;
+  } = {},
 ): CancelResult {
   return db.transaction((): CancelResult => {
     const booking = db
@@ -324,26 +358,38 @@ export function cancelBooking(
     const open = personal
       ? isPersonalCancellable(session.s.startsAt, now)
       : isFreeCancellation(session.s.startsAt, now);
-    if (!open) return { ok: false, code: "TOO_LATE_TO_CANCEL" };
+    /* Past the window and not confirmed: refused, as it always was. The screen
+       turns this code into the confirmation that unlocks the branch below. */
+    if (!open && !opts.forfeit) {
+      return { ok: false, code: "TOO_LATE_TO_CANCEL" };
+    }
 
-    refundOneCredit(userId, booking.creditBatchId, {
-      bookingId: booking.id,
-      note: "Cancelled inside the free window",
-      /* Only reached if the original batch has gone, and then it matters:
-         €30 of one to one must not come back as €20 of group class. */
-      kind: personal ? (booking.guestName ? "DUET" : "PERSONAL") : "CLASS",
-    });
+    /* Inside the window the refund is theirs whatever the caller passed. A
+       `forfeit` flag arriving on a booking that is still free to cancel is a
+       caller bug, not an instruction, and it must never cost a member a session
+       they were entitled to have back. */
+    const refunded = open;
+
+    if (refunded) {
+      refundOneCredit(userId, booking.creditBatchId, {
+        bookingId: booking.id,
+        note: "Cancelled inside the free window",
+        /* Only reached if the original batch has gone, and then it matters:
+           €30 of one to one must not come back as €20 of group class. */
+        kind: personal ? (booking.guestName ? "DUET" : "PERSONAL") : "CLASS",
+      });
+    }
 
     db.update(bookings)
       .set({
         status: "CANCELLED",
         cancelledAt: now,
-        creditRefunded: true,
+        creditRefunded: refunded,
       })
       .where(eq(bookings.id, booking.id))
       .run();
 
-    return { ok: true, refunded: true };
+    return { ok: true, refunded };
   });
 }
 

@@ -12,12 +12,29 @@ export async function POST(req: Request) {
   const stop = notVerified(user);
   if (stop) return stop;
 
-  const body = (await req.json().catch(() => null)) as { bookingId?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    bookingId?: string;
+    /**
+     * The member has read "your session will not be refunded" and pressed yes.
+     *
+     * Absent, a booking past the free window is refused with
+     * TOO_LATE_TO_CANCEL exactly as before — which is what the screen uses to
+     * decide whether to ask the question at all. Present, the cancel goes
+     * through and the session is kept by the studio.
+     *
+     * It cannot be used to *avoid* a refund inside the window: `cancelBooking`
+     * refunds whenever the window is open, whatever this says. See the note
+     * there.
+     */
+    forfeit?: boolean;
+  } | null;
   if (!body?.bookingId) {
     return NextResponse.json({ error: "BAD_REQUEST" }, { status: 400 });
   }
 
-  const result = cancelBooking(user.id, body.bookingId);
+  const result = cancelBooking(user.id, body.bookingId, new Date(), {
+    forfeit: body.forfeit === true,
+  });
   if (!result.ok) {
     return NextResponse.json({ error: result.code }, { status: 409 });
   }

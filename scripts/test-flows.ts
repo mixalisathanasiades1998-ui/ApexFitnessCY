@@ -2087,6 +2087,393 @@ async function main() {
     }
   }
 
+  /* ------------------------------------------------------------------ 12 */
+  console.log("\n12. The desk's notes, a forfeited cancel, and the nightly note");
+  /**
+   * Three properties from three features, and each is here because getting it
+   * wrong is expensive and invisible.
+   *
+   * The staff note is the studio's own and must never reach the member it is
+   * about. A forfeit flag must never be able to take a refund a member was
+   * entitled to. And the nightly note must be exactly one message a member a
+   * night, whatever the sweep does — it runs every sixty seconds, so "sends
+   * twice" here means thirty pushes between half eleven and midnight.
+   */
+  {
+    const R = await import("../src/lib/reception");
+    const C = await import("../src/lib/credits");
+    const B = await import("../src/lib/booking");
+    const E = await import("../src/lib/messaging/events");
+    const T = await import("../src/lib/time");
+    const { notices } = await import("../src/db/schema");
+
+    const noteUser = db
+      .insert(users)
+      .values({
+        email: `notes-${Date.now()}@apex.test`,
+        name: "Notes Probe",
+        passwordHash: await hashPassword("x".repeat(10)),
+        emailVerifiedAt: new Date(),
+      })
+      .returning()
+      .get();
+
+    /* --- the note is the studio's, not the member's --- */
+    const secret = "STUDIO ONLY: prefers reformer three";
+    await R.updateContact(noteUser.id, { notes: secret });
+    const detail = await R.memberDetail(noteUser.id);
+    check("the desk can read back the note it wrote", detail?.notes === secret, detail?.notes);
+
+    /* The member-facing read of a member, asked whether it carries it.
+       `listMyBookings` is the one library function a member's own screens use
+       that joins `users`, so it is the one that could leak. The HTTP surface —
+       /api/profile, /api/bookings and the account page itself — is asserted in
+       test-http, where there is a real member session to ask with. */
+    const mine = JSON.stringify(await B.listMyBookings(noteUser.id));
+    check(
+      "and the member's own booking list does not carry it",
+      !mine.includes("reformer three"),
+      mine.slice(0, 200),
+    );
+
+    /* Over the limit is a refusal, so a paste of somebody's whole history
+       cannot be silently truncated into a half-sentence. */
+    const tooLong = await R.updateContact(noteUser.id, { notes: "x".repeat(2100) });
+    check(
+      "a note past the limit is refused rather than cut short",
+      !tooLong.ok && tooLong.code === "NOTES_TOO_LONG",
+      tooLong,
+    );
+
+    /* --- a forfeit flag cannot cost a refund that was owed --- */
+    grantCredits({ userId: noteUser.id, credits: 4, validityDays: 120, note: "probe" });
+    const far = db
+      .select({ s: classSessions })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(
+        and(
+          gt(classSessions.startsAt, new Date(Date.now() + 48 * 3600_000)),
+          eq(classTypes.kind, "GROUP"),
+        ),
+      )
+      .orderBy(classSessions.startsAt)
+      .all()
+      .map((r) => r.s)[0]!;
+    const booked = B.bookClass(noteUser.id, far.id);
+    check("booked a class well inside the free window", booked.ok, booked);
+    if (booked.ok) {
+      const before = (await C.getCreditSummary(noteUser.id)).available;
+      const res = B.cancelBooking(noteUser.id, booked.bookingId, new Date(), {
+        forfeit: true,
+      });
+      const after = (await C.getCreditSummary(noteUser.id)).available;
+      check(
+        "inside the window the session comes back even when forfeit was sent",
+        res.ok && res.refunded === true && after === before + 1,
+        { res, before, after },
+      );
+    }
+
+    /* --- the nightly note, once --- */
+    const from = T.studioAddDays(T.studioStartOfDay(new Date()), 1);
+    const p = T.studioParts(from);
+    const groupType = db
+      .select()
+      .from(classTypes)
+      .where(eq(classTypes.kind, "GROUP"))
+      .get()!;
+    const madeIds: string[] = [];
+    for (const hour of [8, 19]) {
+      const at = T.studioWallTimeToInstant(p.year, p.month, p.day, hour, 0);
+      const s = db
+        .insert(classSessions)
+        .values({
+          classTypeId: groupType.id,
+          startsAt: at,
+          endsAt: new Date(at.getTime() + 50 * 60_000),
+          capacity: 5,
+          status: "SCHEDULED",
+        })
+        .returning()
+        .get();
+      madeIds.push(s.id);
+      B.bookClass(noteUser.id, s.id);
+    }
+    db.delete(notices).where(eq(notices.userId, noteUser.id)).run();
+
+    const before2330 = T.studioWallTimeToInstant(p.year, p.month, p.day - 1, 21, 0);
+    const tooEarly = await E.runNightlyDigest(before2330);
+    check("nothing goes out before 23:30", tooEarly.ran === false, tooEarly);
+
+    const at2335 = T.studioWallTimeToInstant(p.year, p.month, p.day - 1, 23, 35);
+    const sent = await E.runNightlyDigest(at2335);
+    const got = db.select().from(notices).where(eq(notices.userId, noteUser.id)).all();
+    check("at 23:35 it goes out", sent.ran === true && sent.told === 1, sent);
+    check("one message for two classes, not two", got.length === 1, got.length);
+    check(
+      "naming both times",
+      /08:00/.test(got[0]?.bodyEn ?? "") && /19:00/.test(got[0]?.bodyEn ?? ""),
+      got[0]?.bodyEn,
+    );
+    check(
+      "and stamped with the day it covers, which is what stops a second one",
+      got[0]?.segment === `nightly:${T.studioDateKey(from)}`,
+      got[0]?.segment,
+    );
+
+    const again = await E.runNightlyDigest(at2335);
+    const still = db.select().from(notices).where(eq(notices.userId, noteUser.id)).all();
+    check("a second sweep in the same minute sends nothing", again.told === 0, again);
+    check("and there is still one message", still.length === 1, still.length);
+
+    /* Tidy up. */
+    db.delete(bookings).where(eq(bookings.userId, noteUser.id)).run();
+    db.delete(notices).where(eq(notices.userId, noteUser.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.userId, noteUser.id)).run();
+    db.delete(creditBatches).where(eq(creditBatches.userId, noteUser.id)).run();
+    db.delete(users).where(eq(users.id, noteUser.id)).run();
+    for (const id of madeIds) {
+      db.delete(classSessions).where(eq(classSessions.id, id)).run();
+    }
+  }
+
+  /* ------------------------------------------------------------------ 13 */
+  console.log("\n13. No test account is counted in the studio's own numbers");
+  /**
+   * The studio keeps dummy accounts to try things with, and every figure on the
+   * Analytics tab is a number somebody makes a decision on. A test purchase in
+   * the takings is the studio believing it earned money it did not.
+   *
+   * Every figure already filters them, and this is here so that stays true: the
+   * next figure somebody adds to `studioStats` will either filter test accounts
+   * or fail this.
+   *
+   * **The control is the point.** "Nothing moved" is also what a broken query,
+   * an empty date window or a probe that failed to book would produce. So the
+   * same contribution is made twice — once by a real member, which must move
+   * the numbers, and once by a test account, which must not.
+   */
+  {
+    const A = await import("../src/lib/admin");
+    const C2 = await import("../src/lib/credits");
+    const B2 = await import("../src/lib/booking");
+    const { purchases } = await import("../src/db/schema");
+
+    async function contribute(isTest: boolean) {
+      const before = await A.studioStats();
+      const u = db
+        .insert(users)
+        .values({
+          email: `stats-${isTest ? "t" : "r"}-${Date.now()}@apex.test`,
+          name: "Stats Probe",
+          passwordHash: await hashPassword("x".repeat(10)),
+          emailVerifiedAt: new Date(),
+          isTest,
+        })
+        .returning()
+        .get();
+      C2.grantCredits({ userId: u.id, credits: 10, validityDays: 120, note: "probe" });
+      for (const [provider, cents] of [
+        ["stripe", 20000],
+        ["cash", 3000],
+        ["card_at_desk", 4500],
+      ] as const) {
+        db.insert(purchases)
+          .values({
+            userId: u.id,
+            credits: 5,
+            amountCents: cents,
+            currency: "EUR",
+            status: "PAID",
+            provider,
+            paidAt: new Date(),
+          })
+          .run();
+      }
+      const ahead = db
+        .select({ s: classSessions })
+        .from(classSessions)
+        .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+        .where(
+          and(
+            gt(classSessions.startsAt, new Date(Date.now() + 72 * 3600_000)),
+            eq(classTypes.kind, "GROUP"),
+          ),
+        )
+        .orderBy(classSessions.startsAt)
+        .all()
+        .map((r) => r.s);
+      const one = B2.bookClass(u.id, ahead[0]!.id);
+      const two = B2.bookClass(u.id, ahead[1]!.id);
+      if (two.ok) B2.cancelBooking(u.id, two.bookingId);
+      const after = await A.studioStats();
+
+      db.delete(bookings).where(eq(bookings.userId, u.id)).run();
+      db.delete(purchases).where(eq(purchases.userId, u.id)).run();
+      db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
+      db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
+      db.delete(users).where(eq(users.id, u.id)).run();
+
+      const moved: string[] = [];
+      for (const k of Object.keys(before) as (keyof typeof before)[]) {
+        const a = before[k];
+        const c = after[k];
+        if (typeof a === "number" && typeof c === "number" && a !== c) {
+          moved.push(`${String(k)} ${a}->${c}`);
+        }
+      }
+      return { moved, booked: one.ok };
+    }
+
+    const real = await contribute(false);
+    check("the probe could book, so it is testing something", real.booked, real);
+    check(
+      "a real member moves the studio's numbers",
+      real.moved.length >= 8,
+      real.moved,
+    );
+    const test = await contribute(true);
+    check(
+      "and a test account moves none of them",
+      test.moved.length === 0,
+      test.moved,
+    );
+  }
+
+  /* ------------------------------------------------------------------ 14 */
+  console.log("\n14. What the desk is told a notice will reach");
+  /**
+   * The number above the Send button used to be the size of the *audience* and
+   * was read as "how many people will get this". Tick SMS only and those are
+   * different numbers; tick SMS and push and the answer is not the sum, because
+   * somebody may have both.
+   *
+   * So `reachOf` counts every combination directly. This asserts the counts
+   * against the real recipient set, computed independently from the same list —
+   * and asserts the thing that made it a bug, which is that adding the channels
+   * up gives the wrong answer.
+   */
+  {
+    const D = await import("../src/lib/messaging/deliver");
+    const P2 = await import("../src/lib/messaging/push");
+    const S2 = await import("../src/lib/messaging/sms");
+    const { pushSubscriptions } = await import("../src/db/schema");
+
+    const made: string[] = [];
+    async function member(
+      tag: string,
+      o: { email: boolean; sms: boolean; push: boolean },
+    ) {
+      const u = db
+        .insert(users)
+        .values({
+          email: `reach-${tag}-${Date.now()}@apex.test`,
+          name: `Reach ${tag}`,
+          phone: o.sms
+            ? `+35799${Math.floor(100000 + Math.random() * 899999)}`
+            : null,
+          passwordHash: await hashPassword("x".repeat(10)),
+          emailVerifiedAt: new Date(),
+          serviceOptInAt: new Date(),
+          notifyEmail: o.email,
+          notifySms: o.sms,
+        })
+        .returning()
+        .get();
+      if (o.push) {
+        db.insert(pushSubscriptions)
+          .values({
+            userId: u.id,
+            endpoint: `https://push.example/${u.id}`,
+            p256dh: "x".repeat(87),
+            auth: "y".repeat(22),
+            userAgent: "suite",
+            failures: 0,
+          })
+          .run();
+      }
+      made.push(u.id);
+      return u;
+    }
+
+    /* Deliberate overlaps: all three, each pair, each single, and nothing. */
+    await member("all", { email: true, sms: true, push: true });
+    await member("em-sms", { email: true, sms: true, push: false });
+    await member("em-push", { email: true, sms: false, push: true });
+    await member("sms-push", { email: false, sms: true, push: true });
+    await member("em", { email: true, sms: false, push: false });
+    await member("sms", { email: false, sms: true, push: false });
+    await member("push", { email: false, sms: false, push: true });
+    await member("none", { email: false, sms: false, push: false });
+
+    const reach = D.reachOf("ALL", false, {});
+    const people = D.recipientsFor("ALL", false, {});
+    const withPush = new Set(
+      P2.subscriptionsFor(people.map((x) => x.id)).map((s) => s.userId),
+    );
+    const can = {
+      push: (x: (typeof people)[number]) => withPush.has(x.id),
+      email: (x: (typeof people)[number]) => Boolean(x.notifyEmail && x.email),
+      sms: (x: (typeof people)[number]) =>
+        Boolean(x.notifySms && S2.toE164(x.phone)),
+    };
+
+    const wrong: string[] = [];
+    for (const subset of [
+      ["email"],
+      ["push"],
+      ["sms"],
+      ["email", "push"],
+      ["email", "sms"],
+      ["push", "sms"],
+      ["email", "push", "sms"],
+    ] as const) {
+      const key = subset.join("+");
+      const actual = people.filter((x) => subset.some((c) => can[c](x))).length;
+      if (reach.onAnyOf[key] !== actual) {
+        wrong.push(`${key}: said ${reach.onAnyOf[key]}, is ${actual}`);
+      }
+    }
+    check(
+      "every combination of channels matches the real recipient set",
+      wrong.length === 0,
+      wrong,
+    );
+
+    /* The bug itself, asserted: the sum overcounts, so the union cannot be a
+       sum. If this ever stops being true the fixtures have lost their overlap
+       and the check above has stopped testing anything. */
+    check(
+      "and adding the channels up would overcount, which is why it is counted",
+      reach.email + reach.push + reach.sms > reach.onAnyOf["email+push+sms"],
+      {
+        parts: [reach.email, reach.push, reach.sms],
+        union: reach.onAnyOf["email+push+sms"],
+      },
+    );
+
+    /* An erased account is not somebody the studio can write to. It used to be
+       counted, because erasure deliberately keeps the service consent. */
+    const gone = await member("erased", { email: true, sms: false, push: false });
+    const withGone = D.reachOf("ALL", false, {}).people;
+    db.update(users)
+      .set({ erasedAt: new Date(), erasedBy: "suite" })
+      .where(eq(users.id, gone.id))
+      .run();
+    const withoutGone = D.reachOf("ALL", false, {}).people;
+    check(
+      "erasing a member takes them out of the audience",
+      withoutGone === withGone - 1,
+      { withGone, withoutGone },
+    );
+
+    for (const id of made) {
+      db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, id)).run();
+      db.delete(users).where(eq(users.id, id)).run();
+    }
+  }
+
   console.log(
     `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
   );

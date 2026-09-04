@@ -12,6 +12,7 @@ import { Monogram } from "@/components/ui/Monogram";
 import { Wordmark } from "@/components/ui/Wordmark";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { SocialLinks } from "@/components/ui/SocialLinks";
+import { CookieSettingsLink } from "@/components/site/CookieNotice";
 import { StudioEmail } from "@/components/site/StudioEmail";
 import { STUDIO } from "@/lib/studio";
 
@@ -66,6 +67,7 @@ export function Footer() {
       links: [
         { href: "/privacy", label: t.footer.privacy },
         { href: "/terms", label: t.footer.terms },
+        { href: "/cookies", label: t.legal.cookiesTitle },
       ],
     },
   ];
@@ -105,6 +107,16 @@ export function Footer() {
                     </Link>
                   </li>
                 ))}
+                {/* And the way back to the cookie choice, in the same list.
+                    A button rather than a link, because there is no page to go
+                    to: it reopens the bar at the bottom of whatever they are
+                    already reading. Only under Legal, which is where somebody
+                    goes looking for it. */}
+                {g.title === t.footer.legal && (
+                  <li>
+                    <CookieSettingsLink className="link-underline text-left text-sm text-cream/80 hover:text-cream" />
+                  </li>
+                )}
               </ul>
             </div>
           ))}

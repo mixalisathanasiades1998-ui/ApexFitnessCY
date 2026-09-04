@@ -1,10 +1,11 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
   classSessions,
   classTypes,
   creditBatches,
+  notices,
   purchases,
   users,
 } from "@/db/schema";
@@ -19,6 +20,12 @@ import { smsTransport, toE164 } from "./sms";
 import type { Attachment, Channel, Outgoing } from "./types";
 import { STUDIO_OPS_EMAIL } from "@/lib/personal";
 import {
+  studioAddDays,
+  studioDateKey,
+  studioParts,
+  studioStartOfDay,
+} from "@/lib/time";
+import {
   bookedWords,
   cancelledWords,
   forEmail,
@@ -30,6 +37,7 @@ import {
   purchasedWords,
   reminderWords,
   repeatBookedWords,
+  tomorrowWords,
   studioPaidWords,
   studioAppointmentWords,
   say,
@@ -60,7 +68,8 @@ const SENDS: Record<
   | "purchased"
   | "reminder"
   | "appointment"
-  | "instructor",
+  | "instructor"
+  | "nightly",
   { email: boolean; push: boolean; sms: boolean }
 > = {
   /**
@@ -119,6 +128,21 @@ const SENDS: Record<
    * cannot opt out of, alongside a class being moved or cancelled.
    */
   instructor: { email: false, push: true, sms: false },
+
+  /**
+   * The nightly note about tomorrow, at 23:30.
+   *
+   * Push and the in-app copy, and deliberately not email or SMS. Email because
+   * a message every single night is the fastest way to teach four hundred
+   * people to filter the studio's mail, and the studio needs that inbox to work
+   * on the day a class is cancelled. SMS because it is the same message times
+   * four hundred nights times two cents, which is a standing order nobody
+   * agreed to.
+   *
+   * Push costs nothing and is the right shape for it: a line on a lock screen
+   * at bedtime, which is exactly when somebody is deciding what time to get up.
+   */
+  nightly: { email: false, push: true, sms: false },
 };
 
 /**
@@ -948,6 +972,164 @@ export async function runDueReminders(now = new Date()) {
  * the visitor wait for it.
  */
 let lastSweep = 0;
+
+/* ------------------------------------------------- tomorrow, at half eleven */
+
+/**
+ * Which studio day this process has already sent the nightly note for.
+ *
+ * The cheap latch. Module state, so a restart forgets it — which is why it is
+ * not the only one: the durable check is a notice row per member, below. This
+ * one exists so the sweep does not run the same query thirty times between
+ * 23:30 and midnight, not to make the send correct.
+ */
+let lastNightly = "";
+
+/** The hour and minute the studio asked for, in studio wall time. */
+const NIGHTLY_HOUR = 23;
+const NIGHTLY_MINUTE = 30;
+
+/**
+ * One message a member, at 23:30, naming what they have booked tomorrow.
+ *
+ * ---
+ *
+ * **Why it is not a reminder, and does not go through the reminder queue.**
+ *
+ * `bookingReminders` holds one row per booking and a unique index says so, and
+ * that is right for what it does: a reminder belongs to a class and carries the
+ * lead time the member was promised when they booked it. This belongs to a
+ * *day* and to a member, and a member with two classes tomorrow gets one
+ * message about both. Squeezing it into that table would have meant either
+ * breaking the one-per-booking rule or sending two notes at 23:30.
+ *
+ * ---
+ *
+ * **Why it is safe to call every sixty seconds.**
+ *
+ * Because it is, and something does: `instrumentation.ts` knocks on the cron
+ * route every minute, which is what makes this reliable rather than dependent
+ * on somebody loading the site at half eleven at night. So it is written to be
+ * idempotent rather than to be called carefully.
+ *
+ * Two guards, and the second is the one that matters. `lastNightly` stops the
+ * repeated work inside one process. The notice row — segment `nightly:<day>` —
+ * is the one that survives a deploy at 23:35, and it is checked per member, so
+ * a restart half way through the batch resumes rather than starting again.
+ *
+ * **It does not catch up.** Miss the window entirely — the server was down from
+ * 23:00 to 00:30 — and nobody is told, rather than being told at half past
+ * midnight that they have a class "tomorrow" which is in fact today. The
+ * per-class reminder still fires either way, so the failure costs a courtesy
+ * and not a class.
+ */
+export async function runNightlyDigest(now = new Date()) {
+  const parts = studioParts(now);
+  const beforeTime =
+    parts.hour < NIGHTLY_HOUR ||
+    (parts.hour === NIGHTLY_HOUR && parts.minute < NIGHTLY_MINUTE);
+  const today = studioDateKey(now);
+  if (beforeTime || lastNightly === today) {
+    return { ran: false as const, told: 0, pushed: 0 };
+  }
+
+  /* Tomorrow, in the studio's own day rather than in 24-hour steps: the day
+     after a clock change is 23 or 25 hours long and both ends of it are still
+     one studio day. */
+  const from = studioAddDays(studioStartOfDay(now), 1);
+  const to = studioAddDays(from, 1);
+  const tomorrow = studioDateKey(from);
+
+  const rows = db
+    .select({
+      userId: users.id,
+      locale: users.locale,
+      startsAt: classSessions.startsAt,
+      classEn: classTypes.nameEn,
+      classEl: classTypes.nameEl,
+    })
+    .from(bookings)
+    .innerJoin(users, eq(bookings.userId, users.id))
+    .innerJoin(classSessions, eq(bookings.sessionId, classSessions.id))
+    .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+    .where(
+      and(
+        eq(bookings.status, "CONFIRMED"),
+        gte(classSessions.startsAt, from),
+        lt(classSessions.startsAt, to),
+        ne(classSessions.status, "CANCELLED"),
+      ),
+    )
+    .orderBy(classSessions.startsAt)
+    .all();
+
+  /* Marked done even when nobody has a class tomorrow: the answer is correct
+     and repeating the query every minute until midnight would not change it. */
+  lastNightly = today;
+  if (rows.length === 0) return { ran: true as const, told: 0, pushed: 0 };
+
+  const byMember = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byMember.get(r.userId);
+    if (list) list.push(r);
+    else byMember.set(r.userId, [r]);
+  }
+
+  /* The durable mark, and it is checked per member rather than once for the
+     batch: a deploy part way through must not re-tell the members it had
+     already reached, and must still reach the ones it had not. */
+  const stamp = `nightly:${tomorrow}`;
+  const already = new Set(
+    db
+      .select({ userId: notices.userId })
+      .from(notices)
+      .where(eq(notices.segment, stamp))
+      .all()
+      .map((n) => n.userId ?? ""),
+  );
+
+  let told = 0;
+  let pushed = 0;
+  for (const [userId, classes] of byMember) {
+    if (already.has(userId)) continue;
+
+    const words = tomorrowWords({
+      classes: classes.map((c) => ({
+        startsAt: c.startsAt,
+        classEn: c.classEn,
+        classEl: c.classEl || c.classEn,
+      })),
+    });
+
+    /* The account copy first and unconditionally, and it doubles as the mark.
+       Written before the push rather than after, so a push service that hangs
+       cannot leave a member markable-but-unmarked and get a second note the
+       next minute. */
+    try {
+      createNotice({
+        titleEn: words.en.subject,
+        bodyEn: words.en.body,
+        titleEl: words.el.subject,
+        bodyEl: words.el.body,
+        channels: SENDS.nightly.push ? ["push"] : [],
+        segment: stamp,
+        userId,
+        staffId: null,
+      });
+    } catch {
+      /* Could not write the mark, so do not send: better a missed courtesy
+         than one that repeats every minute for half an hour. */
+      continue;
+    }
+    told++;
+
+    if (SENDS.nightly.push) {
+      pushed += await pushToUser(userId, say(words, classes[0]?.locale));
+    }
+  }
+
+  return { ran: true as const, told, pushed };
+}
 
 export function nudgeReminders() {
   const now = Date.now();

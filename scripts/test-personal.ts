@@ -58,7 +58,12 @@ import {
   isPersonalCancellable,
   personalBookingClosesAt,
 } from "../src/lib/personal";
-import { CARD_GROUPS, PACKS, packBySlug } from "../src/lib/packs";
+import {
+  BUILDER_TERMS,
+  CARD_GROUPS,
+  PACKS,
+  packBySlug,
+} from "../src/lib/packs";
 import { repairCatalogue } from "../src/lib/catalogue-repair";
 import { repairSchedule } from "../src/lib/schedule-repair";
 import { repairTimetable } from "../src/lib/timetable-repair";
@@ -1025,7 +1030,6 @@ async function main() {
     const builder = (p.builder ?? {}) as Record<string, unknown>;
     const missingBuilder = [
       "title",
-      "note",
       "howLong",
       "howOften",
       "oneMonth",
@@ -1049,7 +1053,7 @@ async function main() {
      */
     if (lang === "en") {
       const missingPacks: string[] = [];
-      for (const group of ["month", "quarter", "half", "nine", "year"]) {
+      for (const { group } of BUILDER_TERMS) {
         for (const n of [1, 2, 3, 4]) {
           const slug = `${group}-${n}`;
           if (!PACKS.some((x) => x.slug === slug)) missingPacks.push(slug);
@@ -1060,6 +1064,38 @@ async function main() {
         missingPacks.length === 0,
         missingPacks,
       );
+
+      /**
+       * Nothing is stranded between the two.
+       *
+       * A pack reaches a buyer one of two ways: its group has a row of cards, or
+       * the builder covers it. A group in neither list is a pack the studio has
+       * priced, seeded and cannot sell, and the page would look completely
+       * normal. That is exactly what happened to `half`, `nine` and `year` when
+       * the builder took over the whole page and CARD_GROUPS was cut to
+       * ["single"] — they were reachable then only because the builder carried
+       * all five terms, and the day it carried three the invariant is the only
+       * thing standing between a working page and four missing plans.
+       */
+      const reachable = new Set<string>([
+        ...CARD_GROUPS,
+        ...BUILDER_TERMS.map((x) => x.group),
+      ]);
+      const stranded = [...new Set(PACKS.map((x) => x.group))].filter(
+        (g) => !reachable.has(g),
+      );
+      check(
+        "every pack group is either a card section or in the builder",
+        stranded.length === 0,
+        stranded,
+      );
+
+      /* And the other direction: a group cannot be both, or the studio sells
+         the same term twice on one page at two different prices per class. */
+      const both = BUILDER_TERMS.map((x) => x.group).filter((g) =>
+        (CARD_GROUPS as readonly string[]).includes(g),
+      );
+      check("and no group is in both at once", both.length === 0, both);
     }
     check(
       `the studio page has a team heading in ${lang}`,

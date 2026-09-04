@@ -327,13 +327,24 @@ export const en = {
     groups: {
       single: {
         title: "One at a time",
-        note: "A single session, thirty days to use it, nothing to commit to. A place in a class, or the room to yourself.",
+        note: "A single session, thirty days to use it, nothing to commit to.",
+      },
+      month: {
+        title: "By the month",
+        note: "Thirty days to use them. Priced by how often you train.",
+      },
+      quarter: {
+        title: "Three months",
+        note: "The same cadences over twelve weeks, at less per class. Ninety days to use them, so a holiday does not cost you your sessions.",
+      },
+      personal: {
+        title: "Personal and Duet",
+        note: "An hour at 12:00, 13:00 or 14:00 on a weekday, with an instructor to yourself. A Duet is the same hour shared with one other person.",
       },
     },
-    /* The one card that replaced twenty. See PlanBuilder.tsx. */
+    /* The long terms, as one card. See PlanBuilder.tsx. */
     builder: {
-      title: "Create your own plan",
-      note: "Longer terms cost less per class: five percent off at six months, eight at nine, twelve at a year. Free cancellation up to 12 hours before a class, whichever you choose.",
+      title: "Longer terms",
       howLong: "How long for",
       howOften: "How often",
       oneMonth: "1 month",
@@ -485,6 +496,31 @@ export const en = {
     contact: "Contact details",
     contactHelp:
       "The member cannot change these themselves. Their email is also how they sign in.",
+    /* The desk's own notes. The label says "the member never sees this"
+       outright, because a note somebody believes is private and is not is
+       worse than no note at all. */
+    notesTitle: "Studio notes",
+    notesHelp:
+      "For the studio only. The member never sees this, and it is separate from what they told us themselves above.",
+    notesPlaceholder:
+      "Anything worth knowing next time: springs, a shoulder to watch, who they book with.",
+    notesTooLong: "That note is too long. Shorten it and save again.",
+    /* On the class roster. Short, because they sit on a row beside a name. */
+    rosterCondition: "Health note",
+    rosterConditionFull: "What they told us",
+    rosterNothing: "Nothing to watch",
+    rosterNotAsked: "Not asked yet",
+    rosterNotes: "Studio note",
+    rosterNotesFull: "Studio notes",
+    rosterRemove: "Remove",
+    rosterRemoveRefund: "Remove and refund",
+    rosterRemoveKeep: "Remove, keep the session",
+    rosterRemoveCancel: "Leave them on",
+    rosterRemoveTitle: "Remove {name} from this class?",
+    rosterRemoveBody:
+      "They are told either way. Refunding puts the session back on their balance; keeping it does not.",
+    rosterRemoved: "{name} removed, session refunded",
+    rosterRemovedKept: "{name} removed, session kept",
     channels: "Reachable by",
     chEmail: "Email",
     chSms: "SMS",
@@ -612,6 +648,17 @@ export const en = {
       "Last class {n} days ago or longer, plus members who have never been, since they are the same audience for this kind of message.",
     segAwayOff: "Leave at 0 to include everybody, however recently they came.",
     segClear: "Clear",
+    /* On the collapsed filters title, when any are on. */
+    segOn: "{n} on",
+    /* The headline above Send: how many distinct people the ticked channels
+       would actually reach. {channels} is "SMS and push" in the reader's
+       language. */
+    reachOnChannels: "{n} will get it on {channels}.",
+    reachNoneOnThese:
+      "Nobody can be reached on those channels. It will still land in their account.",
+    reachNoChannels:
+      "No channel ticked, so this only lands in their account.",
+    reachInApp: "{n} members get it in their account, whatever you tick.",
     segMatches: "{n} members match.",
     segNobody:
       "Nobody matches these filters. Loosen one before sending, because there is nobody to send to.",
@@ -965,6 +1012,20 @@ export const en = {
     cancelRefund: "Your session will be returned to your balance.",
     cancelTooLate:
       "Cancellation closed 12 hours before this class, so the booking cannot be cancelled now.",
+    /* Past the free window, cancelling is now possible and costs the session.
+       The wording the studio asked for, close to word for word: it has to say
+       plainly that the session does not come back, and the yes has to sound
+       like a decision rather than a dismissal. */
+    cancelForfeitTitle: "Are you sure?",
+    cancelForfeitBody:
+      "Your session will not be refunded. Cancelling this close to the class does not return it to your balance, but it does free your place for somebody else.",
+    cancelForfeitYes: "Yes, please proceed",
+    cancelForfeitNo: "No",
+    /* On the button's own line, so somebody knows the cost before pressing it
+       rather than only inside the dialog. */
+    cancelForfeitHint:
+      "Cancelling now does not return the session to your balance.",
+    cancelKept: "The session was not returned to your balance.",
     cancelled: "Booking cancelled.",
     instructor: "Instructor",
     spots: "Spots",
@@ -1212,8 +1273,27 @@ export const en = {
   legal: {
     privacyTitle: "Privacy policy",
     termsTitle: "Terms & studio policy",
-    placeholder:
-      "This page is a starting template. Replace the text below with the studio's final legal wording before going live.",
+    cookiesTitle: "Cookies",
+  },
+  /* The notice at the bottom of the screen. It says what is true here before
+     it asks, because a banner implying a dozen trackers on a site with none is
+     worse than no banner. */
+  cookies: {
+    title: "Cookies",
+    body: "This site has no advertising and no analytics. It keeps you signed in, and remembers the language you chose. That is all.",
+    readMore: "What each one does",
+    acceptAll: "Accept all",
+    customise: "Customise",
+    rejectAll: "Reject all",
+    save: "Save my choice",
+    necessary: "Signing in",
+    always: "Always on",
+    necessaryWhy:
+      "Two cookies: one keeps you signed in, one is the studio desk's own lock. Without them nobody can sign in, so they are not a choice.",
+    preferences: "Remembering your preferences",
+    preferencesWhy:
+      "The language you read the site in, and a declined notification prompt so this device is not asked again. Stored on your device and never read by anybody else.",
+    settings: "Cookie settings",
   },
 };
 
@@ -1520,12 +1600,23 @@ export const el: typeof en = {
     groups: {
       single: {
         title: "Ένα τη φορά",
-        note: "Μία συνεδρία, τριάντα ημέρες για να τη χρησιμοποιήσεις, χωρίς δέσμευση. Μια θέση σε μάθημα, ή ο χώρος δικός σου.",
+        note: "Μία συνεδρία, τριάντα ημέρες για να τη χρησιμοποιήσεις, χωρίς δέσμευση.",
+      },
+      month: {
+        title: "Με τον μήνα",
+        note: "Τριάντα ημέρες για να τις χρησιμοποιήσεις. Η τιμή ακολουθεί το πόσο συχνά προπονείσαι.",
+      },
+      quarter: {
+        title: "Τρεις μήνες",
+        note: "Οι ίδιες συχνότητες σε δώδεκα εβδομάδες, με λιγότερα ανά μάθημα. Ενενήντα ημέρες για να τις χρησιμοποιήσεις, ώστε μια εκδρομή να μη σου κοστίσει τις συνεδρίες σου.",
+      },
+      personal: {
+        title: "Ατομική και Δυάδα",
+        note: "Μία ώρα στις 12:00, 13:00 ή 14:00 τις εργάσιμες, με τον εκπαιδευτή μόνο για σένα. Η Δυάδα είναι η ίδια ώρα μοιρασμένη με ένα ακόμη άτομο.",
       },
     },
     builder: {
-      title: "Φτιάξε το δικό σου πλάνο",
-      note: "Όσο μεγαλύτερη η διάρκεια, τόσο χαμηλότερη η τιμή ανά μάθημα: πέντε τοις εκατό κάτω στους έξι μήνες, οκτώ στους εννέα, δώδεκα στον χρόνο. Δωρεάν ακύρωση έως 12 ώρες πριν το μάθημα, ό,τι και να διαλέξεις.",
+      title: "Μεγαλύτερες διάρκειες",
       howLong: "Για πόσο",
       howOften: "Πόσο συχνά",
       oneMonth: "1 μήνας",
@@ -1670,6 +1761,27 @@ export const el: typeof en = {
     contact: "Στοιχεία επικοινωνίας",
     contactHelp:
       "Το μέλος δεν μπορεί να τα αλλάξει μόνο του. Το email είναι και ο τρόπος σύνδεσης.",
+    notesTitle: "Σημειώσεις στούντιο",
+    notesHelp:
+      "Μόνο για το στούντιο. Το μέλος δεν τις βλέπει ποτέ, και είναι ξεχωριστές από όσα μας είπε το ίδιο παραπάνω.",
+    notesPlaceholder:
+      "Ό,τι αξίζει να θυμόμαστε: ελατήρια, ένας ώμος που θέλει προσοχή, με ποιον κλείνει.",
+    notesTooLong: "Η σημείωση είναι πολύ μεγάλη. Συντόμευσέ τη και αποθήκευσε ξανά.",
+    rosterCondition: "Σημείωση υγείας",
+    rosterConditionFull: "Τι μας είπε",
+    rosterNothing: "Τίποτα για προσοχή",
+    rosterNotAsked: "Δεν ρωτήθηκε ακόμη",
+    rosterNotes: "Σημείωση στούντιο",
+    rosterNotesFull: "Σημειώσεις στούντιο",
+    rosterRemove: "Αφαίρεση",
+    rosterRemoveRefund: "Αφαίρεση και επιστροφή",
+    rosterRemoveKeep: "Αφαίρεση, κρατάμε τη συνεδρία",
+    rosterRemoveCancel: "Να μείνει",
+    rosterRemoveTitle: "Αφαίρεση του/της {name} από το μάθημα;",
+    rosterRemoveBody:
+      "Ενημερώνεται και στις δύο περιπτώσεις. Με επιστροφή η συνεδρία γυρίζει στο υπόλοιπό του/της, χωρίς επιστροφή όχι.",
+    rosterRemoved: "{name}: αφαιρέθηκε, η συνεδρία επιστράφηκε",
+    rosterRemovedKept: "{name}: αφαιρέθηκε, η συνεδρία κρατήθηκε",
     channels: "Επικοινωνία μέσω",
     chEmail: "Email",
     chSms: "SMS",
@@ -1781,6 +1893,13 @@ export const el: typeof en = {
       "Τελευταίο μάθημα πριν από {n} ημέρες ή περισσότερο, καθώς και όσοι δεν έχουν έρθει ποτέ, γιατί είναι το ίδιο κοινό για τέτοιο μήνυμα.",
     segAwayOff: "Αφήστε 0 για να συμπεριληφθούν όλοι.",
     segClear: "Καθαρισμός",
+    segOn: "{n} ενεργά",
+    reachOnChannels: "{n} θα το λάβουν μέσω {channels}.",
+    reachNoneOnThese:
+      "Κανείς δεν μπορεί να ειδοποιηθεί σε αυτά τα κανάλια. Θα εμφανιστεί πάντως στον λογαριασμό τους.",
+    reachNoChannels:
+      "Δεν έχει επιλεγεί κανάλι, οπότε θα εμφανιστεί μόνο στον λογαριασμό τους.",
+    reachInApp: "{n} μέλη το βλέπουν στον λογαριασμό τους, ό,τι κι αν επιλέξεις.",
     segMatches: "{n} μέλη ταιριάζουν.",
     segNobody:
       "Κανένα μέλος δεν ταιριάζει. Χαλαρώστε ένα φίλτρο πριν στείλετε, γιατί δεν υπάρχει παραλήπτης.",
@@ -2117,6 +2236,14 @@ export const el: typeof en = {
     cancelRefund: "Η συνεδρία θα επιστρέψει στο υπόλοιπό σου.",
     cancelTooLate:
       "Η ακύρωση έκλεισε 12 ώρες πριν το μάθημα, οπότε η κράτηση δεν μπορεί να ακυρωθεί τώρα.",
+    cancelForfeitTitle: "Είσαι σίγουρος;",
+    cancelForfeitBody:
+      "Η συνεδρία δεν θα επιστραφεί. Η ακύρωση τόσο κοντά στο μάθημα δεν τη γυρίζει στο υπόλοιπό σου, αλλά ελευθερώνει τη θέση σου για κάποιον άλλον.",
+    cancelForfeitYes: "Ναι, προχώρα",
+    cancelForfeitNo: "Όχι",
+    cancelForfeitHint:
+      "Η ακύρωση τώρα δεν επιστρέφει τη συνεδρία στο υπόλοιπό σου.",
+    cancelKept: "Η συνεδρία δεν επιστράφηκε στο υπόλοιπό σου.",
     cancelled: "Η κράτηση ακυρώθηκε.",
     instructor: "Εκπαιδευτής",
     spots: "Θέσεις",
@@ -2340,8 +2467,24 @@ export const el: typeof en = {
   legal: {
     privacyTitle: "Πολιτική απορρήτου",
     termsTitle: "Όροι & πολιτική στούντιο",
-    placeholder:
-      "Η σελίδα αυτή είναι πρότυπο. Αντικατέστησε το κείμενο με το τελικό νομικό κείμενο του στούντιο πριν τη δημοσίευση.",
+    cookiesTitle: "Cookies",
+  },
+  cookies: {
+    title: "Cookies",
+    body: "Η σελίδα δεν έχει διαφήμιση και δεν έχει στατιστικά. Σε κρατά συνδεδεμένο και θυμάται τη γλώσσα που επέλεξες. Τίποτα άλλο.",
+    readMore: "Τι κάνει το καθένα",
+    acceptAll: "Αποδοχή όλων",
+    customise: "Προσαρμογή",
+    rejectAll: "Απόρριψη όλων",
+    save: "Αποθήκευση επιλογής",
+    necessary: "Σύνδεση",
+    always: "Πάντα ενεργά",
+    necessaryWhy:
+      "Δύο cookies: το ένα σε κρατά συνδεδεμένο, το άλλο είναι το κλείδωμα της κονσόλας του στούντιο. Χωρίς αυτά κανείς δεν μπορεί να συνδεθεί, οπότε δεν είναι επιλογή.",
+    preferences: "Θυμάμαι τις προτιμήσεις σου",
+    preferencesWhy:
+      "Τη γλώσσα στην οποία διαβάζεις τη σελίδα, και μια απορριφθείσα ειδοποίηση ώστε να μη ρωτηθεί ξανά αυτή η συσκευή. Αποθηκεύονται στη συσκευή σου και δεν τα διαβάζει κανείς άλλος.",
+    settings: "Ρυθμίσεις cookies",
   },
 };
 

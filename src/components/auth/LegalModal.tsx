@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { type LegalKind, legalSections } from "@/lib/legal";
+import { RichText } from "@/components/marketing/LegalBody";
 
 /**
  * The terms and the privacy notice, read without leaving the form.
@@ -102,14 +103,11 @@ export function LegalModal({
                   {heading}
                 </h3>
                 <p className="mt-2 whitespace-pre-line text-[14px] leading-[1.85] text-mocha-500">
-                  {body}
+                  <RichText text={body} />
                 </p>
               </div>
             ))}
           </div>
-          <p className="mt-8 rounded-2xl border border-gold/40 bg-[#FBF6E7] px-4 py-3 text-[12px] text-mocha-700">
-            {t.legal.placeholder}
-          </p>
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-mocha-200/70 px-6 py-5 sm:flex-row sm:justify-end sm:px-8">
