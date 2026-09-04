@@ -199,8 +199,11 @@ services:
         sync: false
       - key: SMS_SENDER
         sync: false
+      # Dialling DIGITS, not a country. This said `CY` for a while, and `CY` is
+      # pasted straight in front of the number: a member who typed 99649052
+      # became +CY99649052, which the gateway refuses. Cyprus is 357.
       - key: SMS_DEFAULT_COUNTRY
-        value: CY
+        value: "357"
 
       # ------------------------------------------------- the first boot only
       # Read once, by the seed, when the disk is empty. Without them the desk

@@ -320,6 +320,52 @@ check("a number already carrying 357 is not doubled", toE164("357 99 123456") ==
 check("nonsense is refused rather than dialled", toE164("abc") === null);
 check("nothing is refused", toE164("") === null);
 
+/* ------------------------------------------------------------------ 8 */
+console.log("\n8. SMS_DEFAULT_COUNTRY, however it is written");
+/**
+ * `render.yaml` shipped `SMS_DEFAULT_COUNTRY: CY`, and the value is pasted in
+ * front of the number, so a member who typed 99649052 was sent to +CY99649052.
+ * The gateway refused it and the only trace was a failed send in the notices
+ * panel — and only for members whose stored number had no `+` in front of it,
+ * which is the hardest version of this to spot.
+ *
+ * `dialCode` is asserted directly rather than through `toE164`, because
+ * `DEFAULT_CC` is read once when the module loads and cannot be changed
+ * afterwards. That is correct for the sender and useless for a test, so the
+ * resolution is its own exported function.
+ */
+{
+  const { dialCode } = await import("../src/lib/messaging/sms");
+
+  for (const [given, want] of [
+    ["357", "357"],
+    ["+357", "357"],
+    ["00357", "357"],
+    ["CY", "357"],
+    ["cy", "357"],
+    ["GR", "30"],
+    ["", "357"],
+  ] as const) {
+    const got = dialCode(given);
+    check(
+      `"${given || "(unset)"}" means +${want}`,
+      got.cc === want && got.ok,
+      got,
+    );
+  }
+
+  const bad = dialCode("nonsense");
+  check(
+    "a value that is not a code at all is refused, not concatenated",
+    bad.ok === false && bad.cc === "357",
+    bad,
+  );
+  check(
+    "and the refusal is what stops +nonsense99649052 reaching a gateway",
+    /^\+357\d+$/.test(`+${bad.cc}99649052`),
+  );
+}
+
 server.close();
 console.log(
   `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,

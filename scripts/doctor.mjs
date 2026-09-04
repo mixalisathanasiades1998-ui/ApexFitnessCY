@@ -325,6 +325,44 @@ console.log("\nGetting a message out");
         : ok(`sms: sender name fits (${sender.length}/11)`);
   }
 
+  /**
+   * The dialling code, which is digits and is easy to write as a country.
+   *
+   * `SMS_DEFAULT_COUNTRY` is pasted in front of any number a member typed
+   * locally, so `CY` produces `+CY99649052` and the gateway refuses it. It broke
+   * only the members whose stored number had no `+` in front of it, which is why
+   * it needs a check rather than a comment: the site looks perfectly healthy and
+   * some people simply never get a text.
+   *
+   * Checked against a real local number rather than by inspecting the string, so
+   * this asks the same question the sender will ask.
+   */
+  {
+    const given = (process.env.SMS_DEFAULT_COUNTRY ?? "").trim();
+    /* The three spellings sms.ts accepts, in the order it tries them. Kept as
+       one expression rather than a copy of `toE164`, because the question here
+       is only "is this a dialling code" — what the sender then does with it is
+       that module's business and is covered by the suite. */
+    const digits = given.replace(/^\+/, "").replace(/^00/, "");
+    const iso = { CY: "357", GR: "30", GB: "44", UK: "44" }[given.toUpperCase()];
+
+    if (!given) {
+      ok("sms: local numbers assume Cyprus (357), the built-in default");
+    } else if (/^\d{1,4}$/.test(digits)) {
+      ok(`sms: local numbers become +${digits}…`);
+    } else if (iso) {
+      warn(
+        `sms: SMS_DEFAULT_COUNTRY="${given}" is read as +${iso}, but the digits are what this setting means`,
+        `SMS_DEFAULT_COUNTRY=${iso}`,
+      );
+    } else {
+      bad(
+        `sms: SMS_DEFAULT_COUNTRY="${given}" is not a dialling code, so a locally typed number becomes +${given}99649052 and is refused`,
+        "set it to the digits: SMS_DEFAULT_COUNTRY=357",
+      );
+    }
+  }
+
   /* Credit is the silent failure: it runs out, every send fails, and nothing on
      the website looks any different. Asked about only when a provider is live. */
   if (sms === "smsto" && process.env.SMSTO_API_KEY) {
