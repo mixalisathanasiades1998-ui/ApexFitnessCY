@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { Chrome } from "@/components/site/Chrome";
 import { ResumeHome } from "@/components/app/ResumeHome";
-import { CookieNotice } from "@/components/site/CookieNotice";
 import { Footer } from "@/components/site/Footer";
 import { Header, type HeaderUser } from "@/components/site/Header";
 import {
@@ -12,7 +11,6 @@ import {
   type Locale,
 } from "@/i18n/dictionaries";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
-import { CONSENT_COOKIE } from "@/lib/consent";
 import { currentUser } from "@/lib/auth";
 import { hasAvatar } from "@/lib/avatars";
 import { getAvailableCredits } from "@/lib/credits";
@@ -76,17 +74,27 @@ async function readLocale(): Promise<Locale> {
 }
 
 /**
- * Whether this visitor has already answered the cookie question.
+ * There is deliberately no cookie banner here, and that is a decision rather
+ * than an omission.
  *
- * Read here, on the server, and handed down. The alternative is reading it in
- * the browser, which means painting the notice on every single page load and
- * removing it a frame later for the ninety-nine visitors in a hundred who have
- * already answered. The flash is the thing the answer is supposed to prevent.
+ * This site sets no advertising, analytics or tracking cookie of any kind. What
+ * it stores is the sign-in cookie, the desk's own lock, and the language the
+ * visitor picked. The first two are strictly necessary, which is exempt from
+ * consent; the third is only ever written the moment somebody clicks EN or EL,
+ * which is the visitor asking for it, and interface preferences a visitor sets
+ * themselves are exempt on the same footing (Article 29 Working Party opinion
+ * 04/2012, the "UI customisation" case).
+ *
+ * So there is nothing here to ask permission for in advance. Not clicking the
+ * language switch is the refusal. What is still owed is the telling, and that
+ * is /cookies, linked in the footer under Legal, which names every cookie, what
+ * it holds and how long it lasts.
+ *
+ * The one thing that could change this is Stripe: its script sets two of its
+ * own cookies on the checkout page for fraud checks. Stripe treats them as
+ * strictly necessary to take a payment, which is the ordinary reading. If a
+ * lawyer disagrees, the banner comes back on that page and nowhere else.
  */
-async function readConsent(): Promise<string | undefined> {
-  const jar = await cookies();
-  return jar.get(CONSENT_COOKIE)?.value;
-}
 
 export default async function RootLayout({
   children,
@@ -94,7 +102,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const locale = await readLocale();
-  const consent = await readConsent();
   const user = await currentUser();
 
   const headerUser: HeaderUser = user
@@ -145,11 +152,6 @@ export default async function RootLayout({
           <Chrome header={<Header user={headerUser} />} footer={<Footer />}>
             {children}
           </Chrome>
-          {/* Last in the body so it sits over everything, and given the saved
-              answer so a visitor who has already replied never sees it flash.
-              Renders nothing at all once answered, but stays mounted so the
-              footer link can reopen it. */}
-          <CookieNotice initial={consent} />
         </LanguageProvider>
       </body>
     </html>

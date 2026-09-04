@@ -499,94 +499,11 @@ export function AccountBody(props: Props) {
           )}
         </Reveal>
 
-        {/* upcoming */}
-        <Reveal delay={0.1} className="mt-16">
-          <h2 className="text-[13px] uppercase tracking-widest">
-            {t.account.upcomingTitle}
-          </h2>
-          {props.upcoming.length === 0 ? (
-            <div className="mt-6 rounded-3xl border border-dashed border-mocha-200 px-6 py-12 text-center">
-              <p className="text-sm text-clay">{t.account.upcomingEmpty}</p>
-              <ButtonLink href="/timetable" size="sm" className="mt-6">
-                {t.nav.book}
-              </ButtonLink>
-            </div>
-          ) : (
-            <ul className="mt-6 divide-y divide-mocha-200/70 border-y border-mocha-200/70">
-              {props.upcoming.map((b) => {
-                /* The same question the dialog asks, asked by the same
-                   function. It was a second copy of the comparison here, which
-                   is one rule in two places on one screen. */
-                const stillFree = free(b);
-                return (
-                  <li
-                    key={b.id}
-                    className="grid gap-4 py-6 sm:grid-cols-[1fr_auto] sm:items-center"
-                  >
-                    <div>
-                      <p className="flex flex-wrap items-center gap-2 text-[15px] text-mocha-600">
-                        {b.kind === "PERSONAL" && (
-                          <span className="rounded-full border border-gold/50 bg-[#FBF6E7] px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#8a6f1a]">
-                            {b.guestName ? t.desk.duet : t.desk.personal}
-                          </span>
-                        )}
-                        <span>{el ? b.className.el : b.className.en}</span>
-                      </p>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-clay">
-                        <span className="lining-nums tabular-nums text-mocha-500">
-                          {fmtShortDate(b.startsAt)} · {fmtTime(b.startsAt)}
-                        </span>
-                        {/* Whoever is coming with them, because a name typed
-                            days ago is worth a chance to notice a typo in. */}
-                        {b.guestName && (
-                          <>
-                            <span className="h-1 w-1 rounded-full bg-clay/50" />
-                            <span>{`+ ${b.guestName}`}</span>
-                          </>
-                        )}
-                        {b.instructor && (
-                          <>
-                            <span className="h-1 w-1 rounded-full bg-clay/50" />
-                            <span>{b.instructor}</span>
-                          </>
-                        )}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-2 text-[11px]",
-                          stillFree ? "text-clay" : "text-gold",
-                        )}
-                      >
-                        {stillFree
-                          ? `${t.account.cancelFree} ${fmtDayMonth(
-                              b.freeCancellationUntil,
-                            )} ${fmtTime(b.freeCancellationUntil)}`
-                          : b.kind === "PERSONAL"
-                            ? t.booking.personalCancelTooLate
-                            : t.account.cancelLate}
-                      </p>
-                    </div>
-                    <div className="sm:justify-self-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy === b.id}
-                        onClick={() => setConfirming(b)}
-                      >
-                        {t.account.cancelBooking}
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Reveal>
-
         {/* Sub-sections. Everything above this belongs to the member as a
-            whole — their balance, and the classes they are booked into. The
-            pills below it only ever change the panel underneath, so anything
-            that is not a panel has to sit above them or it reads as one. */}
+            whole, which is now only their balance: the classes they are booked
+            into moved below, into a panel of their own. The pills only ever
+            change the panel underneath, so anything that is not a panel has to
+            sit above them or it reads as one. */}
         <Reveal
           delay={0.12}
           id="account-sections"
@@ -599,6 +516,7 @@ export function AccountBody(props: Props) {
               classes: props.past.length,
               payments: props.purchases.length,
               activity: props.ledger.length,
+              upcoming: props.upcoming.length,
             }}
             /* The unread count sits on the Notifications pill as well as on
                their face in the header, so it is findable from either. */
@@ -626,6 +544,99 @@ export function AccountBody(props: Props) {
                 pushPublicKey={props.pushPublicKey}
               />
             </div>
+          </Reveal>
+        )}
+
+        {/* upcoming classes
+
+            A panel behind its own pill rather than a list that is always open.
+            Sixteen bookings is a real number here — somebody on an Unlimited
+            term books every weekday — and as an open list that pushed the pill
+            bar, and therefore every other section of the account, a screen and
+            a half down the page.
+
+            No heading inside it, like the other panels: the pill is the
+            heading, and it carries the count so the member can see there are
+            three classes coming without opening anything. */}
+        {tab === "upcoming" && (
+          <Reveal delay={0.05} className="mt-12">
+            {props.upcoming.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-mocha-200 px-6 py-12 text-center">
+                <p className="text-sm text-clay">{t.account.upcomingEmpty}</p>
+                <ButtonLink href="/timetable" size="sm" className="mt-6">
+                  {t.nav.book}
+                </ButtonLink>
+              </div>
+            ) : (
+              <ul className="divide-y divide-mocha-200/70 border-y border-mocha-200/70">
+                {props.upcoming.map((b) => {
+                  /* The same question the dialog asks, asked by the same
+                     function. It was a second copy of the comparison here, which
+                     is one rule in two places on one screen. */
+                  const stillFree = free(b);
+                  return (
+                    <li
+                      key={b.id}
+                      className="grid gap-4 py-6 sm:grid-cols-[1fr_auto] sm:items-center"
+                    >
+                      <div>
+                        <p className="flex flex-wrap items-center gap-2 text-[15px] text-mocha-600">
+                          {b.kind === "PERSONAL" && (
+                            <span className="rounded-full border border-gold/50 bg-[#FBF6E7] px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#8a6f1a]">
+                              {b.guestName ? t.desk.duet : t.desk.personal}
+                            </span>
+                          )}
+                          <span>{el ? b.className.el : b.className.en}</span>
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-clay">
+                          <span className="lining-nums tabular-nums text-mocha-500">
+                            {fmtShortDate(b.startsAt)} · {fmtTime(b.startsAt)}
+                          </span>
+                          {/* Whoever is coming with them, because a name typed
+                              days ago is worth a chance to notice a typo in. */}
+                          {b.guestName && (
+                            <>
+                              <span className="h-1 w-1 rounded-full bg-clay/50" />
+                              <span>{`+ ${b.guestName}`}</span>
+                            </>
+                          )}
+                          {b.instructor && (
+                            <>
+                              <span className="h-1 w-1 rounded-full bg-clay/50" />
+                              <span>{b.instructor}</span>
+                            </>
+                          )}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-2 text-[11px]",
+                            stillFree ? "text-clay" : "text-gold",
+                          )}
+                        >
+                          {stillFree
+                            ? `${t.account.cancelFree} ${fmtDayMonth(
+                                b.freeCancellationUntil,
+                              )} ${fmtTime(b.freeCancellationUntil)}`
+                            : b.kind === "PERSONAL"
+                              ? t.booking.personalCancelTooLate
+                              : t.account.cancelLate}
+                        </p>
+                      </div>
+                      <div className="sm:justify-self-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy === b.id}
+                          onClick={() => setConfirming(b)}
+                        >
+                          {t.account.cancelBooking}
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Reveal>
         )}
 

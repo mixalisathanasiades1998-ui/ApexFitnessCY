@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { preferencesAllowed } from "@/lib/consent";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/i18n/LanguageProvider";
 import {
@@ -95,10 +94,10 @@ export function PushInvite({
   }
 
   function remember() {
-    /* Only if the visitor agreed to being remembered. Refusing the preference
-       cookies means being asked again, which is the honest consequence rather
-       than a broken feature: nothing here is needed for anything to work. */
-    if (!preferencesAllowed()) return;
+    /* Written only because they just pressed "not now", which is the same
+       reason the language cookie needs no banner: the visitor asked for it by
+       declining. It holds a date, it never leaves the device, and clearing the
+       site's storage in the browser removes it. */
     try {
       window.localStorage.setItem(SNOOZE_KEY, String(Date.now()));
     } catch {

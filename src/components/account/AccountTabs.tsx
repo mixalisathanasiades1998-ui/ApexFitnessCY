@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 export type AccountTab =
   | "profile"
   | "notifications"
+  | "upcoming"
   | "password"
   | "classes"
   | "payments"
@@ -21,10 +22,19 @@ export type AccountTab =
  *
  * Password sits at the end because it is the one thing here nobody opens on
  * purpose — they open it once, when something is wrong.
+ *
+ * Upcoming classes sits third, between Notifications and Session activity,
+ * where the studio asked for it. It used to be a permanently open list above
+ * this bar, which is fine for the member with two bookings and not for the one
+ * with sixteen: a member opening their account to change a password scrolled
+ * past every class they had booked to get to the pills. It is a panel like the
+ * rest now, and the count on the pill is what it left behind — you can see how
+ * many are coming without opening it.
  */
 export const ACCOUNT_TABS: AccountTab[] = [
   "profile",
   "notifications",
+  "upcoming",
   "activity",
   "classes",
   "payments",
@@ -41,7 +51,7 @@ export function isAccountTab(value: unknown): value is AccountTab {
 /**
  * The sub-sections of a member's account.
  *
- * A scrolling row of pills rather than a sidebar: there are six of them, the
+ * A scrolling row of pills rather than a sidebar: there are seven of them, the
  * page is already narrow on a phone, and a member arrives wanting one thing —
  * usually their balance, which stays above this. The count badge on Classes
  * and Payments is there so nobody has to open an empty tab to find out it is
@@ -56,7 +66,12 @@ export function AccountTabs({
 }: {
   active: AccountTab;
   onChange: (t: AccountTab) => void;
-  counts: { classes: number; payments: number; activity: number };
+  counts: {
+    classes: number;
+    payments: number;
+    activity: number;
+    upcoming: number;
+  };
   /** Unread studio notices, shown on the Notifications pill. */
   unread?: number;
   /** Marks Profile when there is something worth the member's attention. */
@@ -133,6 +148,10 @@ export function AccountTabs({
   > = {
     profile: { label: a.profile, dot: needsAttention },
     notifications: { label: a.notifications, count: unread, gold: unread > 0 },
+    /* Counted but not accented. Gold is reserved for something the studio is
+       waiting on the member for, and a class they have already booked is the
+       opposite of that. */
+    upcoming: { label: a.upcoming, count: counts.upcoming },
     activity: { label: a.activity, count: counts.activity },
     classes: { label: a.classes, count: counts.classes },
     payments: { label: a.payments, count: counts.payments },

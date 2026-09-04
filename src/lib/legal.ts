@@ -3,7 +3,7 @@ import { FREE_CANCELLATION_HOURS } from "@/lib/utils";
 import { MIN_AGE_YEARS } from "@/lib/profile";
 
 /**
- * The terms, the privacy notice and the cookie notice, in both languages.
+ * The terms, the privacy notice and the cookies page, in both languages.
  *
  * These used to live inside `components/marketing/LegalBody.tsx`, which was fine
  * for as long as the only place anybody read them was the page. Sign-up now asks
@@ -70,6 +70,35 @@ const AGE = MIN_AGE_YEARS;
  */
 const UNVERIFIED_DAYS = 7;
 
+/**
+ * **Providers are described by category, not named.**
+ *
+ * "our payment provider", "an email provider", "an SMS company based in
+ * Cyprus", rather than the four company names that were here before. The
+ * studio asked for it, and the law allows it: the requirement is to disclose
+ * "the recipients or categories of recipients", and a category is a category.
+ *
+ * Two things make that honest rather than evasive, and both are load-bearing:
+ *
+ *   1. Every one of these documents says, in the text, that the studio will
+ *      name the company to anybody who writes and asks. Categories plus that
+ *      offer is a recognised way of doing this. Categories plus silence is not,
+ *      and if either of those sentences is ever deleted this file has quietly
+ *      become a different and worse document.
+ *   2. The transfer section still says which *kinds* of provider operate
+ *      outside the EEA and what safeguard they rely on, because that disclosure
+ *      is separately required and cannot be satisfied by a category alone.
+ *
+ * Worth being clear about what this does not achieve: it is presentation, not
+ * secrecy. Anybody who opens their browser's developer tools on the checkout
+ * page sees the payment provider's script by name. The reason to prefer
+ * categories is that this page stops needing an edit every time a supplier
+ * changes, which is also what it now says.
+ *
+ * If a lawyer wants the names back, they go back in the same places: search
+ * this file for "provider" and for "παρόχου".
+ */
+
 /* ------------------------------------------------------------------ privacy */
 
 const PRIVACY_EN: LegalSection[] = [
@@ -85,7 +114,7 @@ This notice describes what this website and its booking system actually hold. It
     title: "What we hold, and why we are allowed to",
     body: `**To give you an account and take your bookings.** Your name, email address, telephone number, the language you read the site in, and an encrypted form of your password. Your bookings, the classes you attended or missed, the session packs you hold and when they expire. We need these to provide what you have asked for, so the legal basis is the performance of our contract with you.
 
-**To take payment.** The amount, the date, the currency, which method was used, an invoice number, and the reference the payment provider gives us. Card payments are handled entirely by Stripe: card numbers are typed into fields Stripe controls and never reach this website or the studio. Keeping the records is both part of our contract and a legal obligation under tax law.
+**To take payment.** The amount, the date, the currency, which method was used, an invoice number, and the reference the payment provider gives us. Card payments are handled entirely by our payment provider: card numbers are typed into fields it controls and never reach this website or the studio. Keeping the records is both part of our contract and a legal obligation under tax law.
 
 **To send you the messages the service needs.** Booking confirmations, cancellations, class reminders, a note the night before about the next day, payment receipts, and notices when a class or the timetable changes. These are part of holding an account and cannot be switched off, though you choose which of email, SMS and phone notifications carry them. The legal basis is our contract with you.
 
@@ -95,7 +124,7 @@ This notice describes what this website and its booking system actually hold. It
 
 **Your own optional details.** A profile photograph, date of birth, height and weight, if you choose to add them. You can leave them all blank and use the studio normally. Date of birth is held because reformer work is screened by age, not to send you birthday wishes.
 
-**The studio's own notes about you.** Reception and instructors keep short working notes: which reformer you prefer, which springs, an injury to be careful of. We rely on our legitimate interest in teaching you safely and well. These notes are for the studio only and no page or interface shows them to you; you can still ask to see them, and we will show you.
+**The studio's own working notes.** Brief notes kept by instructors and reception so they can teach you safely, on the basis of our legitimate interest in doing so, and which you can ask to see.
 
 **Messages you send us.** If you use the contact form we keep your name, email address, telephone number if you gave one, and what you wrote, so somebody can reply.
 
@@ -107,17 +136,17 @@ This notice describes what this website and its booking system actually hold. It
 
 This is information about your health, which the law treats as needing more protection than the rest. We hold it only because you have explicitly agreed that we should, and you can withdraw that agreement or clear the answer at any time. Leaving it blank is a real answer and does not stop you booking anything.
 
-Who sees it: the people who run the desk, and the instructor teaching a class you are booked into. On the class list at the desk it is deliberately hidden until somebody presses to open it, because that screen sits in a room with other people in it. It is not shown to other members anywhere, and it is never sent outside the studio.
+Who sees it: the people who run the desk, and the instructor teaching a class you are booked into. It is kept out of sight on the studio's own screens until somebody needs it, because those screens sit in rooms with other people in them. It is not shown to other members anywhere, and it is never sent outside the studio.
 
 We ask for it because five people on five reformers is a room where the instructor needs to know whose shoulder to watch. Nothing here is medical advice and the studio is not a clinic: if you are unsure whether you should be exercising, ask a doctor rather than us.`,
   },
   {
     title: "Card payments",
-    body: `The studio uses Stripe to take card payments. When you pay, the card fields on the checkout page belong to Stripe and are shown inside frames Stripe controls; your card number, expiry date and security code go straight to Stripe and are never sent to this website, never stored by it, and never seen by the studio.
+    body: `The studio uses a specialist payment provider to take card payments. When you pay, the card fields on the checkout page belong to that provider and are shown inside frames it controls; your card number, expiry date and security code go straight to it and are never sent to this website, never stored by it, and never seen by the studio.
 
-What we keep is the record of the payment: how much, when, in what currency, which method, the invoice number, Stripe's own reference, and a link to the receipt Stripe hosts. That receipt shows the last four digits of the card, which is Stripe's record rather than ours.
+What we keep is the record of the payment: how much, when, in what currency, which method, the invoice number, the provider's own reference, and a link to the receipt it hosts. That receipt shows the last four digits of the card, which is the provider's record rather than ours.
 
-Stripe is a payment processor with its own responsibilities as a controller for parts of what it does. Its privacy notice is at stripe.com/privacy.
+The provider is a regulated payment processor with its own responsibilities for parts of what it does, and it publishes its own privacy notice. Write to ${MAIL} and the studio will tell you which provider it uses and where that notice is.
 
 If you pay in cash or by card at the desk, reception records the amount and the method, and no card details are held in either case.`,
   },
@@ -125,17 +154,19 @@ If you pay in cash or by card at the desk, reception records the amount and the 
     title: "Who else handles your information",
     body: `The studio uses a small number of companies to run this service. Each one only receives what it needs, and each is bound by a contract that allows it to use the information only for the studio's instructions.
 
-**Render** hosts the website and its database, in a data centre in Frankfurt, Germany.
+**A hosting company** runs the website and its database, in a data centre in Frankfurt, Germany.
 
-**Stripe** takes card payments, as described above.
+**A payment provider** takes card payments, as described above.
 
-**SMS.to**, a Cyprus company, sends text messages, and only receives a telephone number and the text of the message, and only when a message is actually sent to you by SMS.
+**An SMS company based in Cyprus** sends text messages. It receives a telephone number and the text of the message, and only when a message is actually sent to you by SMS.
 
-**Google** provides the studio's mailbox, so any email we send you passes through it.
+**An email provider** carries the studio's mailbox, so any email we send you passes through it.
 
-Two more things your browser does that are worth naming. The typefaces on this site are requested from Google's font servers, which means Google's servers see the network address your device is using; the site can be changed to serve the typefaces itself if the studio prefers. And notifications are delivered by whichever push service your own browser uses, which is Google's, Apple's or Mozilla's depending on your device, and which the studio has no relationship with or control over.
+Two more things your browser does that are worth naming. The typefaces on this site are requested from a font service, which means that service sees the network address your device is using; the site can be changed to serve the typefaces itself if the studio prefers. And notifications are delivered by whichever push service your own browser uses, which depends on your device and which the studio has no relationship with or control over.
 
-We do not use any analytics, advertising or tracking service. Nothing on this site reports your behaviour to anybody, and there is no third-party script anywhere on it apart from Stripe's, which loads only on the checkout page.
+We do not use any analytics, advertising or tracking service. Nothing on this site reports your behaviour to anybody, and there is no third-party script anywhere on it apart from the payment provider's, which loads only on the checkout page.
+
+**If you want the names, ask for them.** Write to ${MAIL} and the studio will tell you exactly which companies these are. They are described by what they do rather than by name so that this page does not go out of date every time a supplier changes, and not in order to keep them from you.
 
 We do not sell your information and we never will.`,
   },
@@ -143,7 +174,7 @@ We do not sell your information and we never will.`,
     title: "Where it is kept, and whether it leaves Europe",
     body: `The database lives in Frankfurt, Germany, inside the European Union.
 
-Stripe and Google both operate outside the European Economic Area as well as inside it, and information reaching them may be transferred to countries whose laws differ from ours. Where that happens they rely on the safeguards European law provides for it, which are either a European Commission decision that the country protects information adequately, or the Commission's standard contractual clauses.`,
+The payment provider and the email provider both operate outside the European Economic Area as well as inside it, and information reaching them may be transferred to countries whose laws differ from ours. Where that happens they rely on the safeguards European law provides for it, which are either a European Commission decision that the country protects information adequately, or the Commission's standard contractual clauses.`,
   },
   {
     title: "How long we keep it",
@@ -193,7 +224,7 @@ If you are not satisfied with how the studio has answered, you can complain to t
     title: "Decisions, and how the studio chooses who to write to",
     body: `Nothing on this site makes an automated decision about you that has a legal or similarly significant effect. No algorithm decides whether you may book, what you pay, or whether you are welcome.
 
-When the studio sends an announcement it can narrow the list: members who have never bought a pack, members with nothing left in their balance, members who have not been for a given number of months. That is a filter on who receives a message, applied by a person who then presses send. It changes nothing about your account and has no consequence beyond whether one message arrives.`,
+When the studio sends an announcement it can narrow the list, for example to members who have not been for a while. That is a filter on who receives a message, applied by a person who then presses send. It changes nothing about your account and has no consequence beyond whether one message arrives.`,
   },
   {
     title: "Age",
@@ -207,7 +238,7 @@ The studio does not knowingly hold information about children. If you believe a 
 
 The whole site is served over an encrypted connection. Confirmation codes are stored the same way as passwords, as a derived value rather than the code.
 
-Inside the studio, access is divided on purpose. Reception can take bookings, sell sessions and see a member's card. It cannot see the studio's takings or membership figures, and it cannot touch another staff account. The desk console asks for a password again even when somebody is already signed in, and locks itself after fifteen minutes of being left alone, because it sits on a counter in a public room.
+Inside the studio, access is divided on purpose: the people at the desk can see what they need in order to serve you and no more, and the studio's own figures are not part of that. Staff screens in public parts of the building ask for a password of their own and lock themselves when they are left alone.
 
 No system is perfect. If something does go wrong and it is likely to put you at risk, the studio will tell you and the Commissioner, as the law requires.`,
   },
@@ -215,7 +246,7 @@ No system is perfect. If something does go wrong and it is likely to put you at 
     title: "Cookies",
     body: `This site sets three cookies and stores one preference on your device. None of them is for advertising or tracking, and there is no analytics of any kind.
 
-The cookie notice page sets out each one, what it is for, how long it lasts, and how to change your mind.`,
+The cookies page sets out each one, what it is for, how long it lasts, and how to remove it.`,
   },
   {
     title: "Changes to this notice",
@@ -282,7 +313,7 @@ If you book a class your sessions cannot cover, or your pack expires before the 
     title: "Paying",
     body: `You can pay by card on this site, or by cash or card at the desk. Prices are in euro and include VAT where it applies.
 
-Card payments on the site are taken by Stripe. The studio never sees or holds your card number. A VAT invoice is attached to the confirmation of every card payment made online.
+Card payments on the site are taken by a specialist payment provider, and the studio never sees or holds your card number. A VAT invoice is attached to the confirmation of every card payment made online.
 
 Sessions are added to your balance as soon as the payment is confirmed. If a payment is taken and the sessions do not appear, tell the studio and it will be put right; the payment provider's record is what settles any disagreement about whether money moved.`,
   },
@@ -351,11 +382,11 @@ Last updated: September 2026.`,
 const COOKIES_EN: LegalSection[] = [
   {
     title: "The short version",
-    body: `This site has no advertising, no analytics and no tracking of any kind. Nothing here reports what you look at to anybody, and there is no third-party script on any page except the checkout, where Stripe's card fields load.
+    body: `This site has no advertising, no analytics and no tracking of any kind. Nothing here reports what you look at to anybody, and there is no third-party script on any page except the checkout, where the payment provider's card fields load.
 
 What it does store is three cookies and one preference, listed below. Two of the cookies are how the site knows you are signed in; without them it cannot work at all. The third remembers which language you chose.
 
-You will not be asked about this again once you have answered, and you can change your answer whenever you like from the link in the footer.`,
+There is no pop-up asking you to agree to any of this, and that is deliberate rather than an oversight. Two of the cookies are strictly necessary, which needs no permission. The third is written only in the instant you press the language switch, which is you asking for it. Nothing optional is put on your device before you do something that asks for it.`,
   },
   {
     title: "Strictly necessary, and not optional",
@@ -366,36 +397,36 @@ You will not be asked about this again once you have answered, and you can chang
 Neither of these is set before you sign in, and neither can be refused while you are signed in: they are not a way of learning anything about you, they are the mechanism by which the site knows who is asking.`,
   },
   {
-    title: "A preference, which you can refuse",
+    title: "A preference, set only when you ask for it",
     body: `**apex_locale.** Remembers whether you are reading the site in English or Greek, so it opens in the right language next time. Set the moment you use the language switch, lasts a year, and contains nothing but "en" or "el".
 
 **The notification reminder.** If you decline the prompt asking whether you want class reminders on your phone, that decision is remembered in your browser's own storage so you are not asked again on that device. It contains a date and nothing else, it never leaves your device, and the studio cannot read it.
 
-Refuse these and the site still works: it will simply open in its default language each time, and may ask again about notifications.`,
+Neither of these appears unless you act. Never touch the language switch and there is no apex_locale at all; never decline the notification prompt and there is nothing remembered. Delete them and the site still works: it will simply open in its default language each time, and may ask again about notifications.`,
   },
   {
-    title: "Stripe, on the checkout page only",
-    body: `When you go to pay, the card fields are provided by Stripe and Stripe sets its own cookies to spot fraud and to keep a payment attempt together across a page reload.
+    title: "The payment provider, on the checkout page only",
+    body: `When you go to pay, the card fields are provided by the studio's payment provider, which sets its own cookies to spot fraud and to keep a payment attempt together across a page reload.
 
-They load only on the checkout page, only when you are signed in and actually paying, and they are necessary to take a payment safely. Stripe explains them at stripe.com/legal/cookies-policy.
+They load only on the checkout page, only when you are signed in and actually paying, and they are necessary to take a payment safely. The provider publishes its own cookie policy; write to ${MAIL} and the studio will tell you which provider it is and where to read it.
 
 The studio cannot switch these off and still take card payments. If you would rather not have them, pay at the desk.`,
   },
   {
     title: "Other requests your browser makes",
-    body: `Two things are worth naming even though they set no cookie, because being asked about cookies and told nothing about these would be a strange kind of honesty.
+    body: `Two things are worth naming even though they set no cookie, because a page about cookies that said nothing about these would be a strange kind of honesty.
 
-**Typefaces.** The fonts on this site are requested from Google's font servers, which means those servers see the network address your device is using and what kind of browser it is. No cookie is set and nothing is stored on your device. The studio can serve the fonts itself instead, which would remove the request entirely, and it is a single change if you would prefer that: say so.
+**Typefaces.** The fonts on this site are requested from an outside font service, which means that service sees the network address your device is using and what kind of browser it is. No cookie is set and nothing is stored on your device. The studio can serve the fonts itself instead, which would remove the request entirely, and it is a single change if you would prefer that: say so.
 
-**Notifications.** If you turn on class reminders, they are delivered through whichever push service your own browser uses, which is Google's, Apple's or Mozilla's depending on your device. That relationship is between your browser and its maker; the studio holds only the address that service gives it for your device, and deletes it when you turn notifications off.
+**Notifications.** If you turn on class reminders, they are delivered through whichever push service your own browser uses, which depends on your device. That relationship is between your browser and its maker; the studio holds only the address that service gives it for your device, and deletes it when you turn notifications off.
 
-Refusing the optional cookies above does not stop either of these, and it would be misleading to imply otherwise. The first is a request for a file; the second only happens if you ask for it.`,
+Deleting the cookies above does not stop either of these, and it would be misleading to imply otherwise. The first is a request for a file; the second only happens if you ask for it.`,
   },
   {
-    title: "Changing your mind, and your browser's own controls",
-    body: `The link in the footer under Legal opens this choice again, at any time, and you can change it as often as you like.
+    title: "Removing them, with your browser's own controls",
+    body: `Every browser can list the cookies a site has set and delete them, usually under Privacy or Site settings. Clearing them for this site removes the language cookie and the notification reminder together, and the site puts back only what you ask it to put back.
 
-Your browser can also block or delete cookies for any site, and every browser has a setting for it. Blocking the two necessary cookies will stop you being able to sign in, which is not the site being awkward: signing in is what those cookies are.
+Your browser can also block cookies outright. Blocking the two necessary ones will stop you being able to sign in, which is not the site being awkward: signing in is what those cookies are.
 
 Last updated: September 2026.`,
   },
@@ -416,7 +447,7 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Τι κρατάμε, και με ποια βάση",
     body: `**Για τον λογαριασμό και τις κρατήσεις σου.** Το όνομά σου, το email, το τηλέφωνο, τη γλώσσα στην οποία διαβάζεις τη σελίδα, και μια κρυπτογραφημένη μορφή του κωδικού σου. Τις κρατήσεις σου, τα μαθήματα που ήρθες ή έχασες, τα πακέτα που έχεις και πότε λήγουν. Τα χρειαζόμαστε για να σου παρέχουμε αυτό που ζήτησες, οπότε η νομική βάση είναι η εκτέλεση της σύμβασής μας.
 
-**Για την πληρωμή.** Το ποσό, την ημερομηνία, το νόμισμα, τον τρόπο πληρωμής, τον αριθμό τιμολογίου και την αναφορά που μας δίνει ο πάροχος πληρωμών. Οι πληρωμές με κάρτα γίνονται εξ ολοκλήρου μέσω της Stripe: οι αριθμοί καρτών πληκτρολογούνται σε πεδία που ελέγχει η Stripe και δεν φτάνουν ποτέ σε αυτή την ιστοσελίδα ούτε στο στούντιο. Η διατήρηση των εγγραφών είναι μέρος της σύμβασης και ταυτόχρονα νομική υποχρέωση από τη φορολογική νομοθεσία.
+**Για την πληρωμή.** Το ποσό, την ημερομηνία, το νόμισμα, τον τρόπο πληρωμής, τον αριθμό τιμολογίου και την αναφορά που μας δίνει ο πάροχος πληρωμών. Οι πληρωμές με κάρτα γίνονται εξ ολοκλήρου μέσω του παρόχου πληρωμών μας: οι αριθμοί καρτών πληκτρολογούνται σε πεδία που ελέγχει εκείνος και δεν φτάνουν ποτέ σε αυτή την ιστοσελίδα ούτε στο στούντιο. Η διατήρηση των εγγραφών είναι μέρος της σύμβασης και ταυτόχρονα νομική υποχρέωση από τη φορολογική νομοθεσία.
 
 **Για τα μηνύματα που χρειάζεται η υπηρεσία.** Επιβεβαιώσεις κρατήσεων, ακυρώσεις, υπενθυμίσεις μαθημάτων, μια σημείωση το βράδυ για την επόμενη μέρα, αποδείξεις πληρωμής και ειδοποιήσεις όταν αλλάζει ένα μάθημα ή το πρόγραμμα. Αυτά είναι μέρος του να έχεις λογαριασμό και δεν απενεργοποιούνται, αλλά επιλέγεις ποια από email, SMS και ειδοποιήσεις κινητού τα μεταφέρουν. Η νομική βάση είναι η σύμβασή μας.
 
@@ -426,7 +457,7 @@ const PRIVACY_EL: LegalSection[] = [
 
 **Τα δικά σου προαιρετικά στοιχεία.** Φωτογραφία προφίλ, ημερομηνία γέννησης, ύψος και βάρος, αν θέλεις να τα προσθέσεις. Μπορείς να τα αφήσεις όλα κενά και να χρησιμοποιείς κανονικά το στούντιο. Η ημερομηνία γέννησης κρατείται γιατί η άσκηση στο reformer αξιολογείται και με βάση την ηλικία, όχι για ευχές γενεθλίων.
 
-**Οι δικές μας σημειώσεις για σένα.** Η υποδοχή και οι εκπαιδευτές κρατούν σύντομες σημειώσεις εργασίας: ποιο reformer προτιμάς, ποια ελατήρια, ένας τραυματισμός που θέλει προσοχή. Βασιζόμαστε στο έννομο συμφέρον μας να σε διδάσκουμε με ασφάλεια. Οι σημειώσεις είναι μόνο για το στούντιο και καμία σελίδα δεν σου τις δείχνει· μπορείς πάντως να ζητήσεις να τις δεις και θα σου τις δείξουμε.
+**Οι σημειώσεις εργασίας του στούντιο.** Σύντομες σημειώσεις που κρατούν οι εκπαιδευτές και η υποδοχή ώστε να σε διδάσκουν με ασφάλεια, με βάση το έννομο συμφέρον μας, και τις οποίες μπορείς να ζητήσεις να δεις.
 
 **Μηνύματα που μας στέλνεις.** Αν χρησιμοποιήσεις τη φόρμα επικοινωνίας κρατάμε το όνομά σου, το email, το τηλέφωνο αν το έδωσες και ό,τι έγραψες, ώστε κάποιος να απαντήσει.
 
@@ -438,17 +469,17 @@ const PRIVACY_EL: LegalSection[] = [
 
 Είναι πληροφορία για την υγεία σου, την οποία ο νόμος θεωρεί ότι χρειάζεται περισσότερη προστασία. Την κρατάμε μόνο επειδή έχεις συμφωνήσει ρητά, και μπορείς να ανακαλέσεις τη συμφωνία ή να καθαρίσεις την απάντηση οποτεδήποτε. Το να το αφήσεις κενό είναι πραγματική απάντηση και δεν σε εμποδίζει να κλείσεις τίποτα.
 
-Ποιος τη βλέπει: όσοι δουλεύουν στην υποδοχή, και ο εκπαιδευτής του μαθήματος στο οποίο είσαι. Στη λίστα του μαθήματος στην υποδοχή είναι σκόπιμα κρυμμένη μέχρι να πατήσει κάποιος για να ανοίξει, γιατί εκείνη η οθόνη βρίσκεται σε χώρο με άλλους ανθρώπους. Δεν εμφανίζεται σε άλλα μέλη πουθενά και δεν στέλνεται ποτέ έξω από το στούντιο.
+Ποιος τη βλέπει: όσοι δουλεύουν στην υποδοχή, και ο εκπαιδευτής του μαθήματος στο οποίο είσαι. Μένει κρυμμένη στις οθόνες του στούντιο μέχρι να τη χρειαστεί κάποιος, γιατί εκείνες οι οθόνες βρίσκονται σε χώρους με άλλους ανθρώπους. Δεν εμφανίζεται σε άλλα μέλη πουθενά και δεν στέλνεται ποτέ έξω από το στούντιο.
 
 Τη ζητάμε γιατί πέντε άνθρωποι σε πέντε reformer είναι ένας χώρος όπου ο εκπαιδευτής πρέπει να ξέρει ποιον ώμο να προσέχει. Τίποτα εδώ δεν είναι ιατρική συμβουλή και το στούντιο δεν είναι κλινική: αν δεν είσαι σίγουρος αν πρέπει να ασκείσαι, ρώτησε γιατρό και όχι εμάς.`,
   },
   {
     title: "Πληρωμές με κάρτα",
-    body: `Το στούντιο χρησιμοποιεί τη Stripe για τις πληρωμές με κάρτα. Όταν πληρώνεις, τα πεδία της κάρτας στη σελίδα πληρωμής ανήκουν στη Stripe και εμφανίζονται μέσα σε πλαίσια που ελέγχει η Stripe· ο αριθμός, η ημερομηνία λήξης και ο κωδικός ασφαλείας πηγαίνουν απευθείας στη Stripe και δεν στέλνονται ποτέ σε αυτή την ιστοσελίδα, δεν αποθηκεύονται από αυτήν και δεν τα βλέπει το στούντιο.
+    body: `Το στούντιο χρησιμοποιεί εξειδικευμένο πάροχο πληρωμών για τις πληρωμές με κάρτα. Όταν πληρώνεις, τα πεδία της κάρτας στη σελίδα πληρωμής ανήκουν σε εκείνον και εμφανίζονται μέσα σε πλαίσια που ελέγχει εκείνος· ο αριθμός, η ημερομηνία λήξης και ο κωδικός ασφαλείας πηγαίνουν απευθείας σε εκείνον και δεν στέλνονται ποτέ σε αυτή την ιστοσελίδα, δεν αποθηκεύονται από αυτήν και δεν τα βλέπει το στούντιο.
 
-Ό,τι κρατάμε είναι η εγγραφή της πληρωμής: πόσο, πότε, σε ποιο νόμισμα, με ποιον τρόπο, ο αριθμός τιμολογίου, η αναφορά της Stripe και ένας σύνδεσμος στην απόδειξη που φιλοξενεί η Stripe. Εκείνη η απόδειξη δείχνει τα τέσσερα τελευταία ψηφία της κάρτας, που είναι εγγραφή της Stripe και όχι δική μας.
+Ό,τι κρατάμε είναι η εγγραφή της πληρωμής: πόσο, πότε, σε ποιο νόμισμα, με ποιον τρόπο, ο αριθμός τιμολογίου, η αναφορά του παρόχου και ένας σύνδεσμος στην απόδειξη που φιλοξενεί εκείνος. Εκείνη η απόδειξη δείχνει τα τέσσερα τελευταία ψηφία της κάρτας, που είναι εγγραφή του παρόχου και όχι δική μας.
 
-Η Stripe είναι πάροχος πληρωμών με τις δικές της ευθύνες. Η πολιτική απορρήτου της είναι στο stripe.com/privacy.
+Ο πάροχος είναι ρυθμιζόμενος επεξεργαστής πληρωμών με τις δικές του ευθύνες, και δημοσιεύει τη δική του πολιτική απορρήτου. Γράψε στο ${MAIL} και το στούντιο θα σου πει ποιον πάροχο χρησιμοποιεί και πού βρίσκεται εκείνη η πολιτική.
 
 Αν πληρώσεις με μετρητά ή με κάρτα στην υποδοχή, καταγράφεται το ποσό και ο τρόπος, και σε καμία περίπτωση δεν κρατούνται στοιχεία κάρτας.`,
   },
@@ -456,17 +487,19 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Ποιος άλλος επεξεργάζεται τα στοιχεία σου",
     body: `Το στούντιο χρησιμοποιεί λίγες εταιρείες για να λειτουργεί αυτή η υπηρεσία. Κάθε μία λαμβάνει μόνο ό,τι χρειάζεται και δεσμεύεται από σύμβαση που της επιτρέπει να τα χρησιμοποιεί μόνο κατ' εντολή του στούντιο.
 
-**Render**: φιλοξενεί την ιστοσελίδα και τη βάση δεδομένων, σε κέντρο δεδομένων στη Φρανκφούρτη της Γερμανίας.
+**Εταιρεία φιλοξενίας**: φιλοξενεί την ιστοσελίδα και τη βάση δεδομένων, σε κέντρο δεδομένων στη Φρανκφούρτη της Γερμανίας.
 
-**Stripe**: οι πληρωμές με κάρτα, όπως παραπάνω.
+**Πάροχος πληρωμών**: οι πληρωμές με κάρτα, όπως παραπάνω.
 
-**SMS.to**, κυπριακή εταιρεία, στέλνει τα γραπτά μηνύματα, και λαμβάνει μόνο έναν αριθμό τηλεφώνου και το κείμενο του μηνύματος, και μόνο όταν σου σταλεί όντως SMS.
+**Εταιρεία SMS με έδρα την Κύπρο**: στέλνει τα γραπτά μηνύματα. Λαμβάνει μόνο έναν αριθμό τηλεφώνου και το κείμενο του μηνύματος, και μόνο όταν σου σταλεί όντως SMS.
 
-**Google**: παρέχει το ηλεκτρονικό ταχυδρομείο του στούντιο, οπότε κάθε email που σου στέλνουμε περνά από εκεί.
+**Πάροχος ηλεκτρονικού ταχυδρομείου**: μεταφέρει την αλληλογραφία του στούντιο, οπότε κάθε email που σου στέλνουμε περνά από εκεί.
 
-Δύο ακόμη πράγματα που κάνει ο browser σου αξίζουν αναφορά. Οι γραμματοσειρές ζητούνται από τους διακομιστές γραμματοσειρών της Google, που σημαίνει ότι εκείνοι βλέπουν τη διεύθυνση δικτύου της συσκευής σου· η σελίδα μπορεί να αλλάξει ώστε να σερβίρει μόνη της τις γραμματοσειρές. Και οι ειδοποιήσεις παραδίδονται από την υπηρεσία push του δικού σου browser, δηλαδή της Google, της Apple ή της Mozilla ανάλογα με τη συσκευή, με την οποία το στούντιο δεν έχει σχέση ούτε έλεγχο.
+Δύο ακόμη πράγματα που κάνει ο browser σου αξίζουν αναφορά. Οι γραμματοσειρές ζητούνται από μια υπηρεσία γραμματοσειρών, που σημαίνει ότι εκείνη βλέπει τη διεύθυνση δικτύου της συσκευής σου· η σελίδα μπορεί να αλλάξει ώστε να σερβίρει μόνη της τις γραμματοσειρές. Και οι ειδοποιήσεις παραδίδονται από την υπηρεσία push του δικού σου browser, που εξαρτάται από τη συσκευή σου και με την οποία το στούντιο δεν έχει σχέση ούτε έλεγχο.
 
-Δεν χρησιμοποιούμε καμία υπηρεσία στατιστικών, διαφήμισης ή παρακολούθησης. Τίποτα σε αυτή τη σελίδα δεν αναφέρει σε κανέναν τη συμπεριφορά σου, και δεν υπάρχει σενάριο τρίτου πουθενά εκτός από της Stripe, που φορτώνει μόνο στη σελίδα πληρωμής.
+Δεν χρησιμοποιούμε καμία υπηρεσία στατιστικών, διαφήμισης ή παρακολούθησης. Τίποτα σε αυτή τη σελίδα δεν αναφέρει σε κανέναν τη συμπεριφορά σου, και δεν υπάρχει σενάριο τρίτου πουθενά εκτός από του παρόχου πληρωμών, που φορτώνει μόνο στη σελίδα πληρωμής.
+
+**Αν θέλεις τα ονόματα, ζήτησέ τα.** Γράψε στο ${MAIL} και το στούντιο θα σου πει ποιες εταιρείες είναι ακριβώς. Περιγράφονται με βάση τι κάνουν και όχι με το όνομά τους ώστε η σελίδα να μην παλιώνει κάθε φορά που αλλάζει προμηθευτής, και όχι για να σου κρυφτούν.
 
 Δεν πουλάμε τα στοιχεία σου και δεν θα τα πουλήσουμε ποτέ.`,
   },
@@ -474,7 +507,7 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Πού κρατούνται, και αν φεύγουν από την Ευρώπη",
     body: `Η βάση δεδομένων βρίσκεται στη Φρανκφούρτη της Γερμανίας, μέσα στην Ευρωπαϊκή Ένωση.
 
-Η Stripe και η Google λειτουργούν και εκτός του Ευρωπαϊκού Οικονομικού Χώρου, και στοιχεία που φτάνουν σε αυτές μπορεί να μεταφερθούν σε χώρες με διαφορετική νομοθεσία. Όπου συμβαίνει αυτό, βασίζονται στις εγγυήσεις που προβλέπει το ευρωπαϊκό δίκαιο, δηλαδή είτε απόφαση επάρκειας της Ευρωπαϊκής Επιτροπής είτε τις τυποποιημένες συμβατικές ρήτρες της.`,
+Ο πάροχος πληρωμών και ο πάροχος ηλεκτρονικού ταχυδρομείου λειτουργούν και εκτός του Ευρωπαϊκού Οικονομικού Χώρου, και στοιχεία που φτάνουν σε αυτούς μπορεί να μεταφερθούν σε χώρες με διαφορετική νομοθεσία. Όπου συμβαίνει αυτό, βασίζονται στις εγγυήσεις που προβλέπει το ευρωπαϊκό δίκαιο, δηλαδή είτε απόφαση επάρκειας της Ευρωπαϊκής Επιτροπής είτε τις τυποποιημένες συμβατικές ρήτρες της.`,
   },
   {
     title: "Πόσο καιρό τα κρατάμε",
@@ -524,7 +557,7 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Αποφάσεις, και πώς επιλέγεται σε ποιον γράφουμε",
     body: `Τίποτα σε αυτή τη σελίδα δεν παίρνει αυτοματοποιημένη απόφαση για σένα με νομικές ή αντίστοιχα σημαντικές συνέπειες. Κανένας αλγόριθμος δεν αποφασίζει αν μπορείς να κλείσεις μάθημα, τι πληρώνεις ή αν είσαι ευπρόσδεκτος.
 
-Όταν το στούντιο στέλνει ανακοίνωση μπορεί να περιορίσει τη λίστα: μέλη που δεν αγόρασαν ποτέ πακέτο, μέλη χωρίς υπόλοιπο, μέλη που δεν ήρθαν για κάποιους μήνες. Είναι φίλτρο στο ποιος λαμβάνει ένα μήνυμα, που εφαρμόζει άνθρωπος και μετά πατά αποστολή. Δεν αλλάζει τίποτα στον λογαριασμό σου.`,
+Όταν το στούντιο στέλνει ανακοίνωση μπορεί να περιορίσει τη λίστα, για παράδειγμα σε μέλη που δεν έχουν έρθει για καιρό. Είναι φίλτρο στο ποιος λαμβάνει ένα μήνυμα, που εφαρμόζει άνθρωπος και μετά πατά αποστολή. Δεν αλλάζει τίποτα στον λογαριασμό σου.`,
   },
   {
     title: "Ηλικία",
@@ -538,7 +571,7 @@ const PRIVACY_EL: LegalSection[] = [
 
 Όλη η σελίδα σερβίρεται μέσω κρυπτογραφημένης σύνδεσης. Οι κωδικοί επιβεβαίωσης αποθηκεύονται με τον ίδιο τρόπο.
 
-Μέσα στο στούντιο η πρόσβαση είναι σκόπιμα χωρισμένη. Η υποδοχή κλείνει κρατήσεις, πουλά συνεδρίες και βλέπει την καρτέλα ενός μέλους. Δεν βλέπει τα έσοδα ή τα στοιχεία μελών, και δεν αγγίζει άλλο λογαριασμό προσωπικού. Η κονσόλα ζητά κωδικό ξανά ακόμη κι αν κάποιος είναι συνδεδεμένος, και κλειδώνει μόνη της μετά από δεκαπέντε λεπτά αδράνειας, γιατί βρίσκεται σε πάγκο σε δημόσιο χώρο.
+Μέσα στο στούντιο η πρόσβαση είναι σκόπιμα χωρισμένη: όσοι δουλεύουν στην υποδοχή βλέπουν ό,τι χρειάζονται για να σε εξυπηρετήσουν και τίποτα περισσότερο, και τα οικονομικά στοιχεία του στούντιο δεν είναι μέρος αυτού. Οι οθόνες του προσωπικού σε χώρους όπου περνά κοινό ζητούν δικό τους κωδικό και κλειδώνουν μόνες τους όταν μένουν αφύλακτες.
 
 Κανένα σύστημα δεν είναι τέλειο. Αν κάτι πάει στραβά και είναι πιθανό να σε θέσει σε κίνδυνο, το στούντιο θα ενημερώσει εσένα και τον Επίτροπο, όπως απαιτεί ο νόμος.`,
   },
@@ -546,7 +579,7 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Cookies",
     body: `Η σελίδα θέτει τρία cookies και αποθηκεύει μία προτίμηση στη συσκευή σου. Κανένα δεν είναι για διαφήμιση ή παρακολούθηση, και δεν υπάρχουν στατιστικά κανενός είδους.
 
-Η σελίδα για τα cookies τα αναφέρει ένα προς ένα: τι κάνει το καθένα, πόσο διαρκεί, και πώς αλλάζεις γνώμη.`,
+Η σελίδα για τα cookies τα αναφέρει ένα προς ένα: τι κάνει το καθένα, πόσο διαρκεί, και πώς το αφαιρείς.`,
   },
   {
     title: "Αλλαγές σε αυτό το κείμενο",
@@ -611,7 +644,7 @@ const TERMS_EL: LegalSection[] = [
     title: "Πληρωμή",
     body: `Μπορείς να πληρώσεις με κάρτα σε αυτή τη σελίδα, ή με μετρητά ή κάρτα στην υποδοχή. Οι τιμές είναι σε ευρώ και περιλαμβάνουν ΦΠΑ όπου εφαρμόζεται.
 
-Οι πληρωμές με κάρτα στη σελίδα γίνονται μέσω Stripe. Το στούντιο δεν βλέπει ούτε κρατά τον αριθμό της κάρτας σου. Σε κάθε διαδικτυακή πληρωμή με κάρτα επισυνάπτεται τιμολόγιο ΦΠΑ στην επιβεβαίωση.
+Οι πληρωμές με κάρτα στη σελίδα γίνονται μέσω εξειδικευμένου παρόχου πληρωμών, και το στούντιο δεν βλέπει ούτε κρατά τον αριθμό της κάρτας σου. Σε κάθε διαδικτυακή πληρωμή με κάρτα επισυνάπτεται τιμολόγιο ΦΠΑ στην επιβεβαίωση.
 
 Οι συνεδρίες προστίθενται στο υπόλοιπό σου μόλις επιβεβαιωθεί η πληρωμή. Αν χρεωθείς και δεν εμφανιστούν, πες το στο στούντιο και θα διορθωθεί· η εγγραφή του παρόχου πληρωμών είναι αυτή που κρίνει κάθε διαφωνία για το αν κινήθηκαν χρήματα.`,
   },
@@ -678,11 +711,11 @@ const TERMS_EL: LegalSection[] = [
 const COOKIES_EL: LegalSection[] = [
   {
     title: "Με λίγα λόγια",
-    body: `Η σελίδα δεν έχει διαφήμιση, δεν έχει στατιστικά και δεν έχει παρακολούθηση κανενός είδους. Τίποτα εδώ δεν αναφέρει σε κανέναν τι κοιτάς, και δεν υπάρχει σενάριο τρίτου σε καμία σελίδα εκτός από τη σελίδα πληρωμής, όπου φορτώνουν τα πεδία κάρτας της Stripe.
+    body: `Η σελίδα δεν έχει διαφήμιση, δεν έχει στατιστικά και δεν έχει παρακολούθηση κανενός είδους. Τίποτα εδώ δεν αναφέρει σε κανέναν τι κοιτάς, και δεν υπάρχει σενάριο τρίτου σε καμία σελίδα εκτός από τη σελίδα πληρωμής, όπου φορτώνουν τα πεδία κάρτας του παρόχου πληρωμών.
 
 Αυτό που αποθηκεύει είναι τρία cookies και μία προτίμηση, που αναφέρονται παρακάτω. Δύο από τα cookies είναι ο τρόπος με τον οποίο η σελίδα ξέρει ότι είσαι συνδεδεμένος· χωρίς αυτά δεν μπορεί να λειτουργήσει καθόλου. Το τρίτο θυμάται τη γλώσσα που επέλεξες.
 
-Δεν θα ερωτηθείς ξανά αφού απαντήσεις, και μπορείς να αλλάξεις την απάντησή σου οποτεδήποτε από τον σύνδεσμο στο υποσέλιδο.`,
+Δεν υπάρχει αναδυόμενο μήνυμα που να σου ζητά να συμφωνήσεις με κάτι από αυτά, και αυτό είναι σκόπιμο και όχι παράλειψη. Δύο από τα cookies είναι απολύτως απαραίτητα, που δεν χρειάζονται άδεια. Το τρίτο γράφεται μόνο τη στιγμή που πατάς τον διακόπτη γλώσσας, δηλαδή όταν το ζητάς εσύ. Τίποτα προαιρετικό δεν μπαίνει στη συσκευή σου πριν κάνεις κάτι που το ζητά.`,
   },
   {
     title: "Απολύτως απαραίτητα, και μη προαιρετικά",
@@ -693,36 +726,36 @@ const COOKIES_EL: LegalSection[] = [
 Κανένα από τα δύο δεν τίθεται πριν συνδεθείς, και κανένα δεν μπορεί να απορριφθεί όσο είσαι συνδεδεμένος: δεν είναι τρόπος να μάθουμε κάτι για σένα, είναι ο μηχανισμός με τον οποίο η σελίδα ξέρει ποιος ρωτά.`,
   },
   {
-    title: "Μία προτίμηση, που μπορείς να απορρίψεις",
+    title: "Μία προτίμηση, που τίθεται μόνο όταν τη ζητήσεις",
     body: `**apex_locale.** Θυμάται αν διαβάζεις τη σελίδα στα Ελληνικά ή στα Αγγλικά, ώστε να ανοίξει στη σωστή γλώσσα την επόμενη φορά. Τίθεται τη στιγμή που χρησιμοποιείς τον διακόπτη γλώσσας, διαρκεί έναν χρόνο, και δεν περιέχει τίποτα άλλο από "en" ή "el".
 
 **Η υπενθύμιση ειδοποιήσεων.** Αν απορρίψεις το μήνυμα που ρωτά αν θέλεις υπενθυμίσεις μαθημάτων στο κινητό σου, η απόφαση θυμάται στην αποθήκευση του browser σου ώστε να μη ρωτηθείς ξανά σε εκείνη τη συσκευή. Περιέχει μια ημερομηνία και τίποτα άλλο, δεν φεύγει ποτέ από τη συσκευή σου, και το στούντιο δεν μπορεί να τη διαβάσει.
 
-Απόρριψέ τα και η σελίδα λειτουργεί κανονικά: απλώς θα ανοίγει στην προεπιλεγμένη γλώσσα κάθε φορά, και μπορεί να ρωτήσει ξανά για τις ειδοποιήσεις.`,
+Κανένα από τα δύο δεν εμφανίζεται αν δεν κάνεις κάτι. Αν δεν αγγίξεις ποτέ τον διακόπτη γλώσσας δεν υπάρχει καθόλου apex_locale· αν δεν απορρίψεις ποτέ το μήνυμα των ειδοποιήσεων δεν θυμάται τίποτα. Διαγράψε τα και η σελίδα λειτουργεί κανονικά: απλώς θα ανοίγει στην προεπιλεγμένη γλώσσα κάθε φορά, και μπορεί να ρωτήσει ξανά για τις ειδοποιήσεις.`,
   },
   {
-    title: "Stripe, μόνο στη σελίδα πληρωμής",
-    body: `Όταν πας να πληρώσεις, τα πεδία της κάρτας παρέχονται από τη Stripe και η Stripe θέτει τα δικά της cookies για να εντοπίζει απάτες και να κρατά μαζί μια απόπειρα πληρωμής όταν ανανεωθεί η σελίδα.
+    title: "Ο πάροχος πληρωμών, μόνο στη σελίδα πληρωμής",
+    body: `Όταν πας να πληρώσεις, τα πεδία της κάρτας παρέχονται από τον πάροχο πληρωμών του στούντιο, ο οποίος θέτει τα δικά του cookies για να εντοπίζει απάτες και να κρατά μαζί μια απόπειρα πληρωμής όταν ανανεωθεί η σελίδα.
 
-Φορτώνουν μόνο στη σελίδα πληρωμής, μόνο όταν είσαι συνδεδεμένος και όντως πληρώνεις, και είναι απαραίτητα για να γίνει η πληρωμή με ασφάλεια. Η Stripe τα εξηγεί στο stripe.com/legal/cookies-policy.
+Φορτώνουν μόνο στη σελίδα πληρωμής, μόνο όταν είσαι συνδεδεμένος και όντως πληρώνεις, και είναι απαραίτητα για να γίνει η πληρωμή με ασφάλεια. Ο πάροχος δημοσιεύει τη δική του πολιτική για τα cookies· γράψε στο ${MAIL} και το στούντιο θα σου πει ποιος είναι και πού να τη διαβάσεις.
 
-Το στούντιο δεν μπορεί να τα απενεργοποιήσει και να δέχεται πληρωμές με κάρτα. Αν προτιμάς να μην τα έχεις, πλήρωσε στην υποδοχή.`,
+Το στούντιο δεν μπορεί να τα απενεργοποιήσει και να συνεχίσει να δέχεται πληρωμές με κάρτα. Αν προτιμάς να μην τα έχεις, πλήρωσε στην υποδοχή.`,
   },
   {
     title: "Άλλα αιτήματα που κάνει ο browser σου",
-    body: `Δύο πράγματα αξίζουν αναφορά αν και δεν θέτουν cookie, γιατί το να ερωτάσαι για cookies και να μη σου λένε τίποτα για αυτά θα ήταν παράξενο είδος ειλικρίνειας.
+    body: `Δύο πράγματα αξίζουν αναφορά αν και δεν θέτουν cookie, γιατί μια σελίδα για τα cookies που δεν έλεγε τίποτα για αυτά θα ήταν παράξενο είδος ειλικρίνειας.
 
-**Γραμματοσειρές.** Οι γραμματοσειρές της σελίδας ζητούνται από τους διακομιστές της Google, που σημαίνει ότι εκείνοι βλέπουν τη διεύθυνση δικτύου της συσκευής σου και τι είδους browser είναι. Δεν τίθεται cookie και δεν αποθηκεύεται τίποτα στη συσκευή σου. Το στούντιο μπορεί να σερβίρει μόνο του τις γραμματοσειρές, που θα αφαιρούσε εντελώς το αίτημα.
+**Γραμματοσειρές.** Οι γραμματοσειρές της σελίδας ζητούνται από εξωτερική υπηρεσία γραμματοσειρών, που σημαίνει ότι εκείνη βλέπει τη διεύθυνση δικτύου της συσκευής σου και τι είδους browser είναι. Δεν τίθεται cookie και δεν αποθηκεύεται τίποτα στη συσκευή σου. Το στούντιο μπορεί να σερβίρει μόνο του τις γραμματοσειρές, που θα αφαιρούσε εντελώς το αίτημα.
 
-**Ειδοποιήσεις.** Αν ενεργοποιήσεις τις υπενθυμίσεις μαθημάτων, παραδίδονται μέσω της υπηρεσίας push του δικού σου browser, δηλαδή της Google, της Apple ή της Mozilla ανάλογα με τη συσκευή. Η σχέση αυτή είναι μεταξύ του browser σου και του κατασκευαστή του· το στούντιο κρατά μόνο τη διεύθυνση που του δίνει εκείνη η υπηρεσία για τη συσκευή σου, και τη διαγράφει όταν απενεργοποιήσεις τις ειδοποιήσεις.
+**Ειδοποιήσεις.** Αν ενεργοποιήσεις τις υπενθυμίσεις μαθημάτων, παραδίδονται μέσω της υπηρεσίας push του δικού σου browser, που εξαρτάται από τη συσκευή σου. Η σχέση αυτή είναι μεταξύ του browser σου και του κατασκευαστή του· το στούντιο κρατά μόνο τη διεύθυνση που του δίνει εκείνη η υπηρεσία για τη συσκευή σου, και τη διαγράφει όταν απενεργοποιήσεις τις ειδοποιήσεις.
 
-Η απόρριψη των προαιρετικών cookies παραπάνω δεν σταματά κανένα από τα δύο, και θα ήταν παραπλανητικό να υπονοηθεί το αντίθετο.`,
+Η διαγραφή των cookies παραπάνω δεν σταματά κανένα από τα δύο, και θα ήταν παραπλανητικό να υπονοηθεί το αντίθετο.`,
   },
   {
-    title: "Αλλάζοντας γνώμη, και οι ρυθμίσεις του browser σου",
-    body: `Ο σύνδεσμος στο υποσέλιδο κάτω από τα Νομικά ανοίγει ξανά αυτή την επιλογή, οποτεδήποτε, και μπορείς να την αλλάξεις όσες φορές θέλεις.
+    title: "Πώς τα αφαιρείς, με τις ρυθμίσεις του browser σου",
+    body: `Κάθε browser μπορεί να σου δείξει τα cookies που έθεσε μια σελίδα και να τα διαγράψει, συνήθως κάτω από Απόρρητο ή Ρυθμίσεις ιστότοπου. Καθαρίζοντάς τα για αυτή τη σελίδα αφαιρείς μαζί το cookie της γλώσσας και την υπενθύμιση των ειδοποιήσεων, και η σελίδα ξαναβάζει μόνο ό,τι της ζητήσεις.
 
-Ο browser σου μπορεί επίσης να μπλοκάρει ή να διαγράψει cookies για οποιαδήποτε σελίδα, και κάθε browser έχει ρύθμιση για αυτό. Το μπλοκάρισμα των δύο απαραίτητων cookies θα σε εμποδίσει να συνδεθείς, και αυτό δεν είναι δυστροπία της σελίδας: η σύνδεση είναι αυτά τα cookies.
+Ο browser σου μπορεί επίσης να μπλοκάρει τα cookies εντελώς. Το μπλοκάρισμα των δύο απαραίτητων θα σε εμποδίσει να συνδεθείς, και αυτό δεν είναι δυστροπία της σελίδας: η σύνδεση είναι αυτά τα cookies.
 
 Τελευταία ενημέρωση: Σεπτέμβριος 2026.`,
   },

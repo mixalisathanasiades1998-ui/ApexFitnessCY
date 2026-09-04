@@ -799,6 +799,7 @@ export const en = {
     label: "Account sections",
     profile: "Profile",
     notifications: "Notifications",
+    upcoming: "Upcoming",
     password: "Password",
     classes: "Past classes",
     payments: "Payments",
@@ -962,7 +963,6 @@ export const en = {
     walletWindowed:
       "{n} of these is a free opening-week session, usable only for a class between {from} and {to}.",
     expiringOn: "expires",
-    upcomingTitle: "Upcoming classes",
     upcomingEmpty: "Nothing booked yet. The timetable is waiting.",
     historyTitle: "Past classes",
     historyEmpty: "No completed classes yet.",
@@ -1274,26 +1274,6 @@ export const en = {
     privacyTitle: "Privacy policy",
     termsTitle: "Terms & studio policy",
     cookiesTitle: "Cookies",
-  },
-  /* The notice at the bottom of the screen. It says what is true here before
-     it asks, because a banner implying a dozen trackers on a site with none is
-     worse than no banner. */
-  cookies: {
-    title: "Cookies",
-    body: "This site has no advertising and no analytics. It keeps you signed in, and remembers the language you chose. That is all.",
-    readMore: "What each one does",
-    acceptAll: "Accept all",
-    customise: "Customise",
-    rejectAll: "Reject all",
-    save: "Save my choice",
-    necessary: "Signing in",
-    always: "Always on",
-    necessaryWhy:
-      "Two cookies: one keeps you signed in, one is the studio desk's own lock. Without them nobody can sign in, so they are not a choice.",
-    preferences: "Remembering your preferences",
-    preferencesWhy:
-      "The language you read the site in, and a declined notification prompt so this device is not asked again. Stored on your device and never read by anybody else.",
-    settings: "Cookie settings",
   },
 };
 
@@ -2029,6 +2009,7 @@ export const el: typeof en = {
     label: "Ενότητες λογαριασμού",
     profile: "Προφίλ",
     notifications: "Ειδοποιήσεις",
+    upcoming: "Επόμενα",
     password: "Κωδικός",
     classes: "Παλιά μαθήματα",
     payments: "Πληρωμές",
@@ -2191,7 +2172,6 @@ export const el: typeof en = {
     walletWindowed:
       "{n} από αυτές είναι δωρεάν συνεδρία εγκαινίων και μπορεί να χρησιμοποιηθεί μόνο για μάθημα από {from} έως {to}.",
     expiringOn: "λήγει",
-    upcomingTitle: "Επόμενα μαθήματα",
     upcomingEmpty: "Δεν έχεις κλείσει ακόμη. Το πρόγραμμα σε περιμένει.",
     historyTitle: "Προηγούμενα μαθήματα",
     historyEmpty: "Δεν υπάρχουν ολοκληρωμένα μαθήματα.",
@@ -2468,23 +2448,6 @@ export const el: typeof en = {
     privacyTitle: "Πολιτική απορρήτου",
     termsTitle: "Όροι & πολιτική στούντιο",
     cookiesTitle: "Cookies",
-  },
-  cookies: {
-    title: "Cookies",
-    body: "Η σελίδα δεν έχει διαφήμιση και δεν έχει στατιστικά. Σε κρατά συνδεδεμένο και θυμάται τη γλώσσα που επέλεξες. Τίποτα άλλο.",
-    readMore: "Τι κάνει το καθένα",
-    acceptAll: "Αποδοχή όλων",
-    customise: "Προσαρμογή",
-    rejectAll: "Απόρριψη όλων",
-    save: "Αποθήκευση επιλογής",
-    necessary: "Σύνδεση",
-    always: "Πάντα ενεργά",
-    necessaryWhy:
-      "Δύο cookies: το ένα σε κρατά συνδεδεμένο, το άλλο είναι το κλείδωμα της κονσόλας του στούντιο. Χωρίς αυτά κανείς δεν μπορεί να συνδεθεί, οπότε δεν είναι επιλογή.",
-    preferences: "Θυμάμαι τις προτιμήσεις σου",
-    preferencesWhy:
-      "Τη γλώσσα στην οποία διαβάζεις τη σελίδα, και μια απορριφθείσα ειδοποίηση ώστε να μη ρωτηθεί ξανά αυτή η συσκευή. Αποθηκεύονται στη συσκευή σου και δεν τα διαβάζει κανείς άλλος.",
-    settings: "Ρυθμίσεις cookies",
   },
 };
 

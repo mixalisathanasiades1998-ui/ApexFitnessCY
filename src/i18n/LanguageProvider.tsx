@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { preferencesAllowed } from "@/lib/consent";
 import { STUDIO } from "@/lib/studio";
 import {
   DEFAULT_LOCALE,
@@ -80,22 +79,20 @@ export function LanguageProvider({
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     /**
-     * Remembered between visits only if the visitor said it could be.
+     * Written here, on the press, and nowhere else.
      *
-     * The switch works either way: this page turns Greek the moment it is
-     * pressed, because that is React state and not a cookie. What the cookie
-     * buys is the *next* visit opening in Greek, and that is a convenience
-     * stored on somebody's device, which is exactly what the cookie notice
-     * asks about.
+     * That timing is the whole reason this site needs no consent banner. The
+     * cookie is not set on arrival and not set by browsing: it appears only in
+     * the instant somebody clicks EN or EL, so the click is the request, and an
+     * interface preference the visitor asks for themselves is exempt from the
+     * consent requirement. A visitor who never touches the switch never has it.
      *
-     * Without this check, "reject all" would clear the cookie once and the next
-     * press of the language switch would put it straight back, which would make
-     * that button a lie. A cookie banner whose refusal does not refuse is worse
-     * than no banner at all.
+     * The switch would work without the cookie: this page turns Greek from
+     * React state, not from here. What the cookie buys is the *next* visit
+     * opening in Greek. It holds "en" or "el" and nothing else. See /cookies,
+     * which says so in both languages.
      */
-    if (preferencesAllowed()) {
-      document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-    }
+    document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     document.documentElement.lang = l;
 
     /**
