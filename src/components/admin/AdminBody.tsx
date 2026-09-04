@@ -76,10 +76,30 @@ export function AdminBody({
   const { t, fmtLongDate } = useI18n();
   const router = useRouter();
 
-  /* Reception has no Analytics tab, so it is not in their bar and cannot be
-     reached by pressing anything on this page. The route behind it refuses them
-     too — a tab that is only hidden is not a restriction. */
-  const tabs = owner ? DESK_TABS : DESK_TABS.filter((x) => x !== "analytics");
+  /**
+   * Reception gets two tabs. The owner gets all six.
+   *
+   * Bookings and Members are the front desk's whole job: who is in the room,
+   * who is on the phone, and taking their money. The other four are the
+   * studio's own business — the timetable and its closures, messages to every
+   * member at once, the price list, and the figures — and every one of them is
+   * something a receptionist can change by accident and nobody notices for a
+   * fortnight.
+   *
+   * **The route behind each of them refuses reception too.** That is the part
+   * that matters and it was not true until now: `closures`, `generate`,
+   * `notices` and `pricing` were all guarded with `desk()`, so a receptionist
+   * with the browser's network tab open could change the price list of a studio
+   * whose Pricing tab they could not see. They are `owner()` now. A tab that is
+   * only hidden is not a restriction, which the previous version of this comment
+   * said while being true of exactly one tab.
+   */
+  const RECEPTION_TABS = ["today", "members"] as const;
+  const tabs = owner
+    ? DESK_TABS
+    : DESK_TABS.filter((x) =>
+        (RECEPTION_TABS as readonly string[]).includes(x),
+      );
 
   /**
    * The tab, kept in the URL.

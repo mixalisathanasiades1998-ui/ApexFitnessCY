@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { body, desk } from "@/lib/api-guard";
+import { body, owner } from "@/lib/api-guard";
 import { activeRules, clearAllRules, clearRule, setRule } from "@/lib/pricing";
 
 /**
@@ -12,13 +12,13 @@ import { activeRules, clearAllRules, clearRule, setRule } from "@/lib/pricing";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
   return NextResponse.json({ rules: activeRules() });
 }
 
 export async function POST(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const data = await body<{
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const params = new URL(req.url).searchParams;

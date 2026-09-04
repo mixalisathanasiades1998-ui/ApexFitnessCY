@@ -24,6 +24,7 @@ import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
 import { scheduleReminder } from "@/lib/reminders";
 import {
   notifyBooked,
+  notifyRepeatBooked,
   notifyInstructorChanged,
   notifyPurchased,
 } from "@/lib/messaging/events";
@@ -905,16 +906,19 @@ export async function repeatForMember(args: {
   }
 
   /**
-   * Told once, about the first class.
+   * Told once, about the whole run.
    *
    * Twelve notifications for one telephone call is a phone buzzing in somebody's
    * hand while they are still talking to reception, and it is how a member
-   * learns to turn notifications off. The other eleven bookings are all in their
-   * account, and the desk is reading the summary back to them anyway.
+   * learns to turn notifications off.
+   *
+   * It used to be one notification about the *first class*, which was quiet and
+   * wrong: a member who booked a term over the telephone got a message naming
+   * one Monday. This one names the slot, the count, the span and any week that
+   * could not be taken — which matters more here than on the website, because
+   * the person who books by telephone is the one not looking at a screen.
    */
-  if (run.firstBookingId) {
-    void notifyBooked(run.firstBookingId).catch(() => {});
-  }
+  void notifyRepeatBooked(run).catch(() => {});
 
   return {
     ok: true,

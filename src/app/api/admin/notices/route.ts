@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { body, desk } from "@/lib/api-guard";
+import { body, owner } from "@/lib/api-guard";
 import {
   deliverNotice,
   describeSegment,
@@ -50,7 +50,7 @@ function segmentFrom(raw: {
 }
 
 export async function GET(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   /* The desk asks before writing: how many people would each channel reach if
@@ -102,7 +102,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const data = await body<{
@@ -225,7 +225,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const id = new URL(req.url).searchParams.get("id");

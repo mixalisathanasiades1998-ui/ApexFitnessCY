@@ -3,7 +3,7 @@ import { notVerified } from "@/lib/api-guard";
 import { currentUser } from "@/lib/auth";
 import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
 import { getAvailableCredits } from "@/lib/credits";
-import { notifyBooked } from "@/lib/messaging/events";
+import { notifyRepeatBooked } from "@/lib/messaging/events";
 import { scheduleReminder } from "@/lib/reminders";
 
 /**
@@ -56,9 +56,15 @@ export async function POST(req: Request) {
    * booking route does — a push service being slow must not turn eleven
    * successful bookings into an error on somebody's screen.
    *
-   * One notification per booking would be twelve phone buzzes for one press,
-   * which is why only the first is announced. The member is looking at the
-   * summary on screen, and the eleven others are all in their account.
+   * A reminder per class and one confirmation for the run. The two are not the
+   * same shape and should not be: a reminder is per class by definition, and a
+   * confirmation is about the press. Twelve confirmations for one press is a
+   * phone buzzing twelve times, which is how somebody learns to turn
+   * notifications off.
+   *
+   * `notifyRepeatBooked` is given the whole run rather than the first booking,
+   * because it used to be given the first booking and the message that came out
+   * described one class out of twelve. See its own note.
    */
   for (const id of result.bookingIds) {
     try {
@@ -67,9 +73,7 @@ export async function POST(req: Request) {
       /* A reminder that will not schedule must not cost somebody their class. */
     }
   }
-  if (result.firstBookingId) {
-    void notifyBooked(result.firstBookingId).catch(() => {});
-  }
+  void notifyRepeatBooked(result).catch(() => {});
 
   return NextResponse.json({
     ok: true,

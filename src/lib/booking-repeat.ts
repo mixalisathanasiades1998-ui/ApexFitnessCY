@@ -51,8 +51,24 @@ import { studioAddDays, studioDayOfWeek, studioParts } from "./time";
  * seeing it happen. Those stay one at a time.
  */
 
-/** The most weeks one press may book. A term, and not a year. */
-export const MAX_REPEAT_WEEKS = 13;
+/**
+ * The most weeks one press may book. Now a year, because the studio sells one.
+ *
+ * This was 13 — "a term, and not a year" — and that was the right ceiling while
+ * the longest pack was three months. The studio now sells 6, 9 and 12 month
+ * packs, and a member holding 96 sessions for their Monday and Thursday slots
+ * cannot be asked to press the button four times.
+ *
+ * 52 rather than 53: a year of *weeks* is what a member is choosing, and the
+ * booking horizon (365 days, 53 generated weeks) is deliberately a little
+ * further out than this so the last week of a 52-week run always has classes to
+ * find.
+ *
+ * The real protection was never this number. Every week still goes through
+ * `bookClass` on its own terms, so a 52-week run stops itself the moment the
+ * sessions run out, the pack expires or a class is full — and reports which.
+ */
+export const MAX_REPEAT_WEEKS = 52;
 
 export type RepeatOutcome = {
   sessionId: string;

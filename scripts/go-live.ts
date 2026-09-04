@@ -57,7 +57,11 @@ import { existsSync } from "node:fs";
 import { db, sqlite } from "../src/db";
 import { users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/auth";
-import { generateSessions, TIMETABLE_DAYS, TIMETABLE_WEEKS } from "../src/lib/schedule";
+import {
+  BOOKING_HORIZON_DAYS,
+  generateSessions,
+  TIMETABLE_WEEKS,
+} from "../src/lib/schedule";
 import { studioDateKey } from "../src/lib/time";
 
 const c = {
@@ -141,233 +145,251 @@ const ORPHANS = [
  * as the test scripts, for the same reason.
  */
 async function main() {
-/* ------------------------------------------------------------------- checks */
+  /* ------------------------------------------------------------------- checks */
 
-const configured = process.env.DATABASE_URL ?? "file:./dev.db";
-const file = configured.replace(/^file:/, "");
+  const configured = process.env.DATABASE_URL ?? "file:./dev.db";
+  const file = configured.replace(/^file:/, "");
 
-if (/^postgres(ql)?:\/\//.test(configured)) {
-  die(
-    "DATABASE_URL is a Postgres URL, and it must be a file path.",
-    "This website is SQLite throughout. Pointed at a connection string it",
-    "does not fail, it serves from a throwaway database — so running this",
-    "now would clear a copy that was going to be deleted anyway and leave",
-    "the real data untouched. On Render it should be:",
-    "",
-    `    ${c.bold("DATABASE_URL = file:/var/data/apex.db")}`,
-  );
-}
-if (!existsSync(file)) {
-  die(`no database at ${c.bold(file)}`, `DATABASE_URL is ${configured}`);
-}
+  if (/^postgres(ql)?:\/\//.test(configured)) {
+    die(
+      "DATABASE_URL is a Postgres URL, and it must be a file path.",
+      "This website is SQLite throughout. Pointed at a connection string it",
+      "does not fail, it serves from a throwaway database — so running this",
+      "now would clear a copy that was going to be deleted anyway and leave",
+      "the real data untouched. On Render it should be:",
+      "",
+      `    ${c.bold("DATABASE_URL = file:/var/data/apex.db")}`,
+    );
+  }
+  if (!existsSync(file)) {
+    die(`no database at ${c.bold(file)}`, `DATABASE_URL is ${configured}`);
+  }
 
-/**
- * The desk accounts, read before anything is touched.
- *
- * Required rather than defaulted. `src/db/seed.ts` falls back to
- * `ownerdev123` and `receptiondev123` for development, and those two strings
- * are in a repository that has been public: creating a live owner account with
- * one would hand the studio's own console to anybody who has read the code.
- * There is no sensible default for this, so there is no default.
- */
-const ownerEmail = (process.env.SEED_OWNER_EMAIL ?? "").trim().toLowerCase();
-const ownerPassword = process.env.SEED_OWNER_PASSWORD ?? "";
-const receptionEmail = (process.env.SEED_RECEPTION_EMAIL ?? "").trim().toLowerCase();
-const receptionPassword = process.env.SEED_RECEPTION_PASSWORD ?? "";
+  /**
+   * The desk accounts, read before anything is touched.
+   *
+   * Required rather than defaulted. `src/db/seed.ts` falls back to
+   * `ownerdev123` and `receptiondev123` for development, and those two strings
+   * are in a repository that has been public: creating a live owner account with
+   * one would hand the studio's own console to anybody who has read the code.
+   * There is no sensible default for this, so there is no default.
+   */
+  const ownerEmail = (process.env.SEED_OWNER_EMAIL ?? "").trim().toLowerCase();
+  const ownerPassword = process.env.SEED_OWNER_PASSWORD ?? "";
+  const receptionEmail = (process.env.SEED_RECEPTION_EMAIL ?? "")
+    .trim()
+    .toLowerCase();
+  const receptionPassword = process.env.SEED_RECEPTION_PASSWORD ?? "";
 
-const missing = [
-  !ownerEmail && "SEED_OWNER_EMAIL",
-  !ownerPassword && "SEED_OWNER_PASSWORD",
-  !receptionEmail && "SEED_RECEPTION_EMAIL",
-  !receptionPassword && "SEED_RECEPTION_PASSWORD",
-].filter(Boolean);
+  const missing = [
+    !ownerEmail && "SEED_OWNER_EMAIL",
+    !ownerPassword && "SEED_OWNER_PASSWORD",
+    !receptionEmail && "SEED_RECEPTION_EMAIL",
+    !receptionPassword && "SEED_RECEPTION_PASSWORD",
+  ].filter(Boolean);
 
-if (missing.length) {
-  die(
-    `these are not set: ${missing.join(", ")}`,
-    "This deletes every account, including the desk ones, and creates the",
-    "owner and reception accounts again from those four variables. Without",
-    "all four there would be no way to sign in afterwards, so it stops here",
-    "rather than halfway.",
-    "",
-    "Set them in Render → the web service → Environment, then run this again.",
-  );
-}
+  if (missing.length) {
+    die(
+      `these are not set: ${missing.join(", ")}`,
+      "This deletes every account, including the desk ones, and creates the",
+      "owner and reception accounts again from those four variables. Without",
+      "all four there would be no way to sign in afterwards, so it stops here",
+      "rather than halfway.",
+      "",
+      "Set them in Render → the web service → Environment, then run this again.",
+    );
+  }
 
-/* The passwords written in seed.ts, and the demo member's. Treated as public,
+  /* The passwords written in seed.ts, and the demo member's. Treated as public,
    because they are. */
-const BURNED = ["ownerdev123", "receptiondev123", "member123"];
-for (const [label, pw] of [
-  ["SEED_OWNER_PASSWORD", ownerPassword],
-  ["SEED_RECEPTION_PASSWORD", receptionPassword],
-] as const) {
-  if (BURNED.includes(pw)) {
+  const BURNED = ["ownerdev123", "receptiondev123", "member123"];
+  for (const [label, pw] of [
+    ["SEED_OWNER_PASSWORD", ownerPassword],
+    ["SEED_RECEPTION_PASSWORD", receptionPassword],
+  ] as const) {
+    if (BURNED.includes(pw)) {
+      die(
+        `${label} is one of the passwords written in src/db/seed.ts.`,
+        "That file has been in a public repository, so this password is known.",
+        "Pick a new one and set it in Render's environment panel.",
+      );
+    }
+    if (pw.length < 12) {
+      die(
+        `${label} is ${pw.length} characters, and 12 is the minimum.`,
+        "This account can see every member's details and the studio's takings.",
+      );
+    }
+  }
+  if (ownerEmail === receptionEmail) {
     die(
-      `${label} is one of the passwords written in src/db/seed.ts.`,
-      "That file has been in a public repository, so this password is known.",
-      "Pick a new one and set it in Render's environment panel.",
+      `SEED_OWNER_EMAIL and SEED_RECEPTION_EMAIL are both ${ownerEmail}.`,
+      "One account cannot be both: reception has no Analytics tab, and the",
+      "owner account is the only one that can promote another. Two addresses.",
     );
   }
-  if (pw.length < 12) {
-    die(
-      `${label} is ${pw.length} characters, and 12 is the minimum.`,
-      "This account can see every member's details and the studio's takings.",
+
+  /**
+   * Hashed now, before the transaction, because bcrypt is asynchronous and a
+   * better-sqlite3 transaction is not. Doing this inside the transaction is not
+   * possible; doing it after the deletion would mean a failure here empties the
+   * database and creates nobody.
+   */
+  const ownerHash = await hashPassword(ownerPassword);
+  const receptionHash = await hashPassword(receptionPassword);
+
+  /* ----------------------------------------------------------- what will happen */
+
+  const count = (t: string) =>
+    (sqlite.prepare(`select count(*) as n from "${t}"`).get() as { n: number })
+      .n;
+
+  const toWipe = WIPE.map((t) => ({ table: t, rows: count(t) }));
+  const toKeep = KEEP.map((t) => ({ table: t, rows: count(t) }));
+  const wipeTotal = toWipe.reduce((a, b) => a + b.rows, 0);
+
+  console.log(`\n  ${c.bold("APEX pilates — going live")}\n`);
+  console.log(`  database   ${file}`);
+  console.log(`  owner      ${ownerEmail}`);
+  console.log(`  reception  ${receptionEmail}\n`);
+
+  console.log(`  ${c.bold(c.red("DELETED"))}\n`);
+  const w = Math.max(...[...WIPE, ...KEEP].map((t) => t.length));
+  for (const r of toWipe) {
+    console.log(
+      `    ${r.table.padEnd(w)}  ${String(r.rows).padStart(6)}${r.rows === 0 ? c.dim("  (already empty)") : ""}`,
     );
   }
-}
-if (ownerEmail === receptionEmail) {
-  die(
-    `SEED_OWNER_EMAIL and SEED_RECEPTION_EMAIL are both ${ownerEmail}.`,
-    "One account cannot be both: reception has no Analytics tab, and the",
-    "owner account is the only one that can promote another. Two addresses.",
-  );
-}
+  console.log(`\n  ${c.bold(c.green("KEPT"))}\n`);
+  for (const r of toKeep) {
+    console.log(`    ${r.table.padEnd(w)}  ${String(r.rows).padStart(6)}`);
+  }
 
-/**
- * Hashed now, before the transaction, because bcrypt is asynchronous and a
- * better-sqlite3 transaction is not. Doing this inside the transaction is not
- * possible; doing it after the deletion would mean a failure here empties the
- * database and creates nobody.
- */
-const ownerHash = await hashPassword(ownerPassword);
-const receptionHash = await hashPassword(receptionPassword);
-
-/* ----------------------------------------------------------- what will happen */
-
-const count = (t: string) =>
-  (sqlite.prepare(`select count(*) as n from "${t}"`).get() as { n: number }).n;
-
-const toWipe = WIPE.map((t) => ({ table: t, rows: count(t) }));
-const toKeep = KEEP.map((t) => ({ table: t, rows: count(t) }));
-const wipeTotal = toWipe.reduce((a, b) => a + b.rows, 0);
-
-console.log(`\n  ${c.bold("APEX pilates — going live")}\n`);
-console.log(`  database   ${file}`);
-console.log(`  owner      ${ownerEmail}`);
-console.log(`  reception  ${receptionEmail}\n`);
-
-console.log(`  ${c.bold(c.red("DELETED"))}\n`);
-const w = Math.max(...[...WIPE, ...KEEP].map((t) => t.length));
-for (const r of toWipe) {
   console.log(
-    `    ${r.table.padEnd(w)}  ${String(r.rows).padStart(6)}${r.rows === 0 ? c.dim("  (already empty)") : ""}`,
+    `\n  Then: the owner and reception accounts are created from the`,
   );
-}
-console.log(`\n  ${c.bold(c.green("KEPT"))}\n`);
-for (const r of toKeep) {
-  console.log(`    ${r.table.padEnd(w)}  ${String(r.rows).padStart(6)}`);
-}
+  /* The booking horizon, not the strip window: this generates everything a
+   twelve-month pack holder can reach, which is a year, not the ninety days
+   the timetable shows at once. */
+  console.log(
+    `  environment, and ${BOOKING_HORIZON_DAYS} days of classes are generated`,
+  );
+  console.log(`  from the ${count("class_templates")} rota templates.\n`);
+  console.log(
+    `  ${c.yellow("This cannot be undone from here.")} The way back is a disk`,
+  );
+  console.log(`  snapshot: Render → the web service → Disks.\n`);
 
-console.log(
-  `\n  Then: the owner and reception accounts are created from the`,
-);
-console.log(`  environment, and ${TIMETABLE_DAYS} days of classes are generated`);
-console.log(`  from the ${count("class_templates")} rota templates.\n`);
-console.log(
-  `  ${c.yellow("This cannot be undone from here.")} The way back is a disk`,
-);
-console.log(`  snapshot: Render → the web service → Disks.\n`);
-
-if (wipeTotal === 0) {
-  console.log(`  ${c.dim("Nothing to delete. This has already been run.")}\n`);
-  process.exit(0);
-}
-
-/* ------------------------------------------------------------- confirmation */
-
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-const typed = await rl.question(
-  `  Type ${c.bold(PHRASE)} to go ahead: `,
-);
-rl.close();
-
-if (typed.trim() !== PHRASE) {
-  console.log(`\n  ${c.dim("Nothing was changed.")}\n`);
-  process.exit(0);
-}
-
-/* ------------------------------------------------------------------- the work */
-
-let created = 0;
-
-/**
- * One transaction, so a failure anywhere leaves the database exactly as it was.
- *
- * The timetable is generated inside it as well. A studio that opens with no
- * accounts is locked out; a studio that opens with no timetable has a website
- * that appears to have no classes, and both are the sort of thing that gets
- * discovered by a member rather than by us.
- */
-sqlite.transaction(() => {
-  for (const [table, column] of ORPHANS) {
-    sqlite.prepare(`update "${table}" set "${column}" = null`).run();
-  }
-  for (const table of WIPE) {
-    sqlite.prepare(`delete from "${table}"`).run();
+  if (wipeTotal === 0) {
+    console.log(
+      `  ${c.dim("Nothing to delete. This has already been run.")}\n`,
+    );
+    process.exit(0);
   }
 
-  const now = new Date();
-  db.insert(users)
-    .values([
-      {
-        email: ownerEmail,
-        name: "Studio Owner",
-        passwordHash: ownerHash,
-        role: "ADMIN",
-        /* Verified on creation: the confirmation code is for members proving
+  /* ------------------------------------------------------------- confirmation */
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const typed = await rl.question(`  Type ${c.bold(PHRASE)} to go ahead: `);
+  rl.close();
+
+  if (typed.trim() !== PHRASE) {
+    console.log(`\n  ${c.dim("Nothing was changed.")}\n`);
+    process.exit(0);
+  }
+
+  /* ------------------------------------------------------------------- the work */
+
+  let created = 0;
+
+  /**
+   * One transaction, so a failure anywhere leaves the database exactly as it was.
+   *
+   * The timetable is generated inside it as well. A studio that opens with no
+   * accounts is locked out; a studio that opens with no timetable has a website
+   * that appears to have no classes, and both are the sort of thing that gets
+   * discovered by a member rather than by us.
+   */
+  sqlite.transaction(() => {
+    for (const [table, column] of ORPHANS) {
+      sqlite.prepare(`update "${table}" set "${column}" = null`).run();
+    }
+    for (const table of WIPE) {
+      sqlite.prepare(`delete from "${table}"`).run();
+    }
+
+    const now = new Date();
+    db.insert(users)
+      .values([
+        {
+          email: ownerEmail,
+          name: "Studio Owner",
+          passwordHash: ownerHash,
+          role: "ADMIN",
+          /* Verified on creation: the confirmation code is for members proving
            they own an address, and there is nobody to click the link in an
            account being created from a shell. Unverified, the desk could not
            sign in. */
-        emailVerifiedAt: now,
-        serviceOptInAt: now,
-        termsAcceptedAt: now,
-      },
-      {
-        email: receptionEmail,
-        name: "Reception",
-        passwordHash: receptionHash,
-        role: "STAFF",
-        emailVerifiedAt: now,
-        serviceOptInAt: now,
-        termsAcceptedAt: now,
-      },
-    ])
-    .run();
+          emailVerifiedAt: now,
+          serviceOptInAt: now,
+          termsAcceptedAt: now,
+        },
+        {
+          email: receptionEmail,
+          name: "Reception",
+          passwordHash: receptionHash,
+          role: "STAFF",
+          emailVerifiedAt: now,
+          serviceOptInAt: now,
+          termsAcceptedAt: now,
+        },
+      ])
+      .run();
 
-  /* `generateSessions` returns a report, not an array: { created, skipped,
+    /* `generateSessions` returns a report, not an array: { created, skipped,
      templates, createdIds }. Reading `.length` off it gave "undefined classes
      generated" on the receipt, which on opening morning is exactly the sort of
      line that sends somebody looking for a problem that is not there. */
-  created = generateSessions(TIMETABLE_WEEKS, now).created;
-})();
+    created = generateSessions(TIMETABLE_WEEKS, now).created;
+  })();
 
-/* ----------------------------------------------------------------- the receipt */
+  /* ----------------------------------------------------------------- the receipt */
 
-const last = sqlite
-  .prepare(`select max(starts_at) as m from class_sessions`)
-  .get() as { m: number | null };
+  const last = sqlite
+    .prepare(`select max(starts_at) as m from class_sessions`)
+    .get() as { m: number | null };
 
-console.log(`\n  ${c.green("✓")} the studio is clean\n`);
-console.log(`    accounts        2 ${c.dim("(owner, reception)")}`);
-console.log(`    members         0`);
-console.log(`    bookings        0`);
-console.log(`    purchases       0 ${c.dim("(invoice numbering restarts at 0001)")}`);
-console.log(`    classes         ${created} generated`);
-if (last.m) {
+  console.log(`\n  ${c.green("✓")} the studio is clean\n`);
+  console.log(`    accounts        2 ${c.dim("(owner, reception)")}`);
+  console.log(`    members         0`);
+  console.log(`    bookings        0`);
   console.log(
-    `    timetable to    ${studioDateKey(new Date(last.m * 1000))}`,
+    `    purchases       0 ${c.dim("(invoice numbering restarts at 0001)")}`,
   );
-}
-console.log(`\n  ${c.bold("Before you tell anybody the address:")}\n`);
-console.log(`    1. Sign in as ${ownerEmail} and check the console opens.`);
-console.log(`    2. Sign in as ${receptionEmail} and check the desk opens.`);
-console.log(`    3. Enter the closure days: public holidays and any the studio`);
-console.log(`       shuts for. Otherwise members can book a class that is not`);
-console.log(`       happening.`);
-console.log(`    4. Register one real member and take one real payment, to see`);
-console.log(`       the confirmation email and the invoice arrive.`);
-console.log(`    5. ${c.bold("npm run db:mirror")} so the mirror is not showing`);
-console.log(`       yesterday's test data.\n`);
+  console.log(`    classes         ${created} generated`);
+  if (last.m) {
+    console.log(
+      `    timetable to    ${studioDateKey(new Date(last.m * 1000))}`,
+    );
+  }
+  console.log(`\n  ${c.bold("Before you tell anybody the address:")}\n`);
+  console.log(`    1. Sign in as ${ownerEmail} and check the console opens.`);
+  console.log(`    2. Sign in as ${receptionEmail} and check the desk opens.`);
+  console.log(
+    `    3. Enter the closure days: public holidays and any the studio`,
+  );
+  console.log(
+    `       shuts for. Otherwise members can book a class that is not`,
+  );
+  console.log(`       happening.`);
+  console.log(
+    `    4. Register one real member and take one real payment, to see`,
+  );
+  console.log(`       the confirmation email and the invoice arrive.`);
+  console.log(
+    `    5. ${c.bold("npm run db:mirror")} so the mirror is not showing`,
+  );
+  console.log(`       yesterday's test data.\n`);
 }
 
 main().catch((e) => {

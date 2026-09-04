@@ -58,7 +58,7 @@ import {
   isPersonalCancellable,
   personalBookingClosesAt,
 } from "../src/lib/personal";
-import { PACKS, packBySlug } from "../src/lib/packs";
+import { CARD_GROUPS, PACKS, packBySlug } from "../src/lib/packs";
 import { repairCatalogue } from "../src/lib/catalogue-repair";
 import { repairSchedule } from "../src/lib/schedule-repair";
 import { repairTimetable } from "../src/lib/timetable-repair";
@@ -214,7 +214,11 @@ async function main() {
   console.log("\n1. The price list");
 
   const day = packBySlug("single");
-  check("the single class is a day pass", day?.nameEn === "Day pass", day?.nameEn);
+  check(
+    "the single class is a day pass",
+    day?.nameEn === "Day pass",
+    day?.nameEn,
+  );
   check("and it has a Greek name", (day?.nameEl ?? "").length > 0, day?.nameEl);
 
   const unlimited = packBySlug("quarter-4");
@@ -249,8 +253,14 @@ async function main() {
   const duetPack = packBySlug("duet");
   check("a personal session costs 30 euro", personalPack?.priceCents === 3000);
   check("a duet costs 45", duetPack?.priceCents === 4500);
-  check("both expire in 30 days", personalPack?.validityDays === 30 && duetPack?.validityDays === 30);
-  check("a duet is one session for two people", duetPack?.credits === 1 && duetPack?.seats === 2);
+  check(
+    "both expire in 30 days",
+    personalPack?.validityDays === 30 && duetPack?.validityDays === 30,
+  );
+  check(
+    "a duet is one session for two people",
+    duetPack?.credits === 1 && duetPack?.seats === 2,
+  );
   check(
     "both sit at the foot of the list, after the 3 month plans",
     (personalPack?.sortOrder ?? 0) > (unlimited?.sortOrder ?? 0) &&
@@ -291,7 +301,13 @@ async function main() {
          join class_types ct on ct.id = t.class_type_id
         where ct.kind = 'PERSONAL'`,
     )
-    .all() as { dow: number; m: number; len: number; cap: number; active: number }[];
+    .all() as {
+    dow: number;
+    m: number;
+    len: number;
+    cap: number;
+    active: number;
+  }[];
 
   check(
     `${PERSONAL_SLOT_DAYS.length} weekdays x ${PERSONAL_SLOT_HOURS.length} hours = ${PERSONAL_SLOT_DAYS.length * PERSONAL_SLOT_HOURS.length} weekly slots`,
@@ -354,7 +370,9 @@ async function main() {
 
   /* One class name, everywhere the timetable looks. */
   const liveGroupTypes = sqlite
-    .prepare("select slug, name_en from class_types where kind = 'GROUP' and active = 1")
+    .prepare(
+      "select slug, name_en from class_types where kind = 'GROUP' and active = 1",
+    )
     .all() as { slug: string; name_en: string }[];
   check(
     "one group class type is on offer, not six",
@@ -418,7 +436,12 @@ async function main() {
 
   /* And the other direction, which is the half that costs the member money. */
   const m2 = await mkUser();
-  grantCredits({ userId: m2.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m2.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   const group = groupClassesOn(3);
   check(
     "a personal session cannot buy a group class",
@@ -449,7 +472,12 @@ async function main() {
   console.log("\n4. Booking one");
 
   const m3 = await mkUser();
-  grantCredits({ userId: m3.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m3.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   const solo = slots[0];
   let soloBooking = "";
   if (solo) {
@@ -462,17 +490,27 @@ async function main() {
     const again = bookClass(m3.id, solo.id);
     check(
       "one reformer means one booking",
-      !again.ok && (again.code === "ALREADY_BOOKED" || again.code === "CLASS_FULL"),
+      !again.ok &&
+        (again.code === "ALREADY_BOOKED" || again.code === "CLASS_FULL"),
       again,
     );
   }
 
   /* Somebody else cannot take the same hour: capacity is one. */
   const m4 = await mkUser();
-  grantCredits({ userId: m4.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m4.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   if (solo) {
     const clash = bookClass(m4.id, solo.id);
-    check("and the hour is then full for everybody", !clash.ok && clash.code === "CLASS_FULL", clash);
+    check(
+      "and the hour is then full for everybody",
+      !clash.ok && clash.code === "CLASS_FULL",
+      clash,
+    );
   }
 
   /* --------------------------------------------------------- 5. the duet */
@@ -480,7 +518,12 @@ async function main() {
 
   const duetSlot = slots[1];
   const m5 = await mkUser();
-  grantCredits({ userId: m5.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m5.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   if (duetSlot) {
     const r = bookClass(m5.id, duetSlot.id, { guestName: "Elena P." });
     check(
@@ -498,7 +541,10 @@ async function main() {
     check("a duet session books the hour for two", r.ok, r);
     if (r.ok) {
       duetBooking = r.bookingId;
-      check("and the second person is on the booking", r.guestName === "Elena P.");
+      check(
+        "and the second person is on the booking",
+        r.guestName === "Elena P.",
+      );
     }
   }
 
@@ -531,7 +577,12 @@ async function main() {
 
   /* And a Personal session cannot cover two, which is the mirror image. */
   const m7b = await mkUser();
-  grantCredits({ userId: m7b.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m7b.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   if (slots[3]) {
     const r = bookClass(m7b.id, slots[3]!.id, { guestName: "Nikos A." });
     check(
@@ -544,7 +595,10 @@ async function main() {
   /* ------------------------------------------------------- 6. the cutoff */
   console.log("\n6. The cutoff");
 
-  const anySlot = slots[0] ?? { startsAt: studioAddDays(new Date(), 3), id: "" };
+  const anySlot = slots[0] ?? {
+    startsAt: studioAddDays(new Date(), 3),
+    id: "",
+  };
   const closes = personalBookingClosesAt(anySlot.startsAt);
   const parts = studioParts(closes);
   check(
@@ -567,8 +621,10 @@ async function main() {
   );
   check(
     "and cancellation closes on the same line",
-    isPersonalCancellable(anySlot.startsAt, new Date(closes.getTime() - 1000)) &&
-      !isPersonalCancellable(anySlot.startsAt, closes),
+    isPersonalCancellable(
+      anySlot.startsAt,
+      new Date(closes.getTime() - 1000),
+    ) && !isPersonalCancellable(anySlot.startsAt, closes),
   );
 
   /**
@@ -592,7 +648,12 @@ async function main() {
 
   if (tooLate) {
     const m8 = await mkUser();
-    grantCredits({ userId: m8.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+    grantCredits({
+      userId: m8.id,
+      credits: 1,
+      validityDays: 30,
+      kind: "PERSONAL",
+    });
     const r = bookClass(m8.id, tooLate.id);
     check(
       "an hour later today is refused, because nobody can be called in for it",
@@ -662,7 +723,10 @@ async function main() {
   if (twoMore.length === 2) {
     const a = bookClass(m10.id, twoMore[0]!.id);
     const b = bookClass(m10.id, twoMore[1]!.id);
-    check("an ordinary pack can still book twice in a day", a.ok && b.ok, { a, b });
+    check("an ordinary pack can still book twice in a day", a.ok && b.ok, {
+      a,
+      b,
+    });
   }
 
   check(
@@ -674,7 +738,10 @@ async function main() {
       /* m9 has a class booked on day 4 again only if the retry above ran; the
          reason is asserted directly instead, which is what the UI reads. */
       return ["PER_DAY", "NOT_BLOCKED"].includes(
-        spendBlockReason(m.id, { classStartsAt: cls.startsAt, kinds: ["CLASS"] }),
+        spendBlockReason(m.id, {
+          classStartsAt: cls.startsAt,
+          kinds: ["CLASS"],
+        }),
       );
     })(),
   );
@@ -731,7 +798,8 @@ async function main() {
   );
   check(
     "it says whether one person or two are coming",
-    opsSolo.en.body.includes("one person") && opsDuet.en.body.includes("two people"),
+    opsSolo.en.body.includes("one person") &&
+      opsDuet.en.body.includes("two people"),
   );
   check("it names the second person", opsDuet.en.body.includes("Elena P."));
   check(
@@ -818,11 +886,16 @@ async function main() {
       return;
     }
     if (node && typeof node === "object") {
-      for (const [k, v] of Object.entries(node)) walk(v, path ? `${path}.${k}` : k);
+      for (const [k, v] of Object.entries(node))
+        walk(v, path ? `${path}.${k}` : k);
     }
   };
   walk(dictionaries, "");
-  check(`${strings} dictionary strings are clean`, badKeys.length === 0, badKeys);
+  check(
+    `${strings} dictionary strings are clean`,
+    badKeys.length === 0,
+    badKeys,
+  );
 
   /* The new keys exist in both languages, or a screen renders "undefined". */
   for (const lang of ["en", "el"] as const) {
@@ -833,7 +906,11 @@ async function main() {
       "instructorCleared",
       "instructorToldMembers",
     ].filter((k) => typeof dk[k] !== "string");
-    check(`the rota strings are written in ${lang}`, missing.length === 0, missing);
+    check(
+      `the rota strings are written in ${lang}`,
+      missing.length === 0,
+      missing,
+    );
   }
 
   const NEW_BOOKING_KEYS = [
@@ -869,7 +946,11 @@ async function main() {
     const missing = NEW_BOOKING_KEYS.filter(
       (k) => typeof (dictionaries[lang].booking as never)[k] !== "string",
     );
-    check(`every new booking string is written in ${lang}`, missing.length === 0, missing);
+    check(
+      `every new booking string is written in ${lang}`,
+      missing.length === 0,
+      missing,
+    );
   }
   for (const lang of ["en", "el"] as const) {
     const d = dictionaries[lang].desk as Record<string, unknown>;
@@ -885,17 +966,101 @@ async function main() {
       "sellKindDuet",
       "sellKindNote",
     ].filter((k) => typeof d[k] !== "string");
-    check(`every new desk string is written in ${lang}`, missing.length === 0, missing);
-    const p = dictionaries[lang].pricingPage as Record<string, unknown>;
-    const missingP = ["perPersonLabel", "peopleLabel", "paceLabel", "onePerDay"].filter(
-      (k) => typeof p[k] !== "string",
-    );
-    check(`every new pricing string is written in ${lang}`, missingP.length === 0, missingP);
     check(
-      `the personal group has a heading in ${lang}`,
-      typeof (p.groups as Record<string, { title?: string }>)?.personal?.title ===
-        "string",
+      `every new desk string is written in ${lang}`,
+      missing.length === 0,
+      missing,
     );
+    const p = dictionaries[lang].pricingPage as Record<string, unknown>;
+    const missingP = [
+      "perPersonLabel",
+      "peopleLabel",
+      "paceLabel",
+      "onePerDay",
+    ].filter((k) => typeof p[k] !== "string");
+    check(
+      `every new pricing string is written in ${lang}`,
+      missingP.length === 0,
+      missingP,
+    );
+    /**
+     * Every group a pack claims has a heading to sit under.
+     *
+     * This used to name `personal` specifically, and that stopped being right on
+     * 4 September 2026 when Personal and Duet moved in with the day pass under
+     * "One at a time" and the `personal` group was retired. Asserting the
+     * *invariant* instead of the one group is what should have been here all
+     * along: it caught nothing about the six new sections, and it would have
+     * failed with a missing heading on any of them.
+     */
+    const headings = (p.groups ?? {}) as Record<string, { title?: string }>;
+    /**
+     * Headings and card sections have to match, in both directions.
+     *
+     * Note this is `CARD_GROUPS`, not "every group a pack claims". Since the
+     * plan builder landed, the `month`, `quarter`, `half`, `nine` and `year`
+     * packs deliberately have no heading: they are chosen with two chips rather
+     * than rendered as twenty cards, and a heading for them would print a title
+     * above nothing. What must never happen is a *section* with no heading, or a
+     * heading with no section, and that is what these two assert.
+     */
+    const noHeading = CARD_GROUPS.filter(
+      (g) => typeof headings[g]?.title !== "string",
+    );
+    check(
+      `every card section has a heading in ${lang}`,
+      noHeading.length === 0,
+      noHeading,
+    );
+    const orphaned = Object.keys(headings).filter(
+      (g) => !(CARD_GROUPS as readonly string[]).includes(g),
+    );
+    check(
+      `no heading without a section in ${lang}`,
+      orphaned.length === 0,
+      orphaned,
+    );
+    /* The builder carries every plan the studio sells, so it needs its own
+       strings in both languages. */
+    const builder = (p.builder ?? {}) as Record<string, unknown>;
+    const missingBuilder = [
+      "title",
+      "note",
+      "howLong",
+      "howOften",
+      "oneMonth",
+      "months",
+      "perWeek",
+      "unlimited",
+      "buy",
+      "unavailable",
+    ].filter((k) => typeof builder[k] !== "string");
+    check(
+      `the plan builder is written in ${lang}`,
+      missingBuilder.length === 0,
+      missingBuilder,
+    );
+    /**
+     * Every combination the builder offers resolves to a real pack.
+     *
+     * The builder builds a slug and looks it up, so a term or cadence with no
+     * pack behind it would render "not on sale" at somebody trying to buy. Five
+     * terms times four cadences, checked against the catalogue.
+     */
+    if (lang === "en") {
+      const missingPacks: string[] = [];
+      for (const group of ["month", "quarter", "half", "nine", "year"]) {
+        for (const n of [1, 2, 3, 4]) {
+          const slug = `${group}-${n}`;
+          if (!PACKS.some((x) => x.slug === slug)) missingPacks.push(slug);
+        }
+      }
+      check(
+        "every plan the builder can offer exists as a pack",
+        missingPacks.length === 0,
+        missingPacks,
+      );
+    }
     check(
       `the studio page has a team heading in ${lang}`,
       typeof (dictionaries[lang].studio as { team?: { title?: string } }).team
@@ -931,13 +1096,17 @@ async function main() {
   if (duetBooking) {
     const mine = await listMyBookings(m6.id);
     const row = mine.upcoming.find((b) => b.id === duetBooking);
-    check("the member's own list marks it as an appointment", row?.kind === "PERSONAL", row?.kind);
+    check(
+      "the member's own list marks it as an appointment",
+      row?.kind === "PERSONAL",
+      row?.kind,
+    );
     check("and shows who is coming with them", row?.guestName === "Elena P.");
     check(
       "and dates the cancellation deadline by the appointment rule",
       row
         ? row.freeCancellationUntil.getTime() ===
-          personalBookingClosesAt(row.startsAt).getTime()
+            personalBookingClosesAt(row.startsAt).getTime()
         : false,
       row?.freeCancellationUntil,
     );
@@ -947,13 +1116,22 @@ async function main() {
   console.log("\n13. Who is teaching it");
 
   const teachers = await activeInstructors();
-  check("the desk has instructors to choose from", teachers.length > 0, teachers.length);
+  check(
+    "the desk has instructors to choose from",
+    teachers.length > 0,
+    teachers.length,
+  );
 
   const slot = openAppointments().find(
     (x) => !appts.some((a) => a.startsAt.getTime() === x.startsAt.getTime()),
   );
   const m11 = await mkUser();
-  grantCredits({ userId: m11.id, credits: 1, validityDays: 30, kind: "PERSONAL" });
+  grantCredits({
+    userId: m11.id,
+    credits: 1,
+    validityDays: 30,
+    kind: "PERSONAL",
+  });
   let taught = "";
   if (slot && teachers.length >= 2) {
     const r = bookClass(m11.id, slot.id);
@@ -978,7 +1156,11 @@ async function main() {
       first.ok && first.instructor === teachers[0]!.name,
       first,
     );
-    check("and tells nobody, because it is not a swap", first.ok && first.told === 0, first);
+    check(
+      "and tells nobody, because it is not a swap",
+      first.ok && first.told === 0,
+      first,
+    );
 
     const swap = await assignInstructor({
       sessionId: slot.id,
@@ -987,7 +1169,9 @@ async function main() {
     });
     check(
       "swapping one named instructor for another",
-      swap.ok && swap.previous === teachers[0]!.name && swap.instructor === teachers[1]!.name,
+      swap.ok &&
+        swap.previous === teachers[0]!.name &&
+        swap.instructor === teachers[1]!.name,
       swap,
     );
     check("tells the member booked into it", swap.ok && swap.told === 1, swap);
@@ -997,7 +1181,11 @@ async function main() {
       instructorId: teachers[1]!.id,
       staffName: "Suite",
     });
-    check("choosing the same name again changes nothing", again.ok && again.told === 0, again);
+    check(
+      "choosing the same name again changes nothing",
+      again.ok && again.told === 0,
+      again,
+    );
 
     const cleared = await assignInstructor({
       sessionId: slot.id,
@@ -1045,7 +1233,8 @@ async function main() {
   });
   check(
     "the notice names both instructors, so the member can see what changed",
-    swapWords.en.body.includes("Elena S.") && swapWords.en.body.includes("Andreas P."),
+    swapWords.en.body.includes("Elena S.") &&
+      swapWords.en.body.includes("Andreas P."),
     swapWords.en.body,
   );
   check(
@@ -1123,8 +1312,7 @@ async function main() {
   const batch = wallet.batches[0]!;
   check(
     "and the class has to fall inside the window too",
-    batch.usableTo !== null &&
-      batch.usableTo.getTime() === expiry.getTime(),
+    batch.usableTo !== null && batch.usableTo.getTime() === expiry.getTime(),
     { usableTo: batch.usableTo?.toISOString(), expiry: expiry.toISOString() },
   );
   check(
@@ -1135,7 +1323,9 @@ async function main() {
 
   /* Asserted against the real spend path, on real rows. */
   const ct = sqlite
-    .prepare("select id from class_types where kind = 'GROUP' and active = 1 limit 1")
+    .prepare(
+      "select id from class_types where kind = 'GROUP' and active = 1 limit 1",
+    )
     .get() as { id: string };
 
   const makeClass = (at: Date) =>
@@ -1171,11 +1361,7 @@ async function main() {
   const scratch = [onLastDay, onNextDay, wayOut];
 
   const late = bookClass(m13.id, onLastDay);
-  check(
-    "a class at 19:00 on the very last day still books",
-    late.ok,
-    late,
-  );
+  check("a class at 19:00 on the very last day still books", late.ok, late);
 
   const over = bookClass(m13.id, onNextDay);
   check(
@@ -1219,7 +1405,9 @@ async function main() {
       .sessionsExpireFirst;
     check(
       `the refusal is written in ${lang}, with a place for the date`,
-      typeof msg === "string" && msg.includes("{date}") && !msg.includes(EM_DASH),
+      typeof msg === "string" &&
+        msg.includes("{date}") &&
+        !msg.includes(EM_DASH),
       msg,
     );
   }
@@ -1274,7 +1462,9 @@ async function main() {
   const classAtDay = (offset: number) => {
     const day = studioAddDays(studioStartOfDay(new Date()), offset);
     const p = studioParts(day);
-    const id = makeClass(studioWallTimeToInstant(p.year, p.month, p.day, 19, 0));
+    const id = makeClass(
+      studioWallTimeToInstant(p.year, p.month, p.day, 19, 0),
+    );
     scratch15.push(id);
     return id;
   };
@@ -1319,7 +1509,10 @@ async function main() {
     "so the nearer package drops to 2 and the further one is untouched at 5",
     afterSpend.batches.find((b) => b.id === soon.id)?.creditsRemaining === 2 &&
       afterSpend.batches.find((b) => b.id === later.id)?.creditsRemaining === 5,
-    afterSpend.batches.map((b) => [b.id === soon.id ? "soon" : "later", b.creditsRemaining]),
+    afterSpend.batches.map((b) => [
+      b.id === soon.id ? "soon" : "later",
+      b.creditsRemaining,
+    ]),
   );
 
   /* And the paper trail says so too, which is what the desk reads back. */
@@ -1344,7 +1537,10 @@ async function main() {
   check(
     "the session comes back into the same package it was taken from",
     soonBack?.creditsRemaining === 3,
-    afterCancel.batches.map((b) => [b.id === soon.id ? "soon" : "later", b.creditsRemaining]),
+    afterCancel.batches.map((b) => [
+      b.id === soon.id ? "soon" : "later",
+      b.creditsRemaining,
+    ]),
   );
   check(
     "carrying its original expiry, so cancelling buys no extra time",
@@ -1356,9 +1552,11 @@ async function main() {
   );
   check(
     "and the further package is still exactly as it was",
-    afterCancel.batches.find((b) => b.id === later.id)?.creditsRemaining === 5 &&
-      afterCancel.batches.find((b) => b.id === later.id)?.expiresAt?.getTime() ===
-        later.expiresAt?.getTime(),
+    afterCancel.batches.find((b) => b.id === later.id)?.creditsRemaining ===
+      5 &&
+      afterCancel.batches
+        .find((b) => b.id === later.id)
+        ?.expiresAt?.getTime() === later.expiresAt?.getTime(),
   );
   check(
     "with no third package invented along the way",
@@ -1423,8 +1621,11 @@ async function main() {
   grantCredits({ userId: m15c.id, credits: 2, validityDays: 26 });
   grantCredits({ userId: m15c.id, credits: 2, validityDays: 56 });
   const cWallet = await getCreditSummary(m15c.id);
-  const cSoon = cWallet.batches.find((b) => b.creditsTotal === 2 &&
-    b.expiresAt!.getTime() === cWallet.nextExpiry!.getTime())!;
+  const cSoon = cWallet.batches.find(
+    (b) =>
+      b.creditsTotal === 2 &&
+      b.expiresAt!.getTime() === cWallet.nextExpiry!.getTime(),
+  )!;
   const cLater = cWallet.batches.find((b) => b.id !== cSoon.id)!;
 
   /* Empty the nearer package, so both packages exist but only one has room. */
@@ -1678,9 +1879,7 @@ async function main() {
       card.healthCondition === "Disc injury, no loaded flexion" &&
       card.pilatesLevel === "INTERMEDIATE" &&
       card.intakeAt !== null,
-    card
-      ? { level: card.pilatesLevel, condition: card.healthCondition }
-      : null,
+    card ? { level: card.pilatesLevel, condition: card.healthCondition } : null,
   );
 
   /* The words, in both languages, and no em dash. */
@@ -1811,7 +2010,10 @@ async function main() {
       refused,
     );
   } else {
-    check("and a group session still cannot pay for an appointment at the desk", true);
+    check(
+      "and a group session still cannot pay for an appointment at the desk",
+      true,
+    );
   }
 
   /* A member who does not exist, and a class that is full. */
@@ -1820,7 +2022,11 @@ async function main() {
     userId: "not-a-real-id",
     staffName: "Suite",
   });
-  check("an unknown member is refused", !ghost.ok && ghost.code === "NOT_FOUND", ghost);
+  check(
+    "an unknown member is refused",
+    !ghost.ok && ghost.code === "NOT_FOUND",
+    ghost,
+  );
 
   const full = await mkUser();
   answer(full.id, "BEGINNER", "NONE", null);
@@ -1843,9 +2049,12 @@ async function main() {
     check(
       `the desk's booking refusals are written in ${lang}`,
       typeof desk.deskBookCta === "string" &&
-        ["NO_CREDITS", "CLASS_FULL", "EMAIL_UNVERIFIED", "ALREADY_BOOKED"].every(
-          (k) => typeof errors[k] === "string" && errors[k].length > 0,
-        ) &&
+        [
+          "NO_CREDITS",
+          "CLASS_FULL",
+          "EMAIL_UNVERIFIED",
+          "ALREADY_BOOKED",
+        ].every((k) => typeof errors[k] === "string" && errors[k].length > 0) &&
         !JSON.stringify(errors).includes(EM_DASH),
       errors,
     );

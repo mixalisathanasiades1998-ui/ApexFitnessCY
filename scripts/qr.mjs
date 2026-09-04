@@ -136,18 +136,38 @@ async function font(pkg, file) {
 /**
  * The symbol itself, as SVG paths.
  *
- * `margin: 0` because the quiet zone is drawn by the card around it, where it
- * can be a clean measured band rather than four modules of whatever the
- * library felt like. Error correction `Q` recovers about a quarter of the
- * symbol: chosen over the default `M` because this gets printed, taped to a
- * counter, and photographed at an angle in bad light, and over `H` because that
- * packs in more modules for no benefit when nothing is overlaid on top.
+ * Error correction `Q` recovers about a quarter of the symbol: chosen over the
+ * default `M` because this gets printed, taped to a counter, and photographed
+ * at an angle in bad light, and over `H` because that packs in more modules for
+ * no benefit when nothing is overlaid on top.
+ *
+ * ---
+ *
+ * **The quiet zone, and the file that shipped without one.**
+ *
+ * `margin` defaults to 0 here because in the story, the post and the A4 sheet
+ * the quiet zone is drawn by the cream card around the code, where it can be a
+ * clean measured band rather than four modules of whatever the library felt
+ * like. Those three are read back by a decoder at full size and shrunk to a
+ * phone, and they scan.
+ *
+ * `apex-qr-plain.svg` had no card, so it had no quiet zone: the symbol ran to
+ * the edge of its own viewBox. It looked perfect and **did not decode at all** —
+ * not shrunk, not at 600 pixels, not once. Which is the worst possible shape for
+ * this bug, because the plain SVG is the file somebody hands to a printer for a
+ * flyer, and nobody discovers a QR that does not scan until the flyers are in a
+ * box.
+ *
+ * The spec asks for four clear modules and it is not being fussy: a decoder
+ * finds the symbol by looking for the boundary, and against an unknown
+ * background there is no boundary to find. So the standalone file asks for
+ * `margin: 4` and the embedded ones keep drawing their own.
  */
-async function qrSvg(colour) {
+async function qrSvg(colour, margin = 0) {
   return QRCode.toString(target, {
     type: "svg",
     errorCorrectionLevel: "Q",
-    margin: 0,
+    margin,
     color: { dark: colour, light: "#0000" },
   });
 }
@@ -457,15 +477,58 @@ for (const [loc, t] of Object.entries(COPY)) {
  * Because somebody will want it in a flyer, a window sticker or a WhatsApp
  * message, and the alternative is cropping it out of the story artwork and
  * losing the quiet zone doing it. SVG so it can go on a bus if it needs to.
+ *
+ * `margin: 4` rather than the 0 the embedded ones use: this file has no card
+ * around it to supply the quiet zone, and without one it does not decode. See
+ * the note on `qrSvg`. The cream background is painted inside the viewBox so
+ * the zone is cream and not whatever the flyer happens to be.
  */
-await writeFile(
-  `${OUT}/apex-qr-plain.svg`,
-  (await qrSvg(C.mocha800)).replace(
+/**
+ * Two of them: the studio's ink, and plain black on white.
+ *
+ * The brand pair is mocha on cream and it is the one to use on anything the
+ * studio controls. The black one exists because a flyer is usually not one of
+ * those things. It goes to a print shop, gets laid over a photograph, is
+ * photocopied, or is dropped into somebody else's template, and every one of
+ * those is a place where #3A2D2C on #FAF6F3 quietly loses contrast while
+ * looking fine on the screen it was approved on.
+ *
+ * Pure black on pure white is the maximum contrast a printer can produce and
+ * the one combination no press, no photocopier and no scanner has ever
+ * struggled with. Handing over both means nobody has to decide whether the
+ * brown is dark enough, which is not a judgement to leave to a print run.
+ */
+const PLAIN = [
+  ["apex-qr-plain", C.mocha800, C.cream, "studio ink on cream"],
+  ["apex-qr-plain-bw", "#000000", "#FFFFFF", "black on white, for print"],
+];
+
+for (const [name, ink, ground, note] of PLAIN) {
+  const svg = (await qrSvg(ink, 4)).replace(
     "<svg ",
-    `<svg style="background:${C.cream}" `,
-  ),
-);
-made.push(["apex-qr-plain.svg", "vector, any size"]);
+    `<svg style="background:${ground}" `,
+  );
+  await writeFile(`${OUT}/${name}.svg`, svg);
+  made.push([`${name}.svg`, `vector, any size, ${note}`]);
+
+  /**
+   * And a PNG of each, because SVG is the right format and not always the
+   * accepted one. Word, WhatsApp, older Canva templates and most print shop
+   * upload forms take a PNG and argue about anything else. 2000px so it can
+   * be placed at 160mm on a poster and still be at 300dpi.
+   */
+  const page = await browser.newPage({ viewport: { width: 1000, height: 1000 }, deviceScaleFactor: 2 });
+  await page.setContent(
+    `<body style="margin:0;background:${ground}">${svg.replace(
+      "<svg ",
+      '<svg width="1000" height="1000" ',
+    )}</body>`,
+    { waitUntil: "load" },
+  );
+  await page.screenshot({ path: `${OUT}/${name}.png`, type: "png" });
+  await page.close();
+  made.push([`${name}.png`, `2000 x 2000, ${note}`]);
+}
 
 await browser.close();
 

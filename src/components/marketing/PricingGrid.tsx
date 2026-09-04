@@ -6,6 +6,8 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
+import { CARD_GROUPS, type PackGroup } from "@/lib/packs";
+import { PlanBuilder } from "@/components/marketing/PlanBuilder";
 
 export type PackageCard = {
   id: string;
@@ -22,7 +24,12 @@ export type PackageCard = {
   validityDays: number;
   badge: string | null;
   /** Which commitment it belongs to, so the page can group the cards. */
-  group?: "single" | "month" | "quarter" | "personal" | null;
+  /* Taken from `PackGroup` rather than written out again. The second copy
+     lived here and went stale the moment the 6, 9 and 12 month terms were
+     added: the build failed on `"half" is not assignable`, which is the good
+     outcome, but a union that has to be edited in two places will eventually
+     be edited in one. */
+  group?: PackGroup | null;
   /** How many people one session admits. 2 on a duet, 1 on everything else. */
   seats?: number;
   /** Set when the plan allows only so many classes a day. */
@@ -51,7 +58,9 @@ export function PricingGrid({
     const next = `/checkout?pack=${pkg.slug}`;
     setBusy(pkg.id);
     router.push(
-      signedIn ? next : `/login?next=${encodeURIComponent(next)}&pkg=${pkg.slug}`,
+      signedIn
+        ? next
+        : `/login?next=${encodeURIComponent(next)}&pkg=${pkg.slug}`,
     );
   }
 
@@ -60,8 +69,9 @@ export function PricingGrid({
      by side in a plain grid nobody can tell what separates them. Under a heading
      that says how long you are committing and how long you have to use them, the
      choice reads as two questions — how often, and for how long. */
-  const GROUPS = ["single", "month", "quarter", "personal"] as const;
-  const grouped = GROUPS.map((g) => ({
+  /* Which groups get a row of cards, from lib/packs.ts. Everything else is
+     chosen in the builder below rather than shown as its own card. */
+  const grouped = CARD_GROUPS.map((g) => ({
     key: g,
     heading: t.pricingPage.groups[g],
     packs: packages.filter((p) => (p.group ?? "month") === g),
@@ -70,184 +80,205 @@ export function PricingGrid({
   return (
     <div className="space-y-14">
       {grouped.map((section) => (
-      <section key={section.key}>
-        <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
-          <h3 className="h-display text-[1.6rem] text-mocha-600">
-            {section.heading.title}
-          </h3>
-          <p className="text-[13px] text-clay">{section.heading.note}</p>
-        </div>
-      <RevealGroup
-        className={cn(
-          "grid gap-6 sm:grid-cols-2",
-          section.packs.length % 4 === 0 ? "xl:grid-cols-4" : "xl:grid-cols-3",
-        )}
-      >
-        {section.packs.map((p) => {
-          const seats = p.seats ?? 1;
-          /* Per class on a plan; per person on a duet, where "€45 a class" is
+        <section key={section.key}>
+          <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
+            <h3 className="h-display text-[1.6rem] text-mocha-600">
+              {section.heading.title}
+            </h3>
+            <p className="text-[13px] text-clay">{section.heading.note}</p>
+          </div>
+          <RevealGroup
+            className={cn(
+              "grid gap-6 sm:grid-cols-2",
+              section.packs.length % 4 === 0
+                ? "xl:grid-cols-4"
+                : "xl:grid-cols-3",
+            )}
+          >
+            {section.packs.map((p) => {
+              const seats = p.seats ?? 1;
+              /* Per class on a plan; per person on a duet, where "€45 a class" is
              true and useless and "€22.50 each" is the number the two people
              standing there are actually working out. Hidden altogether when a
              pack is one session for one person, because repeating the price
              underneath itself tells nobody anything. */
-          const unitCents =
-            seats > 1
-              ? Math.round(p.priceCents / seats)
-              : Math.round(p.priceCents / p.credits);
-          const showUnit = p.credits > 1 || seats > 1;
-          const highlight = p.badge === "POPULAR";
-          return (
-            <RevealItem key={p.id}>
-              <article
-                className={cn(
-                  "relative flex h-full flex-col rounded-3xl border p-8 transition-all duration-700 ease-silk hover:-translate-y-1",
-                  highlight
-                    ? "border-mocha-600 bg-mocha-600 text-cream shadow-lift"
-                    : "border-mocha-200/70 bg-white/60 hover:border-mocha-300 hover:bg-white hover:shadow-soft",
-                )}
-              >
-                {p.badge && (
-                  <span
+              const unitCents =
+                seats > 1
+                  ? Math.round(p.priceCents / seats)
+                  : Math.round(p.priceCents / p.credits);
+              const showUnit = p.credits > 1 || seats > 1;
+              const highlight = p.badge === "POPULAR";
+              return (
+                <RevealItem key={p.id}>
+                  <article
                     className={cn(
-                      "absolute -top-3 left-8 rounded-full px-3 py-1 text-[9px] uppercase tracking-widest",
+                      "relative flex h-full flex-col rounded-3xl border p-8 transition-all duration-700 ease-silk hover:-translate-y-1",
                       highlight
-                        ? "bg-cream text-mocha-700"
-                        : "bg-mocha-600 text-cream",
+                        ? "border-mocha-600 bg-mocha-600 text-cream shadow-lift"
+                        : "border-mocha-200/70 bg-white/60 hover:border-mocha-300 hover:bg-white hover:shadow-soft",
                     )}
                   >
-                    {p.badge === "POPULAR"
-                      ? t.pricingPage.popular
-                      : t.pricingPage.bestValue}
-                  </span>
-                )}
+                    {p.badge && (
+                      <span
+                        className={cn(
+                          "absolute -top-3 left-8 rounded-full px-3 py-1 text-[9px] uppercase tracking-widest",
+                          highlight
+                            ? "bg-cream text-mocha-700"
+                            : "bg-mocha-600 text-cream",
+                        )}
+                      >
+                        {p.badge === "POPULAR"
+                          ? t.pricingPage.popular
+                          : t.pricingPage.bestValue}
+                      </span>
+                    )}
 
-                <p
-                  className={cn(
-                    "text-[11px] uppercase tracking-widest",
-                    highlight ? "text-cream/60" : "text-clay",
-                  )}
-                >
-                  {el ? p.nameEl : p.nameEn}
-                </p>
-
-                {/* When an offer is running the old price stays on the card,
-                    struck through. A discount nobody can see the size of is
-                    not much of a discount. */}
-                <p
-                  className={cn(
-                    "h-display mt-5 flex items-baseline gap-3 text-5xl",
-                    highlight ? "text-cream" : "text-mocha-600",
-                  )}
-                >
-                  {fmtMoney(p.priceCents)}
-                  {p.listPriceCents ? (
-                    <span
+                    <p
                       className={cn(
-                        "text-2xl line-through",
-                        highlight ? "text-cream/45" : "text-clay/70",
+                        "text-[11px] uppercase tracking-widest",
+                        highlight ? "text-cream/60" : "text-clay",
                       )}
                     >
-                      {fmtMoney(p.listPriceCents)}
-                    </span>
-                  ) : null}
-                </p>
+                      {el ? p.nameEl : p.nameEn}
+                    </p>
 
-                {p.listPriceCents ? (
-                  <p
-                    className={cn(
-                      "mt-3 inline-flex rounded-full px-3 py-1 text-[10px] uppercase tracking-widest",
-                      highlight
-                        ? "bg-cream/15 text-cream"
-                        : "bg-gold/15 text-[#8a6f1a]",
-                    )}
-                  >
-                    {(el ? p.discountLabelEl : p.discountLabelEn) ||
-                      t.pricingPage.offer}
-                  </p>
-                ) : null}
-
-                {showUnit && (
-                  <p
-                    className={cn(
-                      "mt-2 text-[12px]",
-                      highlight ? "text-cream/60" : "text-mocha-500",
-                    )}
-                  >
-                    {fmtMoney(unitCents)}{" "}
-                    {seats > 1
-                      ? t.pricingPage.perPersonLabel
-                      : t.pricingPage.perClassLabel}
-                  </p>
-                )}
-
-                <div
-                  className={cn(
-                    "mt-8 space-y-3 border-t pt-6 text-[13px]",
-                    highlight
-                      ? "border-cream/15 text-cream/75"
-                      : "border-mocha-200/70 text-mocha-500",
-                  )}
-                >
-                  <p className="flex items-center justify-between">
-                    <span>{t.common.credits}</span>
-                    <span
+                    {/* When an offer is running the old price stays on the card,
+                    struck through. A discount nobody can see the size of is
+                    not much of a discount. */}
+                    <p
                       className={cn(
-                        "font-display text-xl",
+                        "h-display mt-5 flex items-baseline gap-3 text-5xl",
                         highlight ? "text-cream" : "text-mocha-600",
                       )}
                     >
-                      {p.credits}
-                    </span>
-                  </p>
-                  <p className="flex items-center justify-between">
-                    <span>{t.pricingPage.validity}</span>
-                    <span>
-                      {p.validityDays} {t.pricingPage.days}
-                    </span>
-                  </p>
-                  {seats > 1 && (
-                    <p className="flex items-center justify-between">
-                      <span>{t.pricingPage.peopleLabel}</span>
-                      <span
+                      {fmtMoney(p.priceCents)}
+                      {p.listPriceCents ? (
+                        <span
+                          className={cn(
+                            "text-2xl line-through",
+                            highlight ? "text-cream/45" : "text-clay/70",
+                          )}
+                        >
+                          {fmtMoney(p.listPriceCents)}
+                        </span>
+                      ) : null}
+                    </p>
+
+                    {p.listPriceCents ? (
+                      <p
                         className={cn(
-                          "font-display text-xl",
-                          highlight ? "text-cream" : "text-mocha-600",
+                          "mt-3 inline-flex rounded-full px-3 py-1 text-[10px] uppercase tracking-widest",
+                          highlight
+                            ? "bg-cream/15 text-cream"
+                            : "bg-gold/15 text-[#8a6f1a]",
                         )}
                       >
-                        {seats}
-                      </span>
-                    </p>
-                  )}
-                  {p.perDayLimit ? (
-                    <p className="flex items-center justify-between gap-4">
-                      <span>{t.pricingPage.paceLabel}</span>
-                      <span className="text-right">{t.pricingPage.onePerDay}</span>
-                    </p>
-                  ) : null}
-                </div>
+                        {(el ? p.discountLabelEl : p.discountLabelEn) ||
+                          t.pricingPage.offer}
+                      </p>
+                    ) : null}
 
-                <div className="mt-auto pt-8">
-                  <Button
-                    onClick={() => buy(p)}
-                    disabled={busy === p.id}
-                    variant={highlight ? "cream" : "solid"}
-                    className="w-full"
-                  >
-                    {/* The same words whether or not they are signed in. A
+                    {showUnit && (
+                      <p
+                        className={cn(
+                          "mt-2 text-[12px]",
+                          highlight ? "text-cream/60" : "text-mocha-500",
+                        )}
+                      >
+                        {fmtMoney(unitCents)}{" "}
+                        {seats > 1
+                          ? t.pricingPage.perPersonLabel
+                          : t.pricingPage.perClassLabel}
+                      </p>
+                    )}
+
+                    <div
+                      className={cn(
+                        "mt-8 space-y-3 border-t pt-6 text-[13px]",
+                        highlight
+                          ? "border-cream/15 text-cream/75"
+                          : "border-mocha-200/70 text-mocha-500",
+                      )}
+                    >
+                      <p className="flex items-center justify-between">
+                        <span>{t.common.credits}</span>
+                        <span
+                          className={cn(
+                            "font-display text-xl",
+                            highlight ? "text-cream" : "text-mocha-600",
+                          )}
+                        >
+                          {p.credits}
+                        </span>
+                      </p>
+                      <p className="flex items-center justify-between">
+                        <span>{t.pricingPage.validity}</span>
+                        <span>
+                          {p.validityDays} {t.pricingPage.days}
+                        </span>
+                      </p>
+                      {seats > 1 && (
+                        <p className="flex items-center justify-between">
+                          <span>{t.pricingPage.peopleLabel}</span>
+                          <span
+                            className={cn(
+                              "font-display text-xl",
+                              highlight ? "text-cream" : "text-mocha-600",
+                            )}
+                          >
+                            {seats}
+                          </span>
+                        </p>
+                      )}
+                      {p.perDayLimit ? (
+                        <p className="flex items-center justify-between gap-4">
+                          <span>{t.pricingPage.paceLabel}</span>
+                          <span className="text-right">
+                            {t.pricingPage.onePerDay}
+                          </span>
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-auto pt-8">
+                      <Button
+                        onClick={() => buy(p)}
+                        disabled={busy === p.id}
+                        variant={highlight ? "cream" : "solid"}
+                        className="w-full"
+                      >
+                        {/* The same words whether or not they are signed in. A
                         card that says "sign in to buy" asks for a decision
                         about accounts before the decision about buying; if
                         they are not signed in, the login page comes and goes
                         and drops them on the checkout anyway. */}
-                    {busy === p.id ? t.common.loading : t.pricingPage.buy}
-                  </Button>
-                </div>
-              </article>
-            </RevealItem>
-          );
-        })}
-      </RevealGroup>
-      </section>
+                        {busy === p.id ? t.common.loading : t.pricingPage.buy}
+                      </Button>
+                    </div>
+                  </article>
+                </RevealItem>
+              );
+            })}
+          </RevealGroup>
+        </section>
       ))}
+
+      {/**
+       * The plans, as two questions rather than twenty cards.
+       *
+       * Its own section with its own heading, below the single sessions, because
+       * the story of the page is still the same one: try one, or commit to a
+       * term. What changed is that committing to a term is now a choice made in
+       * place instead of a scroll through every combination of it.
+       */}
+      <section>
+        <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-mocha-200/70 pb-4">
+          <h3 className="h-display text-[1.6rem] text-mocha-600">
+            {t.pricingPage.builder.title}
+          </h3>
+        </div>
+        <PlanBuilder packages={packages} signedIn={signedIn} />
+      </section>
 
       {showIncludes && (
         <div className="mt-16 grid gap-10 rounded-3xl border border-mocha-200/70 bg-cream-200/60 p-8 md:grid-cols-[1fr_1.2fr] md:p-10">

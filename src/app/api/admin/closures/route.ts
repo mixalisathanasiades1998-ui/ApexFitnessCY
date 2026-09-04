@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { body, desk } from "@/lib/api-guard";
+import { body, owner } from "@/lib/api-guard";
 import { closeDay, reopenDay, upcomingClosures } from "@/lib/closures";
 
 /**
@@ -14,13 +14,13 @@ export const dynamic = "force-dynamic";
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET() {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
   return NextResponse.json({ closures: upcomingClosures() });
 }
 
 export async function POST(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const data = await body<{
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = await desk();
+  const gate = await owner();
   if ("res" in gate) return gate.res;
 
   const day = new URL(req.url).searchParams.get("day");

@@ -46,6 +46,9 @@ export const en = {
     optional: "optional",
     from: "from",
     perClass: "per class",
+    /* Both halves, because "1 spots left" is the sort of thing a member
+       screenshots. Joined by fmtSpots in LanguageProvider. */
+    spotLeft: "spot left",
     spotsLeft: "spots left",
     full: "Full",
     waitlist: "Join waitlist",
@@ -306,6 +309,11 @@ export const en = {
     filterAvailable: "Available only",
     hours: "Studio hours",
     weekOf: "Week of",
+    pickDate: "Pick a date",
+    /* Shown on the arrow when it pages the window rather than stepping a
+       day. {n} is TIMETABLE_DAYS, so the copy follows the constant. */
+    nextWindow: "Next {n} days",
+    prevWindow: "Previous {n} days",
     prevWeek: "Previous",
     nextWeek: "Next",
   },
@@ -318,21 +326,22 @@ export const en = {
        group, and the only thing separating them is how long you have. */
     groups: {
       single: {
-        title: "Drop in",
-        note: "One class at a time. No commitment.",
+        title: "One at a time",
+        note: "A single session, thirty days to use it, nothing to commit to. A place in a class, or the room to yourself.",
       },
-      month: {
-        title: "Monthly",
-        note: "Choose how often you train each week. 30 days to use them.",
-      },
-      quarter: {
-        title: "3 months",
-        note: "The same choice over twelve weeks, at a lower price per class. 90 days to use them.",
-      },
-      personal: {
-        title: "Personal and Duet",
-        note: "The room to yourself, or to the two of you. Midday on weekdays, 30 days to use them.",
-      },
+    },
+    /* The one card that replaced twenty. See PlanBuilder.tsx. */
+    builder: {
+      title: "Create your own plan",
+      note: "Longer terms cost less per class: five percent off at six months, eight at nine, twelve at a year. Free cancellation up to 12 hours before a class, whichever you choose.",
+      howLong: "How long for",
+      howOften: "How often",
+      oneMonth: "1 month",
+      months: "{n} months",
+      perWeek: "{n} a week",
+      unlimited: "Unlimited",
+      buy: "Buy this plan",
+      unavailable: "That combination is not on sale at the moment.",
     },
     popular: "Most popular",
     bestValue: "Best value per class",
@@ -584,7 +593,8 @@ export const en = {
       "Removes only the classes this run added, and only those nobody has booked. A booked class stays.",
     rotaNothingToUndo:
       "Nothing was added, so nothing to undo: those weeks were already on the timetable. Running this again is always safe.",
-    rotaUndone: "{removed} classes removed. {kept} kept because they have bookings.",
+    rotaUndone:
+      "{removed} classes removed. {kept} kept because they have bookings.",
     segTitle: "Exclusive categories",
     segHelp:
       "Optional. These pick out who the message is relevant to. They never widen the audience above: somebody who declined offers still gets no offers.",
@@ -678,7 +688,8 @@ export const en = {
     deskBookFind: "Find",
     deskBookAdd: "Book",
     deskBookGuest: "Second person, for a duet (optional)",
-    deskBookNobody: "Nobody found. Try part of a surname or the last digits of a number.",
+    deskBookNobody:
+      "Nobody found. Try part of a surname or the last digits of a number.",
     deskBooked: "booked in, and told",
     /* ---- a term of the same slot, from the desk ---- */
     /* Reception is on the telephone, so these are written to be read out loud
@@ -705,14 +716,16 @@ export const en = {
       NO_CREDITS: "no sessions left. Sell them one first.",
       CLASS_FULL: "that class is full.",
       ALREADY_BOOKED: "already booked into this class.",
-      EMAIL_UNVERIFIED: "their email has never been confirmed. Confirm it on their page first.",
+      EMAIL_UNVERIFIED:
+        "their email has never been confirmed. Confirm it on their page first.",
       TOO_LATE: "that class has already started.",
       SESSIONS_EXPIRE_FIRST: "their sessions expire before this class.",
       CREDITS_NOT_VALID_HERE: "their sessions cannot be used for this class.",
       NEEDS_PERSONAL_CREDIT: "that hour needs a Personal session.",
       NEEDS_DUET_CREDIT: "that hour needs a Duet session.",
       DUET_IS_FOR_TWO: "a Duet is for two, so it needs a second name.",
-      ONE_PER_DAY: "their plan allows one class a day, and they already have one.",
+      ONE_PER_DAY:
+        "their plan allows one class a day, and they already have one.",
       PERSONAL_TOO_LATE: "appointments close at the end of the day before.",
       NOT_FOUND: "that member could not be found.",
       FAILED: "that could not be saved. Try again.",
@@ -840,7 +853,8 @@ export const en = {
     },
   },
   faqPage: {
-    stillStuck: "Not answered here? Ask us, and somebody at the studio will reply.",
+    stillStuck:
+      "Not answered here? Ask us, and somebody at the studio will reply.",
   },
   contactPage: {
     eyebrow: "Contact",
@@ -971,6 +985,8 @@ export const en = {
     /** In place of the level, which an appointment does not have. */
     /* ---- booking the same slot for a term ---- */
     repeatTitle: "Book this time every week",
+    repeatOneMonth: "1 month",
+    repeatMonths: "{n} months",
     repeatWeeks: "{n} weeks",
     repeatGo: "Book {n} weeks",
     repeatWorking: "Booking your weeks",
@@ -999,7 +1015,8 @@ export const en = {
     repeatWhyFull: "Full already on {dates}.",
     repeatWhyClosed: "Booking has closed for {dates}.",
     repeatWhyOther: "Could not book {dates}.",
-    repeatNothing: "Nothing to book. You already have every one of these weeks.",
+    repeatNothing:
+      "Nothing to book. You already have every one of these weeks.",
     repeatFailed: "That did not go through. Nothing was booked.",
     personalTag: "Personal or Duet",
     personalFree: "Available",
@@ -1167,20 +1184,24 @@ export const en = {
       OVER_TWO: "More than 2 years",
     },
     conditionLabel: "Anything we should be careful of?",
-    conditionWhy: "An injury, a recent operation, pregnancy, anything that changes what you should be doing on a reformer. Only the studio sees it.",
+    conditionWhy:
+      "An injury, a recent operation, pregnancy, anything that changes what you should be doing on a reformer. Only the studio sees it.",
     conditionNone: "Nothing to mention",
     conditionOther: "Yes, let me explain",
-    conditionPlaceholder: "For example: lower back pain, a knee that does not like deep flexion, six weeks post-partum.",
+    conditionPlaceholder:
+      "For example: lower back pain, a knee that does not like deep flexion, six weeks post-partum.",
     cta: "Done, take me to the timetable",
     skip: "Skip for now",
-    changeLater: "You can change all of this in your account whenever it changes.",
+    changeLater:
+      "You can change all of this in your account whenever it changes.",
     errIncomplete: "Please answer all three questions.",
     errTooLong: "That is a little long. Please shorten it.",
     errSaving: "That could not be saved. Please try again.",
     saved: "Saved.",
     /* The account and the desk both label the same three answers. */
     sectionTitle: "Your pilates",
-    sectionBody: "What the studio knows about your experience and anything to be careful of.",
+    sectionBody:
+      "What the studio knows about your experience and anything to be careful of.",
     notAnswered: "Not answered yet",
     deskLevel: "Level",
     deskExperience: "Experience",
@@ -1236,6 +1257,7 @@ export const el: typeof en = {
     optional: "προαιρετικό",
     from: "από",
     perClass: "ανά μάθημα",
+    spotLeft: "θέση διαθέσιμη",
     spotsLeft: "θέσεις διαθέσιμες",
     full: "Πλήρες",
     waitlist: "Λίστα αναμονής",
@@ -1485,6 +1507,9 @@ export const el: typeof en = {
     filterAvailable: "Μόνο διαθέσιμα",
     hours: "Ώρες λειτουργίας",
     weekOf: "Εβδομάδα",
+    pickDate: "Διάλεξε ημερομηνία",
+    nextWindow: "Επόμενες {n} ημέρες",
+    prevWindow: "Προηγούμενες {n} ημέρες",
     prevWeek: "Προηγούμενη",
     nextWeek: "Επόμενη",
   },
@@ -1494,21 +1519,21 @@ export const el: typeof en = {
     body: "Χωρίς δεσμεύσεις. Αγόρασε συνεδρίες και χρησιμοποίησέ τις όταν μπορείς να έρθεις. Τα μεγαλύτερα πακέτα κοστίζουν λιγότερο ανά μάθημα.",
     groups: {
       single: {
-        title: "Μεμονωμένο",
-        note: "Ένα μάθημα τη φορά. Χωρίς δέσμευση.",
+        title: "Ένα τη φορά",
+        note: "Μία συνεδρία, τριάντα ημέρες για να τη χρησιμοποιήσεις, χωρίς δέσμευση. Μια θέση σε μάθημα, ή ο χώρος δικός σου.",
       },
-      month: {
-        title: "Μηνιαία",
-        note: "Διάλεξε πόσο συχνά γυμνάζεσαι κάθε εβδομάδα. 30 ημέρες για να τις χρησιμοποιήσεις.",
-      },
-      quarter: {
-        title: "3 μήνες",
-        note: "Η ίδια επιλογή για δώδεκα εβδομάδες, με χαμηλότερη τιμή ανά μάθημα. 90 ημέρες για να τις χρησιμοποιήσεις.",
-      },
-      personal: {
-        title: "Ατομικές και Δυάδες",
-        note: "Ο χώρος δικός σου, ή των δυο σας. Μεσημέρι, καθημερινές, 30 ημέρες για να τις χρησιμοποιήσεις.",
-      },
+    },
+    builder: {
+      title: "Φτιάξε το δικό σου πλάνο",
+      note: "Όσο μεγαλύτερη η διάρκεια, τόσο χαμηλότερη η τιμή ανά μάθημα: πέντε τοις εκατό κάτω στους έξι μήνες, οκτώ στους εννέα, δώδεκα στον χρόνο. Δωρεάν ακύρωση έως 12 ώρες πριν το μάθημα, ό,τι και να διαλέξεις.",
+      howLong: "Για πόσο",
+      howOften: "Πόσο συχνά",
+      oneMonth: "1 μήνας",
+      months: "{n} μήνες",
+      perWeek: "{n} την εβδομάδα",
+      unlimited: "Unlimited",
+      buy: "Αγόρασε αυτό το πλάνο",
+      unavailable: "Αυτός ο συνδυασμός δεν πωλείται αυτή τη στιγμή.",
     },
     popular: "Πιο δημοφιλές",
     bestValue: "Καλύτερη τιμή ανά μάθημα",
@@ -1674,7 +1699,8 @@ export const el: typeof en = {
     closeOpen: "Άνοιξέ την ξανά",
     closedDays: "Ημέρες που το στούντιο είναι κλειστό",
     noClosures: "Τίποτα κλειστό. Το πρόγραμμα τρέχει κανονικά.",
-    closedResult: "{classes} μαθήματα ακυρώθηκαν, {refunds} συνεδρίες επιστράφηκαν",
+    closedResult:
+      "{classes} μαθήματα ακυρώθηκαν, {refunds} συνεδρίες επιστράφηκαν",
     affected: "Ποιοι ήταν σε αυτά τα μαθήματα",
     audienceTitle: "Σε ποιους πάει",
     audienceAll: "Σε όλους",
@@ -1737,7 +1763,8 @@ export const el: typeof en = {
       "Αφαιρεί μόνο τα μαθήματα που πρόσθεσε αυτή η εκτέλεση, και μόνο όσα δεν έχουν κρατήσεις. Ένα μάθημα με κράτηση παραμένει.",
     rotaNothingToUndo:
       "Δεν προστέθηκε τίποτα, άρα δεν υπάρχει τι να αναιρεθεί: οι εβδομάδες ήταν ήδη στο πρόγραμμα. Η επανάληψη είναι πάντα ασφαλής.",
-    rotaUndone: "Αφαιρέθηκαν {removed} μαθήματα. {kept} παρέμειναν γιατί έχουν κρατήσεις.",
+    rotaUndone:
+      "Αφαιρέθηκαν {removed} μαθήματα. {kept} παρέμειναν γιατί έχουν κρατήσεις.",
     segTitle: "Αποκλειστικές κατηγορίες",
     segHelp:
       "Προαιρετικό. Επιλέγουν σε ποιους έχει νόημα το μήνυμα. Δεν διευρύνουν ποτέ το κοινό παραπάνω: όποιος αρνήθηκε τις προσφορές δεν λαμβάνει προσφορές.",
@@ -1823,7 +1850,8 @@ export const el: typeof en = {
     deskBookFind: "Αναζήτηση",
     deskBookAdd: "Κράτηση",
     deskBookGuest: "Δεύτερο άτομο, για Δυάδα (προαιρετικό)",
-    deskBookNobody: "Δεν βρέθηκε κανείς. Δοκίμασε μέρος του επωνύμου ή τα τελευταία ψηφία του τηλεφώνου.",
+    deskBookNobody:
+      "Δεν βρέθηκε κανείς. Δοκίμασε μέρος του επωνύμου ή τα τελευταία ψηφία του τηλεφώνου.",
     deskBooked: "μπήκε στο μάθημα και ενημερώθηκε",
     deskRepeatLabel: "Πόσες εβδομάδες",
     deskRepeatOne: "Μόνο αυτό",
@@ -1845,15 +1873,19 @@ export const el: typeof en = {
       NO_CREDITS: "δεν έχει συνεδρίες. Πούλησέ του πρώτα.",
       CLASS_FULL: "το μάθημα είναι πλήρες.",
       ALREADY_BOOKED: "έχει ήδη κράτηση σε αυτό το μάθημα.",
-      EMAIL_UNVERIFIED: "το email του δεν έχει επιβεβαιωθεί ποτέ. Επιβεβαίωσέ το από τη σελίδα του.",
+      EMAIL_UNVERIFIED:
+        "το email του δεν έχει επιβεβαιωθεί ποτέ. Επιβεβαίωσέ το από τη σελίδα του.",
       TOO_LATE: "το μάθημα έχει ήδη ξεκινήσει.",
       SESSIONS_EXPIRE_FIRST: "οι συνεδρίες του λήγουν πριν από αυτό το μάθημα.",
-      CREDITS_NOT_VALID_HERE: "οι συνεδρίες του δεν μπορούν να χρησιμοποιηθούν σε αυτό το μάθημα.",
+      CREDITS_NOT_VALID_HERE:
+        "οι συνεδρίες του δεν μπορούν να χρησιμοποιηθούν σε αυτό το μάθημα.",
       NEEDS_PERSONAL_CREDIT: "αυτή η ώρα χρειάζεται Ατομική συνεδρία.",
       NEEDS_DUET_CREDIT: "αυτή η ώρα χρειάζεται συνεδρία Δυάδας.",
       DUET_IS_FOR_TWO: "η Δυάδα είναι για δύο, οπότε χρειάζεται δεύτερο όνομα.",
-      ONE_PER_DAY: "το πακέτο του επιτρέπει ένα μάθημα την ημέρα και έχει ήδη ένα.",
-      PERSONAL_TOO_LATE: "οι κρατήσεις κλείνουν στο τέλος της προηγούμενης μέρας.",
+      ONE_PER_DAY:
+        "το πακέτο του επιτρέπει ένα μάθημα την ημέρα και έχει ήδη ένα.",
+      PERSONAL_TOO_LATE:
+        "οι κρατήσεις κλείνουν στο τέλος της προηγούμενης μέρας.",
       NOT_FOUND: "το μέλος δεν βρέθηκε.",
       FAILED: "δεν αποθηκεύτηκε. Δοκίμασε ξανά.",
     } as Record<string, string>,
@@ -1977,7 +2009,8 @@ export const el: typeof en = {
     },
   },
   faqPage: {
-    stillStuck: "Δεν απαντήθηκε εδώ; Ρώτησέ μας και κάποιος από το στούντιο θα σου απαντήσει.",
+    stillStuck:
+      "Δεν απαντήθηκε εδώ; Ρώτησέ μας και κάποιος από το στούντιο θα σου απαντήσει.",
   },
   contactPage: {
     eyebrow: "Επικοινωνία",
@@ -2096,6 +2129,8 @@ export const el: typeof en = {
     heldDuet: "και {n} συνεδρία Δυάδας",
     heldDuetPlural: "και {n} συνεδρίες Δυάδας",
     repeatTitle: "Κράτησε αυτή την ώρα κάθε εβδομάδα",
+    repeatOneMonth: "1 μήνας",
+    repeatMonths: "{n} μήνες",
     repeatWeeks: "{n} εβδομάδες",
     repeatGo: "Κράτησε {n} εβδομάδες",
     repeatWorking: "Γίνονται οι κρατήσεις",
@@ -2111,7 +2146,8 @@ export const el: typeof en = {
     repeatWhyFull: "Ήδη πλήρη στις {dates}.",
     repeatWhyClosed: "Οι κρατήσεις έκλεισαν για {dates}.",
     repeatWhyOther: "Δεν κρατήθηκαν {dates}.",
-    repeatNothing: "Δεν υπάρχει κάτι να κρατηθεί. Έχεις ήδη όλες αυτές τις εβδομάδες.",
+    repeatNothing:
+      "Δεν υπάρχει κάτι να κρατηθεί. Έχεις ήδη όλες αυτές τις εβδομάδες.",
     repeatFailed: "Δεν ολοκληρώθηκε. Δεν έγινε καμία κράτηση.",
     personalTag: "Ατομικό ή Δυάδα",
     /* Neuter, to agree with "Ατομικό" in the tag beside them. They were
@@ -2277,19 +2313,23 @@ export const el: typeof en = {
       OVER_TWO: "Πάνω από 2 χρόνια",
     },
     conditionLabel: "Υπάρχει κάποια πάθηση που πρέπει να προσέξουμε;",
-    conditionWhy: "Τραυματισμός, πρόσφατο χειρουργείο, εγκυμοσύνη, οτιδήποτε αλλάζει το τι πρέπει να κάνεις στο reformer. Το βλέπει μόνο το στούντιο.",
+    conditionWhy:
+      "Τραυματισμός, πρόσφατο χειρουργείο, εγκυμοσύνη, οτιδήποτε αλλάζει το τι πρέπει να κάνεις στο reformer. Το βλέπει μόνο το στούντιο.",
     conditionNone: "Τίποτα να αναφέρω",
     conditionOther: "Ναι, να εξηγήσω",
-    conditionPlaceholder: "Για παράδειγμα: πόνος στη μέση, γόνατο που δεν αντέχει βαθύ κάμψιμο, έξι εβδομάδες μετά τη γέννα.",
+    conditionPlaceholder:
+      "Για παράδειγμα: πόνος στη μέση, γόνατο που δεν αντέχει βαθύ κάμψιμο, έξι εβδομάδες μετά τη γέννα.",
     cta: "Έτοιμος, πάμε στο πρόγραμμα",
     skip: "Παράλειψη για τώρα",
-    changeLater: "Μπορείς να τα αλλάξεις όλα αυτά στον λογαριασμό σου όποτε αλλάξουν.",
+    changeLater:
+      "Μπορείς να τα αλλάξεις όλα αυτά στον λογαριασμό σου όποτε αλλάξουν.",
     errIncomplete: "Απάντησε και στις τρεις ερωτήσεις.",
     errTooLong: "Είναι λίγο μεγάλο. Συντόμευσέ το.",
     errSaving: "Δεν αποθηκεύτηκε. Δοκίμασε ξανά.",
     saved: "Αποθηκεύτηκε.",
     sectionTitle: "Το pilates σου",
-    sectionBody: "Τι γνωρίζει το στούντιο για την εμπειρία σου και για ό,τι πρέπει να προσέξει.",
+    sectionBody:
+      "Τι γνωρίζει το στούντιο για την εμπειρία σου και για ό,τι πρέπει να προσέξει.",
     notAnswered: "Δεν έχει απαντηθεί",
     deskLevel: "Επίπεδο",
     deskExperience: "Εμπειρία",

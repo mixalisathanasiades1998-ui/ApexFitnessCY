@@ -26,7 +26,8 @@
  * a comparison that would make a one to one look like a bad deal for something
  * it is not selling.
  */
-export type PackGroup = "single" | "month" | "quarter" | "personal";
+export type PackGroup =
+  "single" | "month" | "quarter" | "half" | "nine" | "year";
 
 /**
  * What a pack's sessions can be spent on.
@@ -39,6 +40,23 @@ export type PackGroup = "single" | "month" | "quarter" | "personal";
  * See credit_batches.kind in the schema.
  */
 export type CreditKind = "CLASS" | "PERSONAL" | "DUET";
+
+/**
+ * Which groups the pricing page renders as a row of cards.
+ *
+ * Everything else is reachable through the plan builder instead — see
+ * `PlanBuilder.tsx`. Five terms times four cadences is twenty plans, and twenty
+ * cards was fourteen thousand pixels of near-identical rectangles on a phone.
+ *
+ * So this is deliberately *not* "every group that has packs in it". The `month`,
+ * `quarter`, `half`, `nine` and `year` packs are all still real, still priced,
+ * still bought through the same checkout; they are just chosen with two chips
+ * rather than found among twenty cards.
+ *
+ * Exported because the pricing dictionary needs a heading for exactly these and
+ * for nothing else, and `test-personal` asserts that both ways round.
+ */
+export const CARD_GROUPS = ["single"] as const;
 
 export const PACKS = [
   {
@@ -189,7 +207,16 @@ export const PACKS = [
     credits: 78,
     priceCents: 47000,
     validityDays: 90,
-    /* Six euro a class if it is used as intended. Nothing else comes close. */
+    /**
+     * Six euro a class if used as intended, and the badge the studio wants here.
+     *
+     * It moved to the twelve-month pack for a day, on the grounds that EUR 5.36
+     * beats EUR 6.03 and a "best value" badge should point at the best value.
+     * The studio moved it back, and with the plan builder in place that reads
+     * correctly: three months is the term they are selling, the badge appears
+     * on the combination somebody is most likely to land on, and the builder
+     * states the longer-term discounts in its own note for anybody comparing.
+     */
     badge: "BEST_VALUE" as string | null,
     sortOrder: 9,
     group: "quarter" as PackGroup,
@@ -198,8 +225,224 @@ export const PACKS = [
     seats: 1,
   },
 
+  /* --------------------------------------------------------------- 6 months
+     From here on the shape stops changing and only the term does: the same four
+     cadences, twice the sessions, a hundred and eighty days to use them.
+
+     Each step down the page takes a little off the price of a class — five per
+     cent here, eight at nine months, twelve at a year — which is the whole
+     reason to commit for longer. Without it a longer pack is only a longer
+     expiry date, and nobody pays in advance for an expiry date. The percentages
+     are applied to the three-month rate and then rounded to the nearest five
+     euro, because a price list with 304 and 513 on it looks computed and one
+     with 305 and 515 looks decided.
+
+     Months are thirty days here, as they are for every other pack in this file:
+     ninety for three, so a hundred and eighty for six. */
+  {
+    slug: "half-1",
+    nameEn: "6 months · 1 a week",
+    nameEl: "6 μήνες · 1 την εβδομάδα",
+    credits: 24,
+    priceCents: 30500,
+    validityDays: 180,
+    badge: null as string | null,
+    sortOrder: 10,
+    group: "half" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "half-2",
+    nameEn: "6 months · 2 a week",
+    nameEl: "6 μήνες · 2 την εβδομάδα",
+    credits: 48,
+    priceCents: 51500,
+    validityDays: 180,
+    badge: null as string | null,
+    sortOrder: 11,
+    group: "half" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "half-3",
+    nameEn: "6 months · 3 a week",
+    nameEl: "6 μήνες · 3 την εβδομάδα",
+    credits: 72,
+    priceCents: 71000,
+    validityDays: 180,
+    badge: null as string | null,
+    sortOrder: 12,
+    group: "half" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "half-4",
+    nameEn: "6 months · Unlimited",
+    nameEl: "6 μήνες · Unlimited",
+    /* 180 days at six open days a week is 155 chances to walk
+       in, so that is the ceiling — the same arithmetic as the quarter.
+       `perDayLimit` is what makes it a plan rather than a bulk buy. */
+    credits: 155,
+    priceCents: 89500,
+    validityDays: 180,
+    badge: null as string | null,
+    sortOrder: 13,
+    group: "half" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: 1 as number | null,
+    seats: 1,
+  },
+
+  /* --------------------------------------------------------------- 9 months
+     Eight per cent off the three-month rate per class. */
+  {
+    slug: "nine-1",
+    nameEn: "9 months · 1 a week",
+    nameEl: "9 μήνες · 1 την εβδομάδα",
+    credits: 36,
+    priceCents: 44000,
+    validityDays: 270,
+    badge: null as string | null,
+    sortOrder: 14,
+    group: "nine" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "nine-2",
+    nameEn: "9 months · 2 a week",
+    nameEl: "9 μήνες · 2 την εβδομάδα",
+    credits: 72,
+    priceCents: 74500,
+    validityDays: 270,
+    badge: null as string | null,
+    sortOrder: 15,
+    group: "nine" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "nine-3",
+    nameEn: "9 months · 3 a week",
+    nameEl: "9 μήνες · 3 την εβδομάδα",
+    credits: 108,
+    priceCents: 103500,
+    validityDays: 270,
+    badge: null as string | null,
+    sortOrder: 16,
+    group: "nine" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "nine-4",
+    nameEn: "9 months · Unlimited",
+    nameEl: "9 μήνες · Unlimited",
+    /* 270 days at six open days a week is 232 chances to walk
+       in, so that is the ceiling — the same arithmetic as the quarter.
+       `perDayLimit` is what makes it a plan rather than a bulk buy. */
+    credits: 232,
+    priceCents: 129500,
+    validityDays: 270,
+    badge: null as string | null,
+    sortOrder: 17,
+    group: "nine" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: 1 as number | null,
+    seats: 1,
+  },
+
+  /* -------------------------------------------------------------- 12 months
+     Twelve per cent off, and the cheapest class the studio sells: a year of
+     Unlimited works out at EUR 5.36 a session if it is used as intended, which
+     is why the BEST VALUE badge moved here off the three-month pack. It sat
+     there truthfully until this row existed and would now be pointing at the
+     second-best price on the page. */
+  {
+    slug: "year-1",
+    nameEn: "12 months · 1 a week",
+    nameEl: "12 μήνες · 1 την εβδομάδα",
+    credits: 48,
+    priceCents: 56500,
+    validityDays: 360,
+    badge: null as string | null,
+    sortOrder: 18,
+    group: "year" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "year-2",
+    nameEn: "12 months · 2 a week",
+    nameEl: "12 μήνες · 2 την εβδομάδα",
+    credits: 96,
+    priceCents: 95000,
+    validityDays: 360,
+    badge: null as string | null,
+    sortOrder: 19,
+    group: "year" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "year-3",
+    nameEn: "12 months · 3 a week",
+    nameEl: "12 μήνες · 3 την εβδομάδα",
+    credits: 144,
+    priceCents: 132000,
+    validityDays: 360,
+    badge: null as string | null,
+    sortOrder: 20,
+    group: "year" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: null as number | null,
+    seats: 1,
+  },
+  {
+    slug: "year-4",
+    nameEn: "12 months · Unlimited",
+    nameEl: "12 μήνες · Unlimited",
+    /* 360 days at six open days a week is 309 chances to walk
+       in, so that is the ceiling — the same arithmetic as the quarter.
+       `perDayLimit` is what makes it a plan rather than a bulk buy. */
+    credits: 309,
+    priceCents: 165500,
+    validityDays: 360,
+    badge: null as string | null,
+    sortOrder: 21,
+    group: "year" as PackGroup,
+    kind: "CLASS" as CreditKind,
+    perDayLimit: 1 as number | null,
+    seats: 1,
+  },
   /* ------------------------------------------------- personal and duet
-     A different thing from everything above, sold in the same currency.
+     A different thing from the plans above, sold in the same currency, and
+     grouped on the price list with the day pass rather than alone at the foot
+     of it.
+
+     They belong there because all three are the same purchase: one session,
+     thirty days, no commitment. The day pass buys a place in a class, a
+     Personal buys the room, a Duet buys it for two — and a visitor deciding
+     "I want to try one thing" is choosing between exactly those three. It also
+     fixes a layout that had one lonely card under one heading and two under
+     another.
+
+     The old comment here worried that sitting near the plans would make a one
+     to one look like a bad deal on price per session. That was right, and it is
+     why they are not in the Monthly or 3 months rows. Next to the day pass the
+     comparison is honest: EUR 20 for a class, EUR 30 for the room, EUR 22.50
+     each for two.
 
      One reformer, one instructor, and the studio's midday hours: 12:00, 13:00
      and 14:00, weekdays. An appointment rather than a class, so it is booked by
@@ -218,8 +461,8 @@ export const PACKS = [
     priceCents: 3000,
     validityDays: 30,
     badge: null as string | null,
-    sortOrder: 10,
-    group: "personal" as PackGroup,
+    sortOrder: 22,
+    group: "single" as PackGroup,
     kind: "PERSONAL" as CreditKind,
     perDayLimit: null as number | null,
     seats: 1,
@@ -236,8 +479,8 @@ export const PACKS = [
     priceCents: 4500,
     validityDays: 30,
     badge: null as string | null,
-    sortOrder: 11,
-    group: "personal" as PackGroup,
+    sortOrder: 23,
+    group: "single" as PackGroup,
     kind: "DUET" as CreditKind,
     perDayLimit: null as number | null,
     seats: 2,
@@ -289,6 +532,6 @@ export function packBySlug(slug: string): Pack | undefined {
 }
 
 /** The two packs that buy an appointment rather than a place in a class. */
-export const PERSONAL_PACK_SLUGS = PACKS.filter(
-  (p) => p.kind !== "CLASS",
-).map((p) => p.slug);
+export const PERSONAL_PACK_SLUGS = PACKS.filter((p) => p.kind !== "CLASS").map(
+  (p) => p.slug,
+);

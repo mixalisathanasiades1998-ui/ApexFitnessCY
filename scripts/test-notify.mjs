@@ -86,7 +86,8 @@ async function member(tag, { marketing = false } = {}) {
       email,
       phone: nextPhone(),
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
       marketingOptIn: marketing,
     },
   });
@@ -98,7 +99,7 @@ async function member(tag, { marketing = false } = {}) {
     throw new Error(`fixture ${email} did not verify`);
   }
   if (reg.json?.ok) {
-  /* And signed in again, which re-issues the cookie with the confirmed stamp on
+    /* And signed in again, which re-issues the cookie with the confirmed stamp on
        it. The middleware reads the cookie, so the database write alone would leave
        every page still redirecting to the code box. */
     await req(j, "/api/auth/login", {
@@ -122,7 +123,11 @@ const fresh = await member("fresh");
   check("SMS is off", p?.notifySms === false, p?.notifySms);
   /* Push is not a preference any more: the studio keeps it on. */
   check("push is on and stays on", p?.notifyPush === true, p?.notifyPush);
-  check("offers are not selected", p?.marketingOptIn === false, p?.marketingOptIn);
+  check(
+    "offers are not selected",
+    p?.marketingOptIn === false,
+    p?.marketingOptIn,
+  );
 
   /* Even a request that explicitly asks to switch push off must not. */
   const off = await req(fresh.j, "/api/profile", {
@@ -130,14 +135,19 @@ const fresh = await member("fresh");
     body: {
       name: "Notify fresh",
       marketingOptIn: false,
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
       notifyEmail: true,
       notifySms: false,
       notifyPush: false,
       reminderMinutes: 120,
     },
   });
-  check("a request to turn push off is accepted…", off.status === 200, off.status);
+  check(
+    "a request to turn push off is accepted…",
+    off.status === 200,
+    off.status,
+  );
   const after = await req(fresh.j, "/api/profile");
   const q = after.json?.profile ?? after.json;
   check("…but push is still on", q?.notifyPush === true, q?.notifyPush);
@@ -159,7 +169,8 @@ console.log("\n2. Turning the channels that are theirs to turn");
     body: {
       name: "Notify fresh",
       marketingOptIn: true,
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
       notifyEmail: false,
       notifySms: true,
       notifyPush: true,
@@ -182,7 +193,11 @@ console.log("\n3. A device asking to be told things");
     method: "POST",
     body: { endpoint: "https://example.com/x", p256dh: "a", auth: "b" },
   });
-  check("a stranger cannot register a device", shut.status === 401, shut.status);
+  check(
+    "a stranger cannot register a device",
+    shut.status === 401,
+    shut.status,
+  );
 
   const bad = await req(fresh.j, "/api/push/subscribe", {
     method: "POST",
@@ -194,7 +209,11 @@ console.log("\n3. A device asking to be told things");
     method: "POST",
     body: { endpoint: "https://fcm.googleapis.com/x" },
   });
-  check("an endpoint with no keys is refused", missing.status === 400, missing.status);
+  check(
+    "an endpoint with no keys is refused",
+    missing.status === 400,
+    missing.status,
+  );
 
   const endpoint = `https://fcm.googleapis.com/fcm/send/test-${Date.now()}`;
   const ok = await req(fresh.j, "/api/push/subscribe", {
@@ -210,14 +229,22 @@ console.log("\n3. A device asking to be told things");
     method: "POST",
     body: { endpoint, p256dh: "BFakeKeyForTests", auth: "fakeAuth" },
   });
-  check("re-registering the same browser does not double it", again.json?.devices === ok.json?.devices, {
-    first: ok.json?.devices,
-    second: again.json?.devices,
-  });
+  check(
+    "re-registering the same browser does not double it",
+    again.json?.devices === ok.json?.devices,
+    {
+      first: ok.json?.devices,
+      second: again.json?.devices,
+    },
+  );
 
-  const gone = await req(fresh.j, `/api/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`, {
-    method: "DELETE",
-  });
+  const gone = await req(
+    fresh.j,
+    `/api/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`,
+    {
+      method: "DELETE",
+    },
+  );
   check("and it can be removed", gone.json?.ok === true, gone.json);
 }
 
@@ -232,7 +259,11 @@ const staff = jar();
   check("the desk opens", inOne.json?.ok === true, inOne.json);
 
   const all = await req(staff, "/api/admin/notices?audience=ALL");
-  check("it can see the reach for everyone", typeof all.json?.reach?.people === "number", all.json?.reach);
+  check(
+    "it can see the reach for everyone",
+    typeof all.json?.reach?.people === "number",
+    all.json?.reach,
+  );
 
   const offers = await req(staff, "/api/admin/notices?audience=OFFERS");
   check(
@@ -242,7 +273,9 @@ const staff = jar();
   );
   check(
     "each channel reports its own reach",
-    ["push", "email", "sms"].every((k) => typeof all.json?.reach?.[k] === "number"),
+    ["push", "email", "sms"].every(
+      (k) => typeof all.json?.reach?.[k] === "number",
+    ),
     all.json?.reach,
   );
   check(
@@ -278,24 +311,38 @@ console.log("\n5. Sending, and what each channel actually did");
     },
   });
   check("the notice is created", sent.json?.ok === true, sent.json);
-  check("and it reports per channel", Array.isArray(sent.json?.reports), sent.json);
+  check(
+    "and it reports per channel",
+    Array.isArray(sent.json?.reports),
+    sent.json,
+  );
 
   const byChannel = Object.fromEntries(
     (sent.json.reports ?? []).map((r) => [r.channel, r]),
   );
-  check("email went to exactly the members who left email on", byChannel.email?.sent === reach.email, {
-    sent: byChannel.email?.sent,
-    expected: reach.email,
-  });
-  check("SMS went to exactly the members who turned SMS on", byChannel.sms?.sent === reach.sms, {
-    sent: byChannel.sms?.sent,
-    expected: reach.sms,
-  });
+  check(
+    "email went to exactly the members who left email on",
+    byChannel.email?.sent === reach.email,
+    {
+      sent: byChannel.email?.sent,
+      expected: reach.email,
+    },
+  );
+  check(
+    "SMS went to exactly the members who turned SMS on",
+    byChannel.sms?.sent === reach.sms,
+    {
+      sent: byChannel.sms?.sent,
+      expected: reach.sms,
+    },
+  );
   check(
     "nobody was counted twice on any channel",
     ["push", "email", "sms"].every(
       (c) =>
-        (byChannel[c]?.sent ?? 0) + (byChannel[c]?.failed ?? 0) + (byChannel[c]?.skipped ?? 0) >=
+        (byChannel[c]?.sent ?? 0) +
+          (byChannel[c]?.failed ?? 0) +
+          (byChannel[c]?.skipped ?? 0) >=
         (byChannel[c]?.sent ?? 0),
     ),
     byChannel,
@@ -312,7 +359,11 @@ console.log("\n5. Sending, and what each channel actually did");
 
   const history = await req(staff, "/api/admin/notices?audience=ALL");
   const latest = history.json?.notices?.[0];
-  check("the history records the audience", latest?.audience === "ALL", latest?.audience);
+  check(
+    "the history records the audience",
+    latest?.audience === "ALL",
+    latest?.audience,
+  );
   check(
     "and what each channel did",
     (latest?.deliveries ?? []).length === 3,
@@ -339,7 +390,8 @@ console.log("\n6. An offer reaches only the people who asked for offers");
     method: "POST",
     body: {
       titleEn: "Two classes free in September",
-      bodyEn: "Buy a ten pack this month and September brings two extra classes.",
+      bodyEn:
+        "Buy a ten pack this month and September brings two extra classes.",
       audience: "OFFERS",
       channels: ["email"],
     },
@@ -368,7 +420,9 @@ console.log("\n6. An offer reaches only the people who asked for offers");
   const wanted = await req(accepted.j, "/api/notices");
   check(
     "while the member who accepted does",
-    (wanted.json?.notices ?? []).map((n) => n.title).includes("Two classes free in September"),
+    (wanted.json?.notices ?? [])
+      .map((n) => n.title)
+      .includes("Two classes free in September"),
     "the offer did not arrive",
   );
 
@@ -382,7 +436,11 @@ console.log("\n6. An offer reaches only the people who asked for offers");
       channels: [],
     },
   });
-  check("an unknown audience falls back to ALL", forged.json?.audience === "ALL", forged.json);
+  check(
+    "an unknown audience falls back to ALL",
+    forged.json?.audience === "ALL",
+    forged.json,
+  );
 
   const junkChannel = await req(staff, "/api/admin/notices", {
     method: "POST",
@@ -420,7 +478,8 @@ console.log("\n7. Accepting offers opens SMS");
     body: {
       name: "Notify later",
       marketingOptIn: true,
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
       notifyEmail: true,
       notifySms: false,
       notifyPush: true,
@@ -437,7 +496,8 @@ console.log("\n7. Accepting offers opens SMS");
     body: {
       name: "Notify later",
       marketingOptIn: true,
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
       notifyEmail: true,
       notifySms: false,
       notifyPush: true,
@@ -490,15 +550,31 @@ console.log("\n8. The three automatic messages");
     method: "POST",
     body: { sessionId: target.id },
   });
-  check("booking still succeeds with push wired in", booked.json?.ok === true, booked.json);
-  check("and a reminder is queued at their own lead time", Boolean(booked.json?.reminderAt), booked.json);
+  check(
+    "booking still succeeds with push wired in",
+    booked.json?.ok === true,
+    booked.json,
+  );
+  check(
+    "and a reminder is queued at their own lead time",
+    Boolean(booked.json?.reminderAt),
+    booked.json,
+  );
 
   const cancelled = await req(punter.j, "/api/bookings/cancel", {
     method: "POST",
     body: { bookingId: booked.json.bookingId },
   });
-  check("cancelling still succeeds", cancelled.json?.ok === true, cancelled.json);
-  check("and the session came back", cancelled.json?.refunded === true, cancelled.json);
+  check(
+    "cancelling still succeeds",
+    cancelled.json?.ok === true,
+    cancelled.json,
+  );
+  check(
+    "and the session came back",
+    cancelled.json?.refunded === true,
+    cancelled.json,
+  );
 }
 
 /* ------------------------------------------------------------------ 9 */
@@ -506,22 +582,38 @@ console.log("\n9. The reminder sweep");
 {
   const anon = jar();
   const shut = await req(anon, "/api/cron/reminders", { method: "POST" });
-  check("the sweep is not open to the public", shut.status === 401 || shut.status === 403, shut.status);
+  check(
+    "the sweep is not open to the public",
+    shut.status === 401 || shut.status === 403,
+    shut.status,
+  );
 
   const badToken = await fetch(B + "/api/cron/reminders", {
     method: "POST",
     headers: { authorization: "Bearer not-the-secret" },
   });
-  check("a wrong token is refused", badToken.status === 401 || badToken.status === 403, badToken.status);
+  check(
+    "a wrong token is refused",
+    badToken.status === 401 || badToken.status === 403,
+    badToken.status,
+  );
 
   /* Staff can run it by hand, which is how the studio tests it. */
   const run = await req(staff, "/api/cron/reminders", { method: "POST" });
   check("staff can run it", run.json?.ok === true, run.json);
-  check("and it reports what it did", typeof run.json?.due === "number", run.json);
+  check(
+    "and it reports what it did",
+    typeof run.json?.due === "number",
+    run.json,
+  );
 
   /* Running it twice must not send anything twice: the rows are marked. */
   const again = await req(staff, "/api/cron/reminders", { method: "POST" });
-  check("running it again sends nothing again", again.json?.due === 0, again.json);
+  check(
+    "running it again sends nothing again",
+    again.json?.due === 0,
+    again.json,
+  );
 }
 
 /* ------------------------------------------------------------------ 10 */
@@ -580,7 +672,9 @@ console.log("\n10. A new member does not inherit the past");
   const after = await req(newcomer.j, "/api/notices");
   check(
     "a notice sent afterwards does reach them",
-    (after.json?.notices ?? []).map((x) => x.title).includes("Sent after they joined"),
+    (after.json?.notices ?? [])
+      .map((x) => x.title)
+      .includes("Sent after they joined"),
     "the new notice did not arrive",
   );
   check(
@@ -620,7 +714,11 @@ console.log("\n10b. Booking and cancelling land in the member's own inbox");
     "paying for the pack tells them",
     afterPaying.json?.unread === base + 1 &&
       (afterPaying.json?.notices ?? [])[0]?.title === "Payment received",
-    { base, now: afterPaying.json?.unread, top: afterPaying.json?.notices?.[0]?.title },
+    {
+      base,
+      now: afterPaying.json?.unread,
+      top: afterPaying.json?.notices?.[0]?.title,
+    },
   );
 
   const list = await req(punter.j, "/api/sessions?days=10");
@@ -670,14 +768,15 @@ console.log("\n10b. Booking and cancelling land in the member's own inbox");
     body: { bookingId: booked.json.bookingId },
   });
   const afterCancel = await req(punter.j, "/api/notices");
-  check(
-    "cancelling adds another",
-    afterCancel.json?.unread === base + 3,
-    { base, now: afterCancel.json?.unread },
-  );
+  check("cancelling adds another", afterCancel.json?.unread === base + 3, {
+    base,
+    now: afterCancel.json?.unread,
+  });
   check(
     "which says the session came back",
-    /back in your balance/.test((afterCancel.json?.notices ?? [])[0]?.body ?? ""),
+    /back in your balance/.test(
+      (afterCancel.json?.notices ?? [])[0]?.body ?? "",
+    ),
     (afterCancel.json?.notices ?? [])[0]?.body,
   );
 
@@ -706,7 +805,9 @@ console.log("\n10b. Booking and cancelling land in the member's own inbox");
   const history = await req(staff, "/api/admin/notices?audience=ALL");
   check(
     "the desk history holds no personal confirmations",
-    !(history.json?.notices ?? []).some((x) => x.titleEn === "Booking confirmed"),
+    !(history.json?.notices ?? []).some(
+      (x) => x.titleEn === "Booking confirmed",
+    ),
     "a confirmation leaked into the desk history",
   );
 }
@@ -751,7 +852,10 @@ console.log("\n13. Test accounts are left out of campaigns");
   check("a member to mark as a test exists", dummy.ok);
 
   /* Find its id the way the desk does. */
-  const found = await req(staff, `/api/admin/members?q=${encodeURIComponent(dummy.email)}`);
+  const found = await req(
+    staff,
+    `/api/admin/members?q=${encodeURIComponent(dummy.email)}`,
+  );
   const id = found.json?.members?.[0]?.id;
   check("the desk can find it", Boolean(id), found.json?.members?.length);
 
@@ -768,7 +872,11 @@ console.log("\n13. Test accounts are left out of campaigns");
     method: "PATCH",
     body: { userId: id, isTest: true },
   });
-  check("it can be marked as a test account", mark.json?.ok === true, mark.json);
+  check(
+    "it can be marked as a test account",
+    mark.json?.ok === true,
+    mark.json,
+  );
 
   const after = await req(staff, "/api/admin/notices?audience=ALL");
   check(
@@ -781,13 +889,23 @@ console.log("\n13. Test accounts are left out of campaigns");
     (after.json?.reach?.testAccounts ?? 0) >= 1,
     after.json?.reach?.testAccounts,
   );
-  check("and they are out by default", after.json?.includeTest === false, after.json?.includeTest);
+  check(
+    "and they are out by default",
+    after.json?.includeTest === false,
+    after.json?.includeTest,
+  );
 
-  const included = await req(staff, "/api/admin/notices?audience=ALL&includeTest=1");
+  const included = await req(
+    staff,
+    "/api/admin/notices?audience=ALL&includeTest=1",
+  );
   check(
     "asking for them puts them back",
     (included.json?.reach?.people ?? 0) === beforePeople + beforeTest,
-    { asked: included.json?.reach?.people, expected: beforePeople + beforeTest },
+    {
+      asked: included.json?.reach?.people,
+      expected: beforePeople + beforeTest,
+    },
   );
 
   /* The reach figure is a promise about delivery, so check the delivery keeps
@@ -802,8 +920,13 @@ console.log("\n13. Test accounts are left out of campaigns");
       channels: ["email"],
     },
   });
-  const emailReport = (sent.json?.reports ?? []).find((r) => r.channel === "email");
-  const attempted = (emailReport?.sent ?? 0) + (emailReport?.failed ?? 0) + (emailReport?.skipped ?? 0);
+  const emailReport = (sent.json?.reports ?? []).find(
+    (r) => r.channel === "email",
+  );
+  const attempted =
+    (emailReport?.sent ?? 0) +
+    (emailReport?.failed ?? 0) +
+    (emailReport?.skipped ?? 0);
   check(
     "a real campaign counts only real members",
     attempted === (after.json?.reach?.people ?? -1),
@@ -867,8 +990,16 @@ console.log("\n14. Paging, so nothing is out of reach");
   }
 
   const p1 = await req(reader.j, "/api/notices?filter=all&page=1");
-  check("a page holds five", (p1.json?.rows ?? []).length === 5, p1.json?.rows?.length);
-  check("and says how many pages there are", (p1.json?.pages ?? 0) >= 3, p1.json?.pages);
+  check(
+    "a page holds five",
+    (p1.json?.rows ?? []).length === 5,
+    p1.json?.rows?.length,
+  );
+  check(
+    "and says how many pages there are",
+    (p1.json?.pages ?? 0) >= 3,
+    p1.json?.pages,
+  );
   check(
     "the total counts everything, not just this page",
     (p1.json?.total ?? 0) >= 12,
@@ -903,7 +1034,8 @@ console.log("\n14. Paging, so nothing is out of reach");
   const beyond = await req(reader.j, "/api/notices?filter=all&page=999");
   check(
     "asking past the end lands on the last page rather than nothing",
-    (beyond.json?.rows ?? []).length > 0 && beyond.json?.page === beyond.json?.pages,
+    (beyond.json?.rows ?? []).length > 0 &&
+      beyond.json?.page === beyond.json?.pages,
     { page: beyond.json?.page, pages: beyond.json?.pages },
   );
 
@@ -935,8 +1067,16 @@ console.log("\n14. Paging, so nothing is out of reach");
 console.log("\n15. The desk's history, by channel");
 {
   const all = await req(staff, "/api/admin/notices?page=1");
-  check("the history pages too", (all.json?.notices ?? []).length <= 5, all.json?.notices?.length);
-  check("with a page count", (all.json?.history?.pages ?? 0) >= 1, all.json?.history);
+  check(
+    "the history pages too",
+    (all.json?.notices ?? []).length <= 5,
+    all.json?.notices?.length,
+  );
+  check(
+    "with a page count",
+    (all.json?.history?.pages ?? 0) >= 1,
+    all.json?.history,
+  );
 
   const bySms = await req(staff, "/api/admin/notices?channel=sms&page=1");
   check(
@@ -946,14 +1086,18 @@ console.log("\n15. The desk's history, by channel");
   );
   check(
     "and every row it returns actually used SMS",
-    (bySms.json?.notices ?? []).every((n) => n.channels.split(",").includes("sms")),
+    (bySms.json?.notices ?? []).every((n) =>
+      n.channels.split(",").includes("sms"),
+    ),
     (bySms.json?.notices ?? []).map((n) => n.channels),
   );
 
   const byEmail = await req(staff, "/api/admin/notices?channel=email&page=1");
   check(
     "the email filter is honest too",
-    (byEmail.json?.notices ?? []).every((n) => n.channels.split(",").includes("email")),
+    (byEmail.json?.notices ?? []).every((n) =>
+      n.channels.split(",").includes("email"),
+    ),
     (byEmail.json?.notices ?? []).map((n) => n.channels),
   );
   check(
@@ -967,7 +1111,9 @@ console.log("\n15. The desk's history, by channel");
   const byPush = await req(staff, "/api/admin/notices?channel=push&page=1");
   check(
     "no channel filter leaks another channel's rows",
-    (byPush.json?.notices ?? []).every((n) => n.channels.split(",").includes("push")),
+    (byPush.json?.notices ?? []).every((n) =>
+      n.channels.split(",").includes("push"),
+    ),
     (byPush.json?.notices ?? []).map((n) => n.channels),
   );
   check(
@@ -976,7 +1122,10 @@ console.log("\n15. The desk's history, by channel");
     all.json?.history?.counts,
   );
 
-  const nonsense = await req(staff, "/api/admin/notices?channel=carrier-pigeon&page=1");
+  const nonsense = await req(
+    staff,
+    "/api/admin/notices?channel=carrier-pigeon&page=1",
+  );
   check(
     "an unknown channel is ignored rather than returning nothing",
     (nonsense.json?.history?.total ?? 0) === (all.json?.history?.total ?? 0),
@@ -1034,7 +1183,10 @@ console.log("\n16. A notice written in Greek arrives in Greek");
       channels: [],
     },
   });
-  const fallback = await req(reader.j, "/api/notices?filter=all&page=1&locale=el");
+  const fallback = await req(
+    reader.j,
+    "/api/notices?filter=all&page=1&locale=el",
+  );
   check(
     "an untranslated notice falls back to English rather than showing empty",
     fallback.json?.rows?.[0]?.title === "English only notice",
@@ -1053,7 +1205,8 @@ console.log("\n17. One phone number, one account");
       email: `phone-one-${Date.now()}@apex.test`,
       phone,
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check("the first account is created", first.json?.ok === true, first.json);
@@ -1065,7 +1218,8 @@ console.log("\n17. One phone number, one account");
       email: `phone-two-${Date.now()}@apex.test`,
       phone,
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check("the same number is refused", same.status === 409, same.status);
@@ -1080,7 +1234,8 @@ console.log("\n17. One phone number, one account");
       email: `phone-three-${Date.now()}@apex.test`,
       phone: phone.replace("+357", "00357").replace(/(\d{2})(\d{6})$/, "$1 $2"),
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check(
@@ -1096,7 +1251,8 @@ console.log("\n17. One phone number, one account");
       email: `phone-short-${Date.now()}@apex.test`,
       phone: "9912",
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check("too few digits is refused", short.status === 400, short.status);
@@ -1108,7 +1264,8 @@ console.log("\n17. One phone number, one account");
       email: `phone-long-${Date.now()}@apex.test`,
       phone: "+35799123456789012345",
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check("too many digits is refused", long.status === 400, long.status);
@@ -1120,34 +1277,55 @@ console.log("\n17. One phone number, one account");
       email: "cristiano",
       phone: "+35799000111",
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
-  check("an address with no @ is refused", badEmail.status === 400, badEmail.status);
+  check(
+    "an address with no @ is refused",
+    badEmail.status === 400,
+    badEmail.status,
+  );
 }
 
 /* ----------------------------------------------------------------- 18 */
 console.log("\n18. The membership list pages and filters");
 {
   const all = await req(staff, "/api/admin/members?page=1");
-  check("a page holds ten at most", (all.json?.members ?? []).length <= 10, all.json?.members?.length);
+  check(
+    "a page holds ten at most",
+    (all.json?.members ?? []).length <= 10,
+    all.json?.members?.length,
+  );
   check("with a page count", (all.json?.pages ?? 0) >= 1, all.json?.pages);
   check(
     "and counts for each filter",
-    typeof all.json?.counts?.real === "number" && typeof all.json?.counts?.test === "number",
+    typeof all.json?.counts?.real === "number" &&
+      typeof all.json?.counts?.test === "number",
     all.json?.counts,
   );
   check(
     "the filter counts add up to the total",
-    (all.json?.counts?.real ?? 0) + (all.json?.counts?.test ?? 0) === (all.json?.counts?.all ?? -1),
+    (all.json?.counts?.real ?? 0) + (all.json?.counts?.test ?? 0) ===
+      (all.json?.counts?.all ?? -1),
     all.json?.counts,
   );
 
   const real = await req(staff, "/api/admin/members?filter=real&page=1");
-  check("the members filter shows no test accounts", (real.json?.members ?? []).every((m) => !m.isTest));
+  check(
+    "the members filter shows no test accounts",
+    (real.json?.members ?? []).every((m) => !m.isTest),
+  );
   const test = await req(staff, "/api/admin/members?filter=test&page=1");
-  check("the test filter shows only test accounts", (test.json?.members ?? []).every((m) => m.isTest));
-  check("and there is at least one to find", (test.json?.members ?? []).length >= 1, test.json?.members?.length);
+  check(
+    "the test filter shows only test accounts",
+    (test.json?.members ?? []).every((m) => m.isTest),
+  );
+  check(
+    "and there is at least one to find",
+    (test.json?.members ?? []).length >= 1,
+    test.json?.members?.length,
+  );
 
   if ((all.json?.pages ?? 1) > 1) {
     const p2 = await req(staff, "/api/admin/members?page=2");
@@ -1183,7 +1361,11 @@ console.log("\n19. Rolling the rota forward, and taking it back");
    * this number the suite now says so, instead of testing less and looking
    * green.
    */
-  const BEYOND_HORIZON_WEEKS = 18;
+  /* Comfortably past the app's TIMETABLE_WEEKS, which became 53 when the
+   booking horizon went to a year. This was 18, which stopped being
+   "beyond" the moment the horizon grew and would have made the block
+   below silently assert nothing again. */
+  const BEYOND_HORIZON_WEEKS = 70;
 
   const once = await req(staff, "/api/admin/generate", {
     method: "POST",
@@ -1238,14 +1420,22 @@ console.log("\n19. Rolling the rota forward, and taking it back");
       method: "DELETE",
       body: { ids },
     });
-    check("undoing twice removes nothing more", again.json?.removed === 0, again.json);
+    check(
+      "undoing twice removes nothing more",
+      again.json?.removed === 0,
+      again.json,
+    );
   }
 
   const empty = await req(staff, "/api/admin/generate", {
     method: "DELETE",
     body: { ids: [] },
   });
-  check("an empty undo is refused rather than doing something odd", empty.status === 400, empty.status);
+  check(
+    "an empty undo is refused rather than doing something odd",
+    empty.status === 400,
+    empty.status,
+  );
 
   /* And a booked class survives an undo. */
   const roll = await req(staff, "/api/admin/generate", {
@@ -1261,14 +1451,22 @@ console.log("\n19. Rolling the rota forward, and taking it back");
   if (fresh.length > 2) {
     const buyer = await member("undo");
     /* Give them a session so they can book. */
-    const list = await req(staff, `/api/admin/members?q=${encodeURIComponent(buyer.email)}`);
+    const list = await req(
+      staff,
+      `/api/admin/members?q=${encodeURIComponent(buyer.email)}`,
+    );
     const buyerId = list.json?.members?.[0]?.id;
     /* Valid long enough to reach a class five months out. Ninety days of
        validity would be refused with SESSIONS_EXPIRE_FIRST — correctly — and
        that refusal has nothing to do with what this section is testing. */
     await req(staff, "/api/admin/grant", {
       method: "POST",
-      body: { userId: buyerId, credits: 2, validityDays: 400, note: "undo test" },
+      body: {
+        userId: buyerId,
+        credits: 2,
+        validityDays: 400,
+        note: "undo test",
+      },
     });
     /**
      * A group class among the new ones, not simply the last of them.
@@ -1281,32 +1479,68 @@ console.log("\n19. Rolling the rota forward, and taking it back");
      * booked class alone.
      */
     /**
-     * The window is moved to where the new classes are, not widened.
+     * The window walks forward until it finds the new classes, rather than
+     * being pointed at where they were last time.
      *
-     * Everything this roll created is *past* the standing ninety-day horizon —
-     * that is what makes it new — and /api/sessions caps its window at 92 days.
-     * So asking for the next 90 days finds none of these classes and the filter
-     * below silently matched nothing, which is how this block came to try
-     * booking an appointment with class sessions. `from` is what the route has
-     * for exactly this.
+     * Everything this roll created is *past* the standing horizon — that is
+     * what makes it new — and /api/sessions caps its window at 92 days, so the
+     * search has to go and look. This was a hardcoded `now + 88 days`, correct
+     * while the horizon was ninety days, and it broke the moment the horizon
+     * became a year: the fresh classes moved out to around day 371 and the
+     * window at day 88 matched none of them. The filter then silently found
+     * nothing and the block tried to book an appointment with class sessions,
+     * which is the second time that exact failure has happened here.
+     *
+     * So no constant. Step through 90-day windows until one of the created ids
+     * turns up, and this keeps working whatever the horizon becomes next.
      */
-    const from = new Date(Date.now() + 88 * 86_400_000).toISOString();
-    const timetable = await req(
-      buyer.j,
-      `/api/sessions?from=${encodeURIComponent(from)}&days=92`,
-    );
-    const groupIds = new Set(
-      (timetable.json?.sessions ?? [])
-        .filter((s) => s.classType?.kind !== "PERSONAL" && s.spotsLeft > 0)
-        .map((s) => s.id),
-    );
-    const target = [...fresh].reverse().find((id) => groupIds.has(id));
-    check("there is a new group class to book", Boolean(target), fresh.length);
+    let target = null;
+    let windowsTried = 0;
+    for (
+      let startDay = 0;
+      startDay < BEYOND_HORIZON_WEEKS * 7 + 90 && !target;
+      startDay += 90
+    ) {
+      windowsTried++;
+      const from = new Date(Date.now() + startDay * 86_400_000).toISOString();
+      const timetable = await req(
+        buyer.j,
+        `/api/sessions?from=${encodeURIComponent(from)}&days=92`,
+      );
+      const groupIds = new Set(
+        (timetable.json?.sessions ?? [])
+          .filter((s) => s.classType?.kind !== "PERSONAL" && s.spotsLeft > 0)
+          .map((s) => s.id),
+      );
+      /**
+       * The *earliest* new class, not the latest.
+       *
+       * This reversed the list and took the furthest one out, which was
+       * harmless while the roll only reached a few weeks past a ninety-day
+       * horizon. With the horizon at a year and this roll at seventy weeks, the
+       * furthest new class lands around day 490 — past the expiry of the
+       * sessions granted to this fixture — and the booking was refused with
+       * SESSIONS_EXPIRE_FIRST, which is the app being right.
+       *
+       * The nearest new class is the correct choice on its own terms too: it is
+       * still unambiguously "new", and it is the one most likely to sit inside
+       * whatever validity a fixture happens to have.
+       */
+      target = fresh.find((id) => groupIds.has(id)) ?? null;
+    }
+    check("there is a new group class to book", Boolean(target), {
+      fresh: fresh.length,
+      windowsTried,
+    });
     const booked = await req(buyer.j, "/api/bookings", {
       method: "POST",
       body: { sessionId: target ?? fresh[fresh.length - 1] },
     });
-    check("a member books one of the new classes", booked.json?.ok === true, booked.json);
+    check(
+      "a member books one of the new classes",
+      booked.json?.ok === true,
+      booked.json,
+    );
 
     const undone = await req(staff, "/api/admin/generate", {
       method: "DELETE",
@@ -1335,25 +1569,44 @@ console.log("\n20. Campaign filters pick out who a message is for");
     (never.json?.reach?.people ?? 0) <= everyone,
     { never: never.json?.reach?.people, everyone },
   );
-  check("and finds somebody", (never.json?.reach?.people ?? 0) > 0, never.json?.reach);
+  check(
+    "and finds somebody",
+    (never.json?.reach?.people ?? 0) > 0,
+    never.json?.reach,
+  );
 
   /* A member who buys must drop out of it. That is the whole point of the
      filter, and the only way to know it works. */
   const buyer = await member("filter-buyer");
-  const found = await req(staff, `/api/admin/members?q=${encodeURIComponent(buyer.email)}`);
+  const found = await req(
+    staff,
+    `/api/admin/members?q=${encodeURIComponent(buyer.email)}`,
+  );
   const buyerId = found.json?.members?.[0]?.id;
-  check("a member to buy something exists", Boolean(buyerId), found.json?.members?.length);
+  check(
+    "a member to buy something exists",
+    Boolean(buyerId),
+    found.json?.members?.length,
+  );
 
-  const beforeBuy = (await req(staff, "/api/admin/notices?audience=ALL&neverPaid=1")).json
-    ?.reach?.people ?? 0;
+  const beforeBuy =
+    (await req(staff, "/api/admin/notices?audience=ALL&neverPaid=1")).json
+      ?.reach?.people ?? 0;
 
   /* A desk sale writes a PAID purchase exactly as a card payment does. */
   const sold = await req(staff, "/api/admin/sessions", {
     method: "POST",
-    body: { userId: buyerId, credits: 5, validityDays: 90, method: "cash", amountCents: 10000 },
+    body: {
+      userId: buyerId,
+      credits: 5,
+      validityDays: 90,
+      method: "cash",
+      amountCents: 10000,
+    },
   });
-  const afterBuy = (await req(staff, "/api/admin/notices?audience=ALL&neverPaid=1")).json
-    ?.reach?.people ?? 0;
+  const afterBuy =
+    (await req(staff, "/api/admin/notices?audience=ALL&neverPaid=1")).json
+      ?.reach?.people ?? 0;
   check(
     "buying at the desk takes them out of never-bought",
     afterBuy === beforeBuy - 1,
@@ -1361,7 +1614,10 @@ console.log("\n20. Campaign filters pick out who a message is for");
   );
 
   /* No sessions left. The buyer above now has five, so they must be excluded. */
-  const noneLeft = await req(staff, "/api/admin/notices?audience=ALL&noSessionsLeft=1");
+  const noneLeft = await req(
+    staff,
+    "/api/admin/notices?audience=ALL&noSessionsLeft=1",
+  );
   check(
     "no-sessions-left is a subset too",
     (noneLeft.json?.reach?.people ?? 0) <= everyone,
@@ -1371,7 +1627,10 @@ console.log("\n20. Campaign filters pick out who a message is for");
   /* Away for a while. Nobody in a freshly seeded database has attended
      anything, so a large window should match everybody the audience covers —
      which is the documented behaviour: never been counts as away. */
-  const away = await req(staff, "/api/admin/notices?audience=ALL&inactiveDays=90");
+  const away = await req(
+    staff,
+    "/api/admin/notices?audience=ALL&inactiveDays=90",
+  );
   check(
     "away-90-days includes members who have never been",
     (away.json?.reach?.people ?? 0) > 0,
@@ -1385,10 +1644,11 @@ console.log("\n20. Campaign filters pick out who a message is for");
   );
   check(
     "two filters never widen the audience",
-    (both.json?.reach?.people ?? 0) <= Math.min(
-      never.json?.reach?.people ?? 0,
-      noneLeft.json?.reach?.people ?? 0,
-    ),
+    (both.json?.reach?.people ?? 0) <=
+      Math.min(
+        never.json?.reach?.people ?? 0,
+        noneLeft.json?.reach?.people ?? 0,
+      ),
     {
       both: both.json?.reach?.people,
       never: never.json?.reach?.people,
@@ -1403,11 +1663,18 @@ console.log("\n20. Campaign filters pick out who a message is for");
     staff,
     "/api/admin/notices?audience=OFFERS&neverPaid=1",
   );
-  const allNever = await req(staff, "/api/admin/notices?audience=ALL&neverPaid=1");
+  const allNever = await req(
+    staff,
+    "/api/admin/notices?audience=ALL&neverPaid=1",
+  );
   check(
     "the offers audience with a filter is never larger than everyone with it",
-    (offersNever.json?.reach?.people ?? 0) <= (allNever.json?.reach?.people ?? 0),
-    { offers: offersNever.json?.reach?.people, all: allNever.json?.reach?.people },
+    (offersNever.json?.reach?.people ?? 0) <=
+      (allNever.json?.reach?.people ?? 0),
+    {
+      offers: offersNever.json?.reach?.people,
+      all: allNever.json?.reach?.people,
+    },
   );
 
   const promo = await req(staff, "/api/admin/notices", {
@@ -1426,7 +1693,9 @@ console.log("\n20. Campaign filters pick out who a message is for");
   const sawIt = await req(declined.j, "/api/notices?filter=all&page=1");
   check(
     "a member who declined offers never sees it, filter or no filter",
-    !(sawIt.json?.rows ?? []).some((r) => r.title === "Come back to the studio"),
+    !(sawIt.json?.rows ?? []).some(
+      (r) => r.title === "Come back to the studio",
+    ),
     (sawIt.json?.rows ?? []).map((r) => r.title),
   );
 
@@ -1436,7 +1705,11 @@ console.log("\n20. Campaign filters pick out who a message is for");
   const row = (hist.json?.notices ?? []).find(
     (n) => n.titleEn === "Come back to the studio",
   );
-  check("the notice is in the history", Boolean(row), hist.json?.notices?.length);
+  check(
+    "the notice is in the history",
+    Boolean(row),
+    hist.json?.notices?.length,
+  );
   check(
     "with the audience it went to written down",
     typeof row?.segment === "string" &&
@@ -1460,9 +1733,13 @@ console.log("\n20. Campaign filters pick out who a message is for");
      between and the audience legitimately grew. Comparing against a stale
      baseline was the first version of this test, and it failed for the wrong
      reason — which is its own small lesson about counting live data. */
-  const nowEveryone = (await req(staff, "/api/admin/notices?audience=ALL")).json?.reach
-    ?.people ?? 0;
-  const negative = await req(staff, "/api/admin/notices?audience=ALL&inactiveDays=-5");
+  const nowEveryone =
+    (await req(staff, "/api/admin/notices?audience=ALL")).json?.reach?.people ??
+    0;
+  const negative = await req(
+    staff,
+    "/api/admin/notices?audience=ALL&inactiveDays=-5",
+  );
   check(
     "a negative window is ignored, not applied backwards",
     (negative.json?.reach?.people ?? -1) === nowEveryone,
@@ -1494,7 +1771,9 @@ console.log("\n21. The SMS language, and the guard on the bill");
       channels: ["sms"],
     },
   });
-  const smsReport = (short.json?.reports ?? []).find((r) => r.channel === "sms");
+  const smsReport = (short.json?.reports ?? []).find(
+    (r) => r.channel === "sms",
+  );
   check("a short notice sends by SMS", short.json?.ok === true, short.json);
   check(
     "and the report says how many segments each message became",
@@ -1521,7 +1800,9 @@ console.log("\n21. The SMS language, and the guard on the bill");
       smsLang: "el",
     },
   });
-  const greekReport = (inGreek.json?.reports ?? []).find((r) => r.channel === "sms");
+  const greekReport = (inGreek.json?.reports ?? []).find(
+    (r) => r.channel === "sms",
+  );
   check("Greek can be chosen", inGreek.json?.ok === true, inGreek.json);
   check(
     "and is reported as the expensive alphabet",
@@ -1540,7 +1821,9 @@ console.log("\n21. The SMS language, and the guard on the bill");
       smsEn: "Timetable changes from October. See your account.",
     },
   });
-  const overRep = (overridden.json?.reports ?? []).find((r) => r.channel === "sms");
+  const overRep = (overridden.json?.reports ?? []).find(
+    (r) => r.channel === "sms",
+  );
   check(
     "a long notice with a short text is one segment",
     overridden.json?.ok === true && overRep?.segments === 1,
@@ -1551,8 +1834,9 @@ console.log("\n21. The SMS language, and the guard on the bill");
      messages to every member; it is refused before the notice is written, so
      the desk shortens it and sends once rather than finding a half-sent
      announcement in the history. */
-  const before = (await req(staff, "/api/admin/notices?channel=sms")).json?.history
-    ?.total ?? 0;
+  const before =
+    (await req(staff, "/api/admin/notices?channel=sms")).json?.history?.total ??
+    0;
   const tooLong = await req(staff, "/api/admin/notices", {
     method: "POST",
     body: {
@@ -1572,8 +1856,9 @@ console.log("\n21. The SMS language, and the guard on the bill");
     (tooLong.json?.segments ?? 0) > (tooLong.json?.max ?? 0),
     tooLong.json,
   );
-  const after = (await req(staff, "/api/admin/notices?channel=sms")).json?.history
-    ?.total ?? 0;
+  const after =
+    (await req(staff, "/api/admin/notices?channel=sms")).json?.history?.total ??
+    0;
   check(
     "nothing was written, so it can be fixed and sent once",
     after === before,
@@ -1591,7 +1876,11 @@ console.log("\n21. The SMS language, and the guard on the bill");
       channels: ["push"],
     },
   });
-  check("the same notice sends fine without SMS", noSms.json?.ok === true, noSms.json);
+  check(
+    "the same notice sends fine without SMS",
+    noSms.json?.ok === true,
+    noSms.json,
+  );
 }
 
 console.log(

@@ -77,6 +77,78 @@ export function dateWords(d: Date, lang: "en" | "el" = "en") {
   }).format(d);
 }
 
+/**
+ * The slot rather than the date: "every Monday at 16:00".
+ *
+ * What a member books when they book a term. Twelve dates is a list; one
+ * weekday and one hour is the thing they actually chose, and it is what they
+ * will recognise on a lock screen.
+ *
+ * "every {weekday}" in both languages rather than a plural weekday, because
+ * Greek inflects the noun and "Δευτέρες" is not a word anybody writes. "κάθε
+ * Δευτέρα" is, and it is what the day itself is called, so nothing has to be
+ * pluralised.
+ */
+export function slotWords(d: Date, lang: "en" | "el" = "en") {
+  const locale = lang === "el" ? "el-GR" : "en-GB";
+  const day = new Intl.DateTimeFormat(locale, {
+    timeZone: STUDIO.timezone,
+    weekday: "long",
+  }).format(d);
+  const time = new Intl.DateTimeFormat(locale, {
+    timeZone: STUDIO.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return lang === "el"
+    ? `κάθε ${day} στις ${time}`
+    : `every ${day} at ${time}`;
+}
+
+/**
+ * Two dates as a span: "8 September to 24 November 2026".
+ *
+ * The year is said once, at the end, where it belongs. `dateWords` twice would
+ * give "8 September 2026 to 24 November 2026", and a member reading a phone
+ * notification does not need telling twice which year it is.
+ *
+ * Across a new year it says both, because then it genuinely matters: a
+ * twelve-month run starting in December ends in the year after, and "8 December
+ * to 2 March" hides the one fact that makes the span surprising.
+ */
+export function rangeWords(from: Date, to: Date, lang: "en" | "el" = "en") {
+  const locale = lang === "el" ? "el-GR" : "en-GB";
+  const year = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: STUDIO.timezone,
+      year: "numeric",
+    }).format(d);
+  const short = (d: Date) =>
+    new Intl.DateTimeFormat(locale, {
+      timeZone: STUDIO.timezone,
+      day: "numeric",
+      month: "long",
+    }).format(d);
+
+  const sameYear = year(from) === year(to);
+  const left = sameYear ? short(from) : dateWords(from, lang);
+  const right = dateWords(to, lang);
+  return lang === "el" ? `${left} έως ${right}` : `${left} to ${right}`;
+}
+
+/** "1 class" / "12 classes", and the Greek, which inflects the noun. */
+export function classWords(n: number, lang: "en" | "el" = "en") {
+  if (lang === "el") return n === 1 ? "1 μάθημα" : `${n} μαθήματα`;
+  return n === 1 ? "1 class" : `${n} classes`;
+}
+
+/** "1 week" / "4 weeks", same reason. */
+export function weekWords(n: number, lang: "en" | "el" = "en") {
+  if (lang === "el") return n === 1 ? "1 εβδομάδα" : `${n} εβδομάδες`;
+  return n === 1 ? "1 week" : `${n} weeks`;
+}
+
 /** Minutes, said the way a person would say them. */
 export function leadWords(minutes: number, lang: "en" | "el" = "en") {
   const el = lang === "el";
@@ -124,6 +196,177 @@ export function bookedWords(a: {
       subject: "Η κράτηση επιβεβαιώθηκε",
       body: `${a.classEl}, ${whenWords(a.startsAt, "el")}. Σας περιμένουμε στο στούντιο.`,
       url: "/account?tab=notifications",
+    },
+  };
+}
+
+/**
+ * A whole run of weeks, in one message.
+ *
+ * ---
+ *
+ * **What this replaced, and why it was worse than it looked.**
+ *
+ * Booking a term already sent exactly one notification, which was the right
+ * instinct: fifty-two phone buzzes for one press is how a member learns to
+ * turn notifications off, and there is no coming back from that — the studio
+ * loses the channel it uses to say a class is cancelled.
+ *
+ * But the one message it sent was `bookedWords` for the *first* class of the
+ * run. So a member who booked their Monday for a year was told "Reformer Flow,
+ * Monday 8 September at 16:00. See you at the studio." — a true sentence about
+ * one class, and a misleading account of what just happened to their balance.
+ * Fifty-one classes and fifty-two sessions went unmentioned.
+ *
+ * Quiet and wrong is not better than loud. This says the whole thing once.
+ *
+ * ---
+ *
+ * **What goes in it.**
+ *
+ * The slot, because that is what they chose. The count and the span, because
+ * that is what it cost and how far it reaches. And the weeks that could not be
+ * taken *with the reason*, because that is the only part they can act on.
+ *
+ * The reason is not decoration. The screen already learned this lesson: a
+ * member with a 30-day pack asking for eight weeks was once told "booked 4 of
+ * 8" while looking at eight unspent sessions, which reads as a fault in the
+ * website. The true answer is that the pack runs out on the 3rd of October, and
+ * it is both the explanation and the thing to do about it. The person who most
+ * needs that sentence is the one who booked over the telephone and is not
+ * looking at any screen at all.
+ *
+ * Where the failures disagree about why, it names the dates instead, up to
+ * three of them. It deliberately does not say "open your account to see which"
+ * — a refused week is not written down anywhere, so that would be sending
+ * somebody to look at a list that does not exist. Past three, the count is the
+ * honest answer.
+ */
+export function repeatBookedWords(a: {
+  classEn: string;
+  classEl: string;
+  /** The first class actually booked. Its weekday and hour are the slot. */
+  firstStartsAt: Date;
+  /** The last one, so the message can say how far the run reaches. */
+  lastStartsAt: Date;
+  booked: number;
+  /** Weeks that were already theirs. Not a failure and not a new booking. */
+  alreadyHad: number;
+  /** Every week that could not be taken, with its date and its reason. */
+  failed: { startsAt: string; code?: string; until?: string }[];
+}): Bilingual {
+  const asked = a.booked + a.alreadyHad + a.failed.length;
+
+  /* One reason, or none. `code` is the BookingResultCode the booking rules
+     returned; it is typed loosely here so this module stays independent of
+     them, and an unrecognised one falls through to the generic sentence rather
+     than to an empty string. */
+  const codes = [...new Set(a.failed.map((f) => f.code ?? "OTHER"))];
+  const only = codes.length === 1 ? codes[0] : null;
+  const until = a.failed.find((f) => f.until)?.until;
+
+  /**
+   * The refused dates, as a list a person would read: "6 and 13 October", or
+   * "6 October, 13 October and 20 October". Only ever up to three, because
+   * four is a paragraph and twenty is a wall.
+   */
+  function dateList(lang: "en" | "el") {
+    const locale = lang === "el" ? "el-GR" : "en-GB";
+    const parts = a.failed.slice(0, 3).map((f) =>
+      new Intl.DateTimeFormat(locale, {
+        timeZone: STUDIO.timezone,
+        day: "numeric",
+        month: "long",
+      }).format(new Date(f.startsAt)),
+    );
+    if (parts.length === 1) return parts[0];
+    const last = parts[parts.length - 1];
+    const rest = parts.slice(0, -1).join(", ");
+    return lang === "el" ? `${rest} και ${last}` : `${rest} and ${last}`;
+  }
+
+  function why(lang: "en" | "el") {
+    const k = a.failed.length;
+    if (!k) return "";
+    const weeks = weekWords(k, lang);
+    const el = lang === "el";
+
+    /* An expiry names the date the pack reaches. Without it the member is told
+       their sessions are no good and left to work out which date would have
+       worked. */
+    if (only === "SESSIONS_EXPIRE_FIRST" && until) {
+      const d = dateWords(new Date(until), lang);
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν: οι συνεδρίες σας λήγουν στις ${d}. Ανανεώστε και οι εβδομάδες αυτές είναι ανοιχτές.`
+        : ` ${weeks} could not be booked: your sessions expire on ${d}. Top up and those weeks are open.`;
+    }
+    if (only === "CLASS_FULL") {
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν, γιατί τα μαθήματα είναι ήδη πλήρη.`
+        : ` ${weeks} could not be booked, because those classes are already full.`;
+    }
+    if (only === "NO_CREDITS" || only === "CREDITS_NOT_VALID_HERE") {
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν, γιατί δεν έχετε συνεδρίες που να τις καλύπτουν. Ανανεώστε και κρατήστε τις.`
+        : ` ${weeks} could not be booked, because you have no sessions that can pay for them. Top up and book those weeks.`;
+    }
+    if (only === "TOO_LATE" || only === "SESSION_CANCELLED") {
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν, γιατί οι κρατήσεις είχαν κλείσει.`
+        : ` ${weeks} could not be booked, because booking had closed for them.`;
+    }
+    if (only === "ONE_PER_DAY") {
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν: το πρόγραμμά σας επιτρέπει ένα μάθημα την ημέρα.`
+        : ` ${weeks} could not be booked: your plan allows one class a day.`;
+    }
+    /* Mixed reasons, or one we have no sentence for. The dates are the useful
+       part when there are few enough to say. */
+    if (k <= 3) {
+      return el
+        ? ` ${weeks} δεν κρατήθηκαν: ${dateList("el")}.`
+        : ` ${weeks} could not be booked: ${dateList("en")}.`;
+    }
+    return el
+      ? ` ${weeks} δεν κρατήθηκαν. Δείτε το πρόγραμμα για τις ημερομηνίες αυτές.`
+      : ` ${weeks} could not be booked. The timetable shows what is open on those dates.`;
+  }
+
+  function had(lang: "en" | "el") {
+    if (!a.alreadyHad) return "";
+    return lang === "el"
+      ? ` ${weekWords(a.alreadyHad, "el")} τις είχατε ήδη.`
+      : ` ${weekWords(a.alreadyHad)} you already had.`;
+  }
+
+  /* A run that landed a single week is described as the one class it is. "1
+     classes, 8 September to 8 September" is what the general form would say,
+     and it happens whenever eleven of twelve weeks are full. */
+  function when(lang: "en" | "el") {
+    const cls = lang === "el" ? a.classEl : a.classEn;
+    if (a.booked === 1) return `${cls}, ${whenWords(a.firstStartsAt, lang)}.`;
+    return `${cls}, ${slotWords(a.firstStartsAt, lang)}. ${classWords(
+      a.booked,
+      lang,
+    )}, ${rangeWords(a.firstStartsAt, a.lastStartsAt, lang)}.`;
+  }
+
+  const short = a.failed.length > 0;
+
+  return {
+    en: {
+      subject: short
+        ? `${a.booked} of ${asked} classes booked`
+        : `${classWords(a.booked)} booked`,
+      body: `${when("en")}${why("en")}${had("en")}`,
+      url: "/account?tab=classes",
+    },
+    el: {
+      subject: short
+        ? `Κρατήθηκαν ${a.booked} από ${asked} μαθήματα`
+        : `Κρατήθηκαν ${classWords(a.booked, "el")}`,
+      body: `${when("el")}${why("el")}${had("el")}`,
+      url: "/account?tab=classes",
     },
   };
 }

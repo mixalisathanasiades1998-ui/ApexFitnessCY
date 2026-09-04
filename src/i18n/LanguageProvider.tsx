@@ -52,6 +52,15 @@ type Ctx = {
    * dictionary, so neither language can drift from the other.
    */
   fmtSessions: (n: number) => string;
+  /**
+   * "1 spot left" / "4 spots left", in either language.
+   *
+   * The timetable used to print the raw ratio, `4/5`, which reads as a score:
+   * a member glancing at it has to work out which half is the one they care
+   * about, and the capacity is not information they can act on. The same
+   * singular problem as fmtSessions above, and the same fix.
+   */
+  fmtSpots: (n: number) => string;
 };
 
 type DateLike = Date | string | number;
@@ -143,8 +152,7 @@ export function LanguageProvider({
       fmtTime: (d) => time(d),
       fmtShortDate: (d) =>
         `${clean(weekdayShort(d))} ${dayNumber(d)} ${clean(monthShort(d))}`,
-      fmtLongDate: (d) =>
-        `${weekdayLong(d)} ${dayNumber(d)} ${monthLong(d)}`,
+      fmtLongDate: (d) => `${weekdayLong(d)} ${dayNumber(d)} ${monthLong(d)}`,
       fmtDayMonth: (d) => `${dayNumber(d)} ${clean(monthShort(d))}`,
       fmtFullDate: (d) => `${dayNumber(d)} ${monthLong(d)} ${year(d)}`,
       fmtMonthYear: (d) => `${clean(monthShort(d))} ${year(d)}`,
@@ -159,11 +167,15 @@ export function LanguageProvider({
         money.format(cents / 100).replace(/([.,])00(?!\d)/, ""),
       fmtSessions: (n) =>
         `${n} ${n === 1 ? dictionaries[locale].common.credit : dictionaries[locale].common.credits}`,
+      fmtSpots: (n) =>
+        `${n} ${n === 1 ? dictionaries[locale].common.spotLeft : dictionaries[locale].common.spotsLeft}`,
     };
   }, [locale, setLocale]);
 
   return (
-    <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
   );
 }
 

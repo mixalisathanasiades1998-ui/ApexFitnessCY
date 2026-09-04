@@ -7,7 +7,6 @@ import { markOnboarded, markVerified } from "./fixture-verify.mjs";
 
 const BASE = process.argv[2] ?? "http://localhost:3000";
 
-
 /* One number, one account — so every registration in this suite needs its own.
    Registering two members with the same phone is now correctly refused. */
 let __phoneSeq = 0;
@@ -90,7 +89,8 @@ for (const p of [
 const coverOut = await req("/");
 check(
   "the cover offers a sign in when nobody is signed in",
-  coverOut.text.includes("Already a member") && coverOut.text.includes('href="/login"'),
+  coverOut.text.includes("Already a member") &&
+    coverOut.text.includes('href="/login"'),
   "no sign-in on the cover",
 );
 
@@ -131,10 +131,15 @@ const reg = await req("/api/auth/register", {
     email,
     password: "test12345",
     phone: uniquePhone(),
-    serviceOptIn: true, termsAccepted: true,
+    serviceOptIn: true,
+    termsAccepted: true,
   },
 });
-check("registration succeeds", reg.status === 200 && reg.json?.ok === true, reg.json);
+check(
+  "registration succeeds",
+  reg.status === 200 && reg.json?.ok === true,
+  reg.json,
+);
 check("session cookie set", jar.has("apex_session"));
 check(
   "registration asks for the emailed code",
@@ -156,7 +161,11 @@ for (const path of ["/account", "/", "/pricing", "/timetable", "/faq"]) {
   );
 }
 const verifyPage = await req("/verify");
-check("GET /verify is the one page that loads", verifyPage.status === 200, verifyPage.status);
+check(
+  "GET /verify is the one page that loads",
+  verifyPage.status === 200,
+  verifyPage.status,
+);
 check(
   "and shows the address the code went to",
   verifyPage.text.includes(email),
@@ -206,9 +215,17 @@ check(
 /* Signing out has to work from in here, or the only mistake anybody actually
    makes — a typo in their own address — has no remedy. */
 const escaped = await req("/api/auth/logout", { method: "POST" });
-check("signing out works from the code box", escaped.status === 200, escaped.status);
+check(
+  "signing out works from the code box",
+  escaped.status === 200,
+  escaped.status,
+);
 const anonHome = await req("/");
-check("and the site is browsable again", anonHome.status === 200, anonHome.status);
+check(
+  "and the site is browsable again",
+  anonHome.status === 200,
+  anonHome.status,
+);
 
 /* Back in, verified the way a member would be: the row is stamped and the
    cookie is re-issued by signing in again. */
@@ -312,7 +329,8 @@ console.log("\n3c. Closing the browser does not lose the account");
       email: lapsedEmail,
       password: "test12345",
       phone: uniquePhone(),
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   check("registers", made.json?.ok === true, made.json);
@@ -324,11 +342,23 @@ console.log("\n3c. Closing the browser does not lose the account");
     method: "POST",
     body: { email: lapsedEmail, password: "test12345" },
   });
-  check("the same credentials still sign in", again.json?.ok === true, again.json);
-  check("and are sent to the code box", again.json?.verify === true, again.json);
+  check(
+    "the same credentials still sign in",
+    again.json?.ok === true,
+    again.json,
+  );
+  check(
+    "and are sent to the code box",
+    again.json?.verify === true,
+    again.json,
+  );
 
   const state = await req("/api/auth/verify");
-  check("the code they were already sent is still live", state.json?.challenge, state.json);
+  check(
+    "the code they were already sent is still live",
+    state.json?.challenge,
+    state.json,
+  );
   check(
     "not expired, so there is nothing to re-request",
     state.json?.challenge?.expired === false,
@@ -400,11 +430,17 @@ const all = sess.json?.sessions ?? [];
 const list = all.filter((s) => s.classType?.kind !== "PERSONAL");
 const appointments = all.filter((s) => s.classType?.kind === "PERSONAL");
 check("timetable API returns classes", list.length > 0, list.length);
-check("and appointments alongside them", appointments.length > 0, appointments.length);
+check(
+  "and appointments alongside them",
+  appointments.length > 0,
+  appointments.length,
+);
 /* Comfortably outside the 24-hour cancellation window, so the cancel step
    below exercises the refund path rather than the lock-out. */
 const target = list.find(
-  (s) => s.spotsLeft > 0 && new Date(s.startsAt) > new Date(Date.now() + 48 * 3600_000),
+  (s) =>
+    s.spotsLeft > 0 &&
+    new Date(s.startsAt) > new Date(Date.now() + 48 * 3600_000),
 );
 check("found a bookable class", Boolean(target));
 
@@ -412,19 +448,36 @@ const noCredits = await req("/api/bookings", {
   method: "POST",
   body: { sessionId: target.id },
 });
-check("booking refused with no credits", noCredits.json?.error === "NO_CREDITS", noCredits.json);
+check(
+  "booking refused with no credits",
+  noCredits.json?.error === "NO_CREDITS",
+  noCredits.json,
+);
 
 console.log("\n6. Buy a pack");
 const pricing = await req("/pricing");
 check("pricing page renders €200 pack", pricing.text.includes("200"));
-check("the 3-class pack is no longer offered", !/Intro\s*·\s*3/.test(pricing.text));
-check("no 3-session pack anywhere on the page", !/"credits":3/.test(pricing.text));
+check(
+  "the 3-class pack is no longer offered",
+  !/Intro\s*·\s*3/.test(pricing.text),
+);
+check(
+  "no 3-session pack anywhere on the page",
+  !/"credits":3/.test(pricing.text),
+);
 
 /* Buying is two steps now, the same two a card goes through: open the payment,
    then settle it. Nothing is granted by opening it — see scripts/test-payments.mjs
    for the full set of promises around that. */
-const opened = await req("/api/checkout", { method: "POST", body: { packSlug: "month-2" } });
-check("a payment opens for the 10-class pack", Boolean(opened.json?.purchaseId), opened.json);
+const opened = await req("/api/checkout", {
+  method: "POST",
+  body: { packSlug: "month-2" },
+});
+check(
+  "a payment opens for the 10-class pack",
+  Boolean(opened.json?.purchaseId),
+  opened.json,
+);
 check(
   "the provider says how to pay",
   ["fields", "redirect", "test"].includes(opened.json?.mode),
@@ -435,36 +488,65 @@ const settled = await req("/api/payments/settle", {
   method: "POST",
   body: { purchaseId: opened.json?.purchaseId },
 });
-check("settling it grants the sessions", settled.json?.status === "PAID", settled.json);
+check(
+  "settling it grants the sessions",
+  settled.json?.status === "PAID",
+  settled.json,
+);
 check("balance is 8", settled.json?.credits === 8, settled.json);
 
 console.log("\n7. Book with credits");
-const booked = await req("/api/bookings", { method: "POST", body: { sessionId: target.id } });
+const booked = await req("/api/bookings", {
+  method: "POST",
+  body: { sessionId: target.id },
+});
 check("booking succeeds", booked.json?.ok === true, booked.json);
 check("balance is now 7", booked.json?.credits === 7, booked.json);
 
-const again = await req("/api/bookings", { method: "POST", body: { sessionId: target.id } });
-check("double booking refused", again.json?.error === "ALREADY_BOOKED", again.json);
+const again = await req("/api/bookings", {
+  method: "POST",
+  body: { sessionId: target.id },
+});
+check(
+  "double booking refused",
+  again.json?.error === "ALREADY_BOOKED",
+  again.json,
+);
 
 const mine = await req("/api/bookings");
-check("upcoming list has 1 booking", mine.json?.upcoming?.length === 1, mine.json?.upcoming?.length);
+check(
+  "upcoming list has 1 booking",
+  mine.json?.upcoming?.length === 1,
+  mine.json?.upcoming?.length,
+);
 
 console.log("\n8. Cancel and get the credit back");
 const bookingId = booked.json?.bookingId;
-const cancelled = await req("/api/bookings/cancel", { method: "POST", body: { bookingId } });
-check("cancel succeeds and refunds", cancelled.json?.ok && cancelled.json?.refunded, cancelled.json);
+const cancelled = await req("/api/bookings/cancel", {
+  method: "POST",
+  body: { bookingId },
+});
+check(
+  "cancel succeeds and refunds",
+  cancelled.json?.ok && cancelled.json?.refunded,
+  cancelled.json,
+);
 check("balance back to 8", cancelled.json?.credits === 8, cancelled.json);
 
 /* Every group class the studio runs is 50 minutes with five places. */
 const cap = list.every((s) => s.capacity === 5);
-check("every class has five places", cap, list.find((s) => s.capacity !== 5)?.capacity);
+check(
+  "every class has five places",
+  cap,
+  list.find((s) => s.capacity !== 5)?.capacity,
+);
 /* And every appointment holds exactly one, which is the whole point of it. */
 check(
   "every appointment holds one person",
   appointments.every((s) => s.capacity === 1),
   appointments.find((s) => s.capacity !== 1)?.capacity,
 );
-check(
+(check(
   "and sits at 12:00, 13:00 or 14:00 on a weekday",
   appointments.every((s) => {
     const at = new Date(s.startsAt);
@@ -482,14 +564,16 @@ check(
     return [12, 13, 14].includes(hour) && !["Sat", "Sun"].includes(dow);
   }),
 ),
-check(
-  "the timetable calls every group class Reformer Flow",
-  new Set(list.map((s) => s.classType?.nameEn)).size === 1 &&
-    list[0]?.classType?.nameEn === "Reformer Flow",
-  [...new Set(list.map((s) => s.classType?.nameEn))],
-);
+  check(
+    "the timetable calls every group class Reformer Flow",
+    new Set(list.map((s) => s.classType?.nameEn)).size === 1 &&
+      list[0]?.classType?.nameEn === "Reformer Flow",
+    [...new Set(list.map((s) => s.classType?.nameEn))],
+  ));
 const fiftyMinutes = list.every(
-  (s) => !s.endsAt || new Date(s.endsAt).getTime() - new Date(s.startsAt).getTime() === 3000_000,
+  (s) =>
+    !s.endsAt ||
+    new Date(s.endsAt).getTime() - new Date(s.startsAt).getTime() === 3000_000,
 );
 check("class length is 50 minutes", fiftyMinutes);
 
@@ -505,7 +589,9 @@ const tt = await req("/timetable");
 check("timetable shows the fifty-minute end times", /\d:50/.test(tt.text));
 check("timetable never offers a Sunday", !/>\s*SUN\s*</i.test(tt.text));
 
-console.log("\n8a-ii. The two numbers the header keeps fresh, and the manifest");
+console.log(
+  "\n8a-ii. The two numbers the header keeps fresh, and the manifest",
+);
 /**
  * `/api/me` and the web app manifest, both of which exist for the same reason:
  * a member who never closes the site.
@@ -566,11 +652,7 @@ console.log("\n8a-iv. Booking one slot for a whole term");
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId: "whatever", weeks: 4 }),
   });
-  check(
-    "a signed-out caller is refused",
-    anon.status === 401,
-    anon.status,
-  );
+  check("a signed-out caller is refused", anon.status === 401, anon.status);
 
   const slot = (await req("/api/sessions?days=30")).json?.sessions?.find(
     (x) => x.spotsLeft > 0 && x.classType?.kind !== "PERSONAL",
@@ -586,14 +668,33 @@ console.log("\n8a-iv. Booking one slot for a whole term");
     oneWeek.json,
   );
 
+  /**
+   * A year is now allowed, and one week past it is not.
+   *
+   * This asserted that 52 weeks was refused, which was right while the longest
+   * pack was three months and MAX_REPEAT_WEEKS was 13. The studio now sells
+   * twelve-month packs, so 52 is the ceiling rather than over it — and the
+   * assertion worth having is the boundary, not a number that used to be too
+   * big.
+   */
   const aYear = await req("/api/bookings/repeat", {
     method: "POST",
     body: { sessionId: slot?.id, weeks: 52 },
   });
   check(
-    "and neither is a year of them",
-    aYear.status === 400 && aYear.json?.error === "BAD_WEEKS",
+    "a year of weeks is accepted",
+    aYear.status !== 400 || aYear.json?.error !== "BAD_WEEKS",
     aYear.json,
+  );
+
+  const overAYear = await req("/api/bookings/repeat", {
+    method: "POST",
+    body: { sessionId: slot?.id, weeks: 53 },
+  });
+  check(
+    "and one week past a year is refused",
+    overAYear.status === 400 && overAYear.json?.error === "BAD_WEEKS",
+    overAYear.json,
   );
 
   const missing = await req("/api/bookings/repeat", {
@@ -714,7 +815,9 @@ console.log("\n8b. What browsers are allowed to keep");
  * them, and it undid both the immutable caching and the service worker.
  */
 const cc = async (path) => {
-  const res = await fetch(`${BASE}${path}`, { headers: { cookie: cookieHeader() } });
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { cookie: cookieHeader() },
+  });
   return res.headers.get("cache-control") ?? "";
 };
 
@@ -749,7 +852,10 @@ check(
    which would have let a shared cache hold one member's photograph and hand it
    to somebody else. Worth knowing where it is. */
 
-const cancelAgain = await req("/api/bookings/cancel", { method: "POST", body: { bookingId } });
+const cancelAgain = await req("/api/bookings/cancel", {
+  method: "POST",
+  body: { bookingId },
+});
 check("double cancel refused", cancelAgain.status === 409, cancelAgain.status);
 
 console.log("\n9. Cannot touch another member's booking");
@@ -763,7 +869,8 @@ await req("/api/auth/register", {
     email: otherEmail,
     password: "test12345",
     phone: uniquePhone(),
-    serviceOptIn: true, termsAccepted: true,
+    serviceOptIn: true,
+    termsAccepted: true,
   },
 });
 /* Refused twice over until the address is confirmed, which would hide the rule
@@ -786,14 +893,24 @@ await req("/api/auth/login", {
   method: "POST",
   body: { email: otherEmail, password: "test12345" },
 });
-const steal = await req("/api/bookings/cancel", { method: "POST", body: { bookingId } });
+const steal = await req("/api/bookings/cancel", {
+  method: "POST",
+  body: { bookingId },
+});
 check("other member cannot cancel it", steal.status === 409, steal.status);
 jar.clear();
 for (const [k, v] of otherJarBackup) jar.set(k, v);
 
 console.log("\n10. Admin is staff-only");
-const adminBlocked = await req("/api/admin/generate", { method: "POST", body: { weeks: 1 } });
-check("member cannot generate schedule", adminBlocked.status === 403, adminBlocked.status);
+const adminBlocked = await req("/api/admin/generate", {
+  method: "POST",
+  body: { weeks: 1 },
+});
+check(
+  "member cannot generate schedule",
+  adminBlocked.status === 403,
+  adminBlocked.status,
+);
 /* A signed-in member sees the very same door a stranger sees — no redirect to
    their account, no hint that they are on the wrong side of it. */
 const adminPage = await req("/admin");
@@ -818,8 +935,15 @@ check("admin signs in", adminLogin.json?.ok === true, adminLogin.json);
 const locked = await req("/admin");
 check("the console loads", locked.status === 200, locked.status);
 check("locked, asking for the password", locked.text.includes("desk-password"));
-const blocked = await req("/api/admin/generate", { method: "POST", body: { weeks: 2 } });
-check("and its actions are refused until then", blocked.status === 423, blocked.status);
+const blocked = await req("/api/admin/generate", {
+  method: "POST",
+  body: { weeks: 2 },
+});
+check(
+  "and its actions are refused until then",
+  blocked.status === 423,
+  blocked.status,
+);
 
 await req("/api/admin/unlock", {
   method: "POST",
@@ -836,30 +960,58 @@ check(
     adminOk.text.includes('data-desk-tab="analytics"'),
   "no desk console",
 );
-const gen = await req("/api/admin/generate", { method: "POST", body: { weeks: 2 } });
+const gen = await req("/api/admin/generate", {
+  method: "POST",
+  body: { weeks: 2 },
+});
 check("admin can generate schedule", gen.json?.ok === true, gen.json);
 
 console.log("\n12. Contact form");
 const contact = await req("/api/contact", {
   method: "POST",
-  body: { name: "Enquiry Test", email: "hi@example.com", message: "Do you run duets on Saturdays?" },
+  body: {
+    name: "Enquiry Test",
+    email: "hi@example.com",
+    message: "Do you run duets on Saturdays?",
+  },
 });
 check("contact message accepted", contact.json?.ok === true, contact.json);
-const badContact = await req("/api/contact", { method: "POST", body: { name: "x", email: "bad" } });
-check("bad contact message rejected", badContact.status === 400, badContact.status);
+const badContact = await req("/api/contact", {
+  method: "POST",
+  body: { name: "x", email: "bad" },
+});
+check(
+  "bad contact message rejected",
+  badContact.status === 400,
+  badContact.status,
+);
 
 /* Name, email and message are all required, and the message has a floor. */
 const missingName = await req("/api/contact", {
   method: "POST",
-  body: { email: "hi@example.com", message: "A properly long enquiry about levels." },
+  body: {
+    email: "hi@example.com",
+    message: "A properly long enquiry about levels.",
+  },
 });
-check("contact needs a name", missingName.json?.error === "NAME_REQUIRED", missingName.json);
+check(
+  "contact needs a name",
+  missingName.json?.error === "NAME_REQUIRED",
+  missingName.json,
+);
 
 const missingEmail = await req("/api/contact", {
   method: "POST",
-  body: { name: "Test Person", message: "A properly long enquiry about levels." },
+  body: {
+    name: "Test Person",
+    message: "A properly long enquiry about levels.",
+  },
 });
-check("contact needs an email", missingEmail.json?.error === "EMAIL_INVALID", missingEmail.json);
+check(
+  "contact needs an email",
+  missingEmail.json?.error === "EMAIL_INVALID",
+  missingEmail.json,
+);
 
 const shortMessage = await req("/api/contact", {
   method: "POST",
@@ -888,22 +1040,46 @@ for (const needle of [
   check(`contact page shows ${needle}`, contactPage.text.includes(needle));
 }
 const home = await req("/");
-check("footer links Facebook", home.text.includes("facebook.com/profile.php?id=61593707540014"));
+check(
+  "footer links Facebook",
+  home.text.includes("facebook.com/profile.php?id=61593707540014"),
+);
 /* The build credit, on every page because it lives in the footer. */
-check("footer credits the maker", home.text.includes("Developed &amp; Designed by") || home.text.includes("Developed & Designed by"));
+check(
+  "footer credits the maker",
+  home.text.includes("Developed &amp; Designed by") ||
+    home.text.includes("Developed & Designed by"),
+);
 check("and links to them", home.text.includes("https://www.ergonsite.com"));
-check("with the wordmark, not the name in text", home.text.includes("ergonsite.png"));
-check("footer links Instagram", home.text.includes("instagram.com/pilatesbyapex"));
+check(
+  "with the wordmark, not the name in text",
+  home.text.includes("ergonsite.png"),
+);
+check(
+  "footer links Instagram",
+  home.text.includes("instagram.com/pilatesbyapex"),
+);
 /* The accounts are shown as the platforms' own marks, not as words. */
 for (const page of [home, contactPage]) {
-  check("social marks render", page.text.includes("social-icon-instagram") && page.text.includes("social-icon-facebook"));
-  check("each mark carries the handle", page.text.includes("Instagram: @pilatesbyapex") && page.text.includes("Facebook: @pilatesbyapex"));
+  check(
+    "social marks render",
+    page.text.includes("social-icon-instagram") &&
+      page.text.includes("social-icon-facebook"),
+  );
+  check(
+    "each mark carries the handle",
+    page.text.includes("Instagram: @pilatesbyapex") &&
+      page.text.includes("Facebook: @pilatesbyapex"),
+  );
 }
 check(
   "timetable line drops the real-time claim",
   !(await req("/timetable")).text.includes("Availability updates in real time"),
 );
-check("contact promises a reply back soon", contactPage.text.includes("reply back soon"));
+check(
+  "contact promises a reply back soon",
+  contactPage.text.includes("reply back soon"),
+);
 
 console.log("\n12c. Instructor portraits");
 /* The team moved off the retired Classes page and onto the studio page, where
@@ -923,8 +1099,17 @@ check(
 );
 
 console.log("\n13. Stripe webhook is protected");
-const hook = await req("/api/stripe/webhook", { method: "POST", body: { type: "checkout.session.completed" } });
-check("webhook refuses unsigned calls", hook.status === 503 || hook.status === 400, hook.status);
+const hook = await req("/api/stripe/webhook", {
+  method: "POST",
+  body: { type: "checkout.session.completed" },
+});
+check(
+  "webhook refuses unsigned calls",
+  hook.status === 503 || hook.status === 400,
+  hook.status,
+);
 
-console.log(`\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`);
+console.log(
+  `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
+);
 process.exit(fail === 0 ? 0 : 1);

@@ -6,6 +6,7 @@ import {
 } from "./rota";
 import { db } from "@/db";
 import { bookings, classSessions, classTemplates } from "@/db/schema";
+import { TIMETABLE_WEEKS } from "./horizon";
 import {
   studioAddDays,
   studioDateKey,
@@ -14,6 +15,20 @@ import {
   studioStartOfDay,
   studioWallTimeToInstant,
 } from "./time";
+
+/**
+ * The horizon constants live in `./horizon`, which imports nothing.
+ *
+ * Re-exported here because this is where everything already looked for them,
+ * and because a module that reaches the database cannot be imported by
+ * `validation.ts` — that file is bundled into the browser, and the build fails
+ * with `UnhandledSchemeError: node:fs` the moment it is. See horizon.ts.
+ */
+export {
+  BOOKING_HORIZON_DAYS,
+  TIMETABLE_DAYS,
+  TIMETABLE_WEEKS,
+} from "./horizon";
 
 /**
  * Turn the weekly templates into real bookable sessions.
@@ -33,25 +48,10 @@ import {
  * are returned anyway, so that a run which went further ahead than intended can
  * be taken back. See `removeGeneratedSessions`.
  */
-/**
- * How far ahead the timetable runs, in days. One number, read by everybody.
- *
- * Ninety days, because the studio sells three-month packs. Somebody who has just
- * paid for twelve weeks of classes and can only see four of them is looking at a
- * timetable that appears to end before their sessions do — and the studio's own
- * answer to "can I book my Monday slot for the term" was "come back in a month".
- *
- * This is deliberately a single constant rather than a number in each of the
- * three places that needed one. It used to be 28 on the timetable page and 42 in
- * the generator, which is a difference nobody notices until the generator falls
- * behind the page and the last fortnight of the strip quietly shows nothing.
- */
-export const TIMETABLE_DAYS = 90;
-
-/** The same horizon, in the weeks that `generateSessions` counts in. */
-export const TIMETABLE_WEEKS = Math.ceil(TIMETABLE_DAYS / 7);
-
-export function generateSessions(weeksAhead = TIMETABLE_WEEKS, from = new Date()) {
+export function generateSessions(
+  weeksAhead = TIMETABLE_WEEKS,
+  from = new Date(),
+) {
   const templates = db
     .select()
     .from(classTemplates)
@@ -208,15 +208,19 @@ export function removeGeneratedSessions(ids: string[]) {
       const taken = db
         .select({ id: bookings.id })
         .from(bookings)
-        .where(and(eq(bookings.sessionId, id), eq(bookings.status, "CONFIRMED")))
+        .where(
+          and(eq(bookings.sessionId, id), eq(bookings.status, "CONFIRMED")),
+        )
         .all().length;
 
       if (taken > 0) {
         kept++;
         continue;
       }
-      removed += db.delete(classSessions).where(eq(classSessions.id, id)).run()
-        .changes;
+      removed += db
+        .delete(classSessions)
+        .where(eq(classSessions.id, id))
+        .run().changes;
     }
   });
 
@@ -228,7 +232,10 @@ export async function countUpcomingSessions(from = new Date()) {
     .select({ id: classSessions.id })
     .from(classSessions)
     .where(
-      and(gte(classSessions.startsAt, from), eq(classSessions.status, "SCHEDULED")),
+      and(
+        gte(classSessions.startsAt, from),
+        eq(classSessions.status, "SCHEDULED"),
+      ),
     );
   return rows.length;
 }

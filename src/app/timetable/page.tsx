@@ -17,7 +17,11 @@ import {
 } from "@/lib/time";
 import { pushPublicKey } from "@/lib/messaging/push";
 import { isPersonalBookable } from "@/lib/personal";
-import { nudgeTimetable, TIMETABLE_DAYS } from "@/lib/schedule";
+import {
+  BOOKING_HORIZON_DAYS,
+  nudgeTimetable,
+  TIMETABLE_DAYS,
+} from "@/lib/schedule";
 import { STUDIO } from "@/lib/studio";
 import { isBookable } from "@/lib/utils";
 
@@ -29,12 +33,37 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-/* Ninety days, from the one constant that also drives the generator. The studio
-   sells three-month packs, and a member who has paid for twelve weeks of classes
-   should not be looking at a timetable that ends before their sessions do. */
+/* How many days the strip shows at once. The horizon a member may *book*
+   within is a year — see BOOKING_HORIZON_DAYS — and this window slides across
+   it. Rendering the whole year came to 1.3 MB of HTML for no benefit. */
 const DAYS_SHOWN = TIMETABLE_DAYS;
 
-export default async function TimetablePage() {
+/**
+ * Where the window starts, from `?date=`.
+ *
+ * The calendar picker hands a date here rather than fetching one, so moving to
+ * March is an ordinary page load: server-rendered, shareable as a link, and
+ * back works. Clamped to today at the near end and to the booking horizon at
+ * the far end, because the address bar is not a promise — a hand-typed
+ * `?date=2035-01-01` should land somewhere sensible rather than on an empty
+ * strip. Anything unparseable is simply today.
+ */
+function windowStart(raw: string | undefined) {
+  const today = studioStartOfDay(new Date());
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return today;
+  const asked = studioStartOfDay(new Date(`${raw}T12:00:00`));
+  if (Number.isNaN(asked.getTime()) || asked < today) return today;
+  /* Leave a full window's worth in front of the last bookable day, so the far
+     end of the year is reachable without the strip running off the horizon. */
+  const latest = studioAddDays(today, BOOKING_HORIZON_DAYS - DAYS_SHOWN);
+  return asked > latest ? latest : asked;
+}
+
+export default async function TimetablePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   /* Keep the far end of the strip stocked. Once per studio day at most, and the
      page renders whether or not it did anything — see nudgeTimetable. The cron
      sweep is the proper home for this; the timetable is the page that would show
@@ -42,7 +71,8 @@ export default async function TimetablePage() {
   nudgeTimetable();
 
   const session = await readSession();
-  const from = studioStartOfDay(new Date());
+  const { date } = await searchParams;
+  const from = windowStart(date);
   const to = studioAddDays(from, DAYS_SHOWN);
 
   const [rows, credits, summary] = await Promise.all([
@@ -114,6 +144,14 @@ export default async function TimetablePage() {
         soloCredits={summary?.soloCredits ?? 0}
         personalCredits={summary?.personalCredits ?? 0}
         days={days}
+        /* The picker's bounds: the first and last day anybody may book, which
+           is a year wide even though `days` above is ninety. Passed as keys
+           rather than as a count so the client never does the arithmetic
+           twice. */
+        firstBookableDay={studioDateKey(studioStartOfDay(new Date()))}
+        lastBookableDay={studioDateKey(
+          studioAddDays(studioStartOfDay(new Date()), BOOKING_HORIZON_DAYS - 1),
+        )}
         closedDays={closed}
         /* For the notification offer made after a booking. Empty when the
            server has no usable VAPID pair, and the panel then never appears. */

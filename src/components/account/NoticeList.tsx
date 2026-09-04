@@ -152,9 +152,17 @@ export function NoticeList({ notices }: { notices: NoticePageProps }) {
             </span>
           )}
         </h3>
+        {/* Outlined, not ghost.
+
+            It was text with a hover state, which on a phone is text: there is no
+            hover, so nothing ever told anybody it could be pressed. It also sits
+            beside a heading at almost the same size, which is the worst possible
+            neighbour for a control. The border is the cheapest thing that says
+            "button" without shouting, and it is the same outline the rest of the
+            site uses for a secondary action. */}
         {data.counts.unread > 0 && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={busy}
             onClick={() => void mark()}

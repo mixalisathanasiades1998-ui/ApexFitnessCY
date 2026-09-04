@@ -42,7 +42,7 @@ async function req(j, path, { method = "GET", body } = {}) {
     const [pair] = c.split(";");
     const [k, ...rest] = pair.split("=");
     const value = rest.join("=");
-    if (value === "" ) j.delete(k.trim());
+    if (value === "") j.delete(k.trim());
     else j.set(k.trim(), value);
   }
   const text = await res.text();
@@ -75,7 +75,8 @@ async function member(tag) {
       email,
       phone: uniquePhone(),
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
   /* Confirm the address the way a member would; /account redirects to the code
@@ -102,7 +103,11 @@ const staff = jar();
 {
   const anon = jar();
   const page = await req(anon, "/admin");
-  check("a stranger gets the page, not a redirect", page.status === 200, page.status);
+  check(
+    "a stranger gets the page, not a redirect",
+    page.status === 200,
+    page.status,
+  );
   check(
     "and is asked for an email and a password",
     page.text.includes("desk-email") && page.text.includes("desk-password"),
@@ -122,7 +127,11 @@ const staff = jar();
     asMember.status,
   );
   const memberApi = await req(punter.j, "/api/admin/members?q=a");
-  check("and is refused by the API", memberApi.status === 403, memberApi.status);
+  check(
+    "and is refused by the API",
+    memberApi.status === 403,
+    memberApi.status,
+  );
 
   /* A member's own password must not open the desk. */
   const asMemberTry = await req(punter.j, "/api/admin/unlock", {
@@ -156,8 +165,14 @@ const staff = jar();
     method: "POST",
     body: { email: OWNER.email, password: OWNER.password },
   });
-  check("staff credentials open it in one step", inOne.json?.ok === true, inOne.json);
-  check("which also signs them in", staff.has("apex_session"), [...staff.keys()]);
+  check(
+    "staff credentials open it in one step",
+    inOne.json?.ok === true,
+    inOne.json,
+  );
+  check("which also signs them in", staff.has("apex_session"), [
+    ...staff.keys(),
+  ]);
 
   const console_ = await req(staff, "/admin");
   check("the console loads", console_.status === 200, console_.status);
@@ -217,7 +232,8 @@ const staff = jar();
   );
   check(
     "and is not readable by scripts on the page",
-    /httponly/i.test(deskCookie ?? "") && /samesite=strict/i.test(deskCookie ?? ""),
+    /httponly/i.test(deskCookie ?? "") &&
+      /samesite=strict/i.test(deskCookie ?? ""),
     deskCookie,
   );
 }
@@ -281,7 +297,10 @@ console.log("\n1b. The numbers, and any day's bookings");
   check(
     "and the stocks do not move with the period",
     oneDay.json?.stats?.sessionsOutstanding === s.sessionsOutstanding,
-    { day: oneDay.json?.stats?.sessionsOutstanding, all: s.sessionsOutstanding },
+    {
+      day: oneDay.json?.stats?.sessionsOutstanding,
+      all: s.sessionsOutstanding,
+    },
   );
   check(
     "the range it applied comes back with the answer",
@@ -302,7 +321,10 @@ console.log("\n1b. The numbers, and any day's bookings");
   );
 
   /* A month of takings can never exceed the takings of all time. */
-  const month = await req(staff, "/api/admin/stats?from=2026-01-01&to=2026-12-31");
+  const month = await req(
+    staff,
+    "/api/admin/stats?from=2026-01-01&to=2026-12-31",
+  );
   check(
     "a bounded period never reports more revenue than all time",
     month.json?.stats?.revenueCents <= s.revenueCents,
@@ -320,11 +342,23 @@ console.log("\n1b. The numbers, and any day's bookings");
 
   const soon = new Date(Date.now() + 3 * 86400e3).toISOString().slice(0, 10);
   const day = await req(staff, `/api/admin/day?date=${soon}`);
-  check("any day's classes can be read", Array.isArray(day.json?.sessions), day.json);
+  check(
+    "any day's classes can be read",
+    Array.isArray(day.json?.sessions),
+    day.json,
+  );
   const badDay = await req(staff, "/api/admin/day?date=15-08-2026");
-  check("a malformed date is refused", badDay.json?.error === "BAD_DAY", badDay.json);
+  check(
+    "a malformed date is refused",
+    badDay.json?.error === "BAD_DAY",
+    badDay.json,
+  );
   const locked = await req(jar(), `/api/admin/day?date=${soon}`);
-  check("and it is not open to the public", locked.status === 401, locked.status);
+  check(
+    "and it is not open to the public",
+    locked.status === 401,
+    locked.status,
+  );
 }
 
 /* ------------------------------------------------------------------ 1c */
@@ -335,24 +369,68 @@ const desk = jar();
     method: "POST",
     body: { email: RECEPTION.email, password: RECEPTION.password },
   });
-  check("reception opens the desk with their own password", inOne.json?.ok === true, inOne.json);
+  check(
+    "reception opens the desk with their own password",
+    inOne.json?.ok === true,
+    inOne.json,
+  );
 
   const page = await req(desk, "/admin");
   check("the console loads for them", page.status === 200, page.status);
   check(
-    "with the five tabs they need",
-    ["today", "members", "timetable", "notices", "pricing"].every((x) =>
+    "with the two tabs they need",
+    ["today", "members"].every((x) =>
       page.text.includes(`data-desk-tab="${x}"`),
     ),
     "a tab is missing",
   );
-  /* The one they do not get. Not a styling choice: the tab is absent, the
-     figures were never queried for this page, and the route says no. */
-  check(
-    "and no analytics tab",
-    !page.text.includes('data-desk-tab="analytics"'),
-    "reception was shown the analytics tab",
-  );
+  /**
+   * The four they do not get, and the four routes behind them.
+   *
+   * Not a styling choice: the tabs are absent from the markup, and each route
+   * refuses the request. That second half is the half that was missing —
+   * `closures`, `generate`, `notices` and `pricing` were guarded with `desk()`
+   * until 4 September 2026, so a receptionist who could not see the Pricing tab
+   * could still change the price list with a single request. Hiding a tab is
+   * not a restriction, so this asserts both.
+   */
+  for (const gone of ["timetable", "notices", "pricing", "analytics"]) {
+    check(
+      `no ${gone} tab`,
+      !page.text.includes(`data-desk-tab="${gone}"`),
+      `reception was shown the ${gone} tab`,
+    );
+  }
+  for (const [route, opts] of [
+    ["/api/admin/stats", undefined],
+    ["/api/admin/closures", undefined],
+    ["/api/admin/notices", undefined],
+    ["/api/admin/pricing", undefined],
+    /* The writes matter more than the reads: this is the one that would have
+       cost the studio money. */
+    [
+      "/api/admin/pricing",
+      {
+        method: "POST",
+        body: { kind: "PERCENT", value: 90, labelEn: "x", labelEl: "x" },
+      },
+    ],
+    [
+      "/api/admin/closures",
+      {
+        method: "POST",
+        body: { day: "2027-01-01", reasonEn: "x", reasonEl: "x" },
+      },
+    ],
+    ["/api/admin/generate", { method: "POST", body: { weeks: 1 } }],
+  ]) {
+    const r = await req(desk, route, opts);
+    check(
+      `reception is refused by ${opts?.method ?? "GET"} ${route}`,
+      r.status === 403,
+      r.status,
+    );
+  }
   check(
     "nothing of the takings is on the page",
     !/REVENUE|Total revenue|Revenue online|revenueCents/.test(page.text),
@@ -360,20 +438,39 @@ const desk = jar();
   );
 
   const stats = await req(desk, "/api/admin/stats");
-  check("the numbers are refused, not merely hidden", stats.status === 403, stats.status);
+  check(
+    "the numbers are refused, not merely hidden",
+    stats.status === 403,
+    stats.status,
+  );
   const statsRange = await req(desk, "/api/admin/stats?from=2026-01-01");
-  check("and refused however they are asked for", statsRange.status === 403, statsRange.status);
+  check(
+    "and refused however they are asked for",
+    statsRange.status === 403,
+    statsRange.status,
+  );
 
   /* Reception can still do the job. */
   const work = await req(desk, "/api/admin/members?q=member");
-  check("but the membership is still theirs to search", work.status === 200, work.status);
-  const rota = await req(desk, `/api/admin/day?date=${new Date().toISOString().slice(0, 10)}`);
+  check(
+    "but the membership is still theirs to search",
+    work.status === 200,
+    work.status,
+  );
+  const rota = await req(
+    desk,
+    `/api/admin/day?date=${new Date().toISOString().slice(0, 10)}`,
+  );
   check("and so are the day's bookings", rota.status === 200, rota.status);
 
   /* One receptionist must not be able to take the console off the owner. */
   const ownerRow = await req(staff, `/api/admin/members?q=${OWNER.email}`);
   const ownerId = ownerRow.json?.members?.[0]?.id ?? null;
-  check("the owner can see the studio's own accounts", Boolean(ownerId), ownerRow.json);
+  check(
+    "the owner can see the studio's own accounts",
+    Boolean(ownerId),
+    ownerRow.json,
+  );
 
   const hidden = await req(desk, `/api/admin/members?q=${OWNER.email}`);
   check(
@@ -396,12 +493,23 @@ const desk = jar();
     method: "POST",
     body: { userId: ownerId, credits: 5, method: "adjustment" },
   });
-  check("nor move sessions onto a desk account", topUp.status === 404, topUp.status);
+  check(
+    "nor move sessions onto a desk account",
+    topUp.status === 404,
+    topUp.status,
+  );
 
   /* The owner still can — somebody has to, when reception forgets theirs. */
-  const receptionRow = await req(staff, `/api/admin/members?q=${RECEPTION.email}`);
+  const receptionRow = await req(
+    staff,
+    `/api/admin/members?q=${RECEPTION.email}`,
+  );
   const receptionId = receptionRow.json?.members?.[0]?.id ?? null;
-  check("the owner can find reception's account", Boolean(receptionId), receptionRow.json);
+  check(
+    "the owner can find reception's account",
+    Boolean(receptionId),
+    receptionRow.json,
+  );
   const reset = await req(staff, "/api/admin/member/password", {
     method: "POST",
     body: { userId: receptionId, password: RECEPTION.password },
@@ -494,14 +602,26 @@ console.log("\n3. Cancelling for a member, refund or not");
 
   const detail = await req(staff, `/api/admin/members?id=${buyerId}`);
   const bookingId = detail.json?.member?.upcoming?.[0]?.id;
-  check("the desk sees the booking", Boolean(bookingId), detail.json?.member?.upcoming);
+  check(
+    "the desk sees the booking",
+    Boolean(bookingId),
+    detail.json?.member?.upcoming,
+  );
 
   const cancelled = await req(staff, "/api/admin/bookings", {
     method: "POST",
     body: { bookingId, refund: true },
   });
-  check("cancelled with a refund", cancelled.json?.refunded === true, cancelled.json);
-  check("and the session came back", cancelled.json?.balance === 4, cancelled.json);
+  check(
+    "cancelled with a refund",
+    cancelled.json?.refunded === true,
+    cancelled.json,
+  );
+  check(
+    "and the session came back",
+    cancelled.json?.balance === 4,
+    cancelled.json,
+  );
 
   const again = await req(staff, "/api/admin/bookings", {
     method: "POST",
@@ -537,8 +657,9 @@ console.log("\n3b. Booking a member a whole term, over the telephone");
     method: "POST",
     body: { userId: buyerId, credits: 12, method: "adjustment" },
   });
-  const before = (await req(staff, `/api/admin/members?id=${buyerId}`)).json
-    ?.member?.credits ?? 0;
+  const before =
+    (await req(staff, `/api/admin/members?id=${buyerId}`)).json?.member
+      ?.credits ?? 0;
 
   const sessions = await req(buyer.j, "/api/sessions?days=60");
   const slot = (sessions.json?.sessions ?? []).find(
@@ -617,26 +738,28 @@ console.log("\n3b. Booking a member a whole term, over the telephone");
   );
   check(
     "and reports them as already booked rather than as failures",
-    (twice.json?.alreadyHad ?? 0) >= 1 && (twice.json?.failed ?? []).length === 0,
+    (twice.json?.alreadyHad ?? 0) >= 1 &&
+      (twice.json?.failed ?? []).length === 0,
     twice.json,
   );
-  check(
-    "and spends nothing",
-    twice.json?.balance === run.json?.balance,
-    { first: run.json?.balance, second: twice.json?.balance },
-  );
+  check("and spends nothing", twice.json?.balance === run.json?.balance, {
+    first: run.json?.balance,
+    second: twice.json?.balance,
+  });
 
-  /* What it refuses. One week is not a run; a year of them is not either. */
-  for (const weeks of [1.5, 0, 52]) {
+  /* What it refuses: a fraction, nothing, and anything past a year. 52 used to
+     be in this list and is now the ceiling itself — the studio sells a
+     twelve-month pack, so a run of a year is the point. 53 is the first refusal. */
+  for (const weeks of [1.5, 0, 53, 100]) {
     const bad = await req(staff, "/api/admin/bookings", {
       method: "PUT",
       body: { sessionId: slot.id, userId: buyerId, weeks },
     });
-    check(
-      `weeks=${weeks} is refused`,
-      bad.status === 400,
-      { weeks, status: bad.status, json: bad.json },
-    );
+    check(`weeks=${weeks} is refused`, bad.status === 400, {
+      weeks,
+      status: bad.status,
+      json: bad.json,
+    });
   }
 
   /* An appointment is not repeatable, from here or from the member's screen. */
@@ -798,12 +921,20 @@ console.log("\n5. Closing a day");
       method: "POST",
       body: { day: "not-a-day" },
     });
-    check("a nonsense date is refused", bad.json?.error === "BAD_DAY", bad.json);
+    check(
+      "a nonsense date is refused",
+      bad.json?.error === "BAD_DAY",
+      bad.json,
+    );
 
     const reopened = await req(staff, `/api/admin/closures?day=${day}`, {
       method: "DELETE",
     });
-    check("and it can be opened again", reopened.json?.reopened === true, reopened.json);
+    check(
+      "and it can be opened again",
+      reopened.json?.reopened === true,
+      reopened.json,
+    );
   }
 }
 
@@ -816,7 +947,8 @@ console.log("\n6. A notice to every member");
     method: "POST",
     body: {
       titleEn: "Closed on Monday",
-      bodyEn: "The studio is shut for the public holiday. Classes resume Tuesday.",
+      bodyEn:
+        "The studio is shut for the public holiday. Classes resume Tuesday.",
       important: true,
     },
   });
@@ -826,7 +958,11 @@ console.log("\n6. A notice to every member");
     method: "POST",
     body: { titleEn: "a", bodyEn: "b" },
   });
-  check("an empty one is refused", tooShort.json?.error === "TOO_SHORT", tooShort.json);
+  check(
+    "an empty one is refused",
+    tooShort.json?.error === "TOO_SHORT",
+    tooShort.json,
+  );
 
   const account = await req(reader.j, "/account?tab=notifications");
   check(
@@ -846,7 +982,10 @@ console.log("\n6. A notice to every member");
   });
   check("marking all read works", read.json?.unread === 0, read.json);
 
-  const anon = await req(jar(), "/api/notices/read", { method: "POST", body: {} });
+  const anon = await req(jar(), "/api/notices/read", {
+    method: "POST",
+    body: {},
+  });
   check(
     "a stranger cannot mark anything read",
     anon.status === 401,
@@ -878,9 +1017,22 @@ console.log("\n7. An offer on the price list");
     pricing.text.includes("line-through"),
     "no struck-through price",
   );
+  /**
+   * The pack the page actually renders, at the offer price and beside its list
+   * price.
+   *
+   * This asserted €88 against €110 — the monthly two-a-week pack — which was
+   * right while every pack had a card. The plan builder replaced twenty cards
+   * with two chips and opens on *three months, twice a week*, so `month-2` is no
+   * longer in the HTML at all and the old numbers were checking nothing.
+   *
+   * `quarter-2` is €270, and 20% off is €216. Still the assertion worth having:
+   * the two checks above prove an offer is *shown*, and this one proves the
+   * arithmetic behind it.
+   */
   check(
-    "the monthly 2-a-week pack is 88 rather than 110",
-    pricing.text.includes("€88") && pricing.text.includes("€110"),
+    "the shown pack is 216 rather than 270",
+    pricing.text.includes("€216") && pricing.text.includes("€270"),
     "prices look wrong",
   );
 
@@ -915,7 +1067,11 @@ console.log("\n7. An offer on the price list");
     method: "POST",
     body: { packageId: null, kind: "FLAT", value: 1000, labelEn: "€10 off" },
   });
-  check("a flat rule replaces the percent one", perPack.json?.ok === true, perPack.json);
+  check(
+    "a flat rule replaces the percent one",
+    perPack.json?.ok === true,
+    perPack.json,
+  );
   const rules = perPack.json?.rules ?? [];
   check(
     "and does not stack on top of it",
@@ -926,7 +1082,11 @@ console.log("\n7. An offer on the price list");
   const cleared = await req(staff, "/api/admin/pricing?all=1", {
     method: "DELETE",
   });
-  check("everything clears in one press", cleared.json?.ok === true, cleared.json);
+  check(
+    "everything clears in one press",
+    cleared.json?.ok === true,
+    cleared.json,
+  );
 
   const normal = await req(jar(), "/pricing");
   check(
@@ -944,7 +1104,11 @@ console.log("\n8. Leaving the desk");
      the person sitting down is not always the person who stood up. */
   await req(staff, "/api/admin/lock", { method: "POST" });
   const after = await req(staff, "/api/admin/members?q=member");
-  check("a lapsed unlock closes the console", after.status === 423, after.status);
+  check(
+    "a lapsed unlock closes the console",
+    after.status === 423,
+    after.status,
+  );
   const page = await req(staff, "/admin");
   check(
     "and asks for the password next time",
@@ -980,7 +1144,11 @@ console.log("\n8. Leaving the desk");
     method: "POST",
     body: { email: RECEPTION.email, password: RECEPTION.password },
   });
-  check("and the other account signs in on the same browser", swap.json?.ok === true, swap.json);
+  check(
+    "and the other account signs in on the same browser",
+    swap.json?.ok === true,
+    swap.json,
+  );
 }
 
 /* ------------------------------------------------------------------ 11b */
@@ -1002,10 +1170,15 @@ console.log("\n11b. The desk cannot sell to an unconfirmed account either");
       email,
       phone: uniquePhone(),
       password: "test12345",
-      serviceOptIn: true, termsAccepted: true,
+      serviceOptIn: true,
+      termsAccepted: true,
     },
   });
-  check("an account registers and stays unconfirmed", reg.json?.verify === true, reg.json);
+  check(
+    "an account registers and stays unconfirmed",
+    reg.json?.verify === true,
+    reg.json,
+  );
 
   const row = await req(staff, `/api/admin/members?q=${email}`);
   const id = row.json?.members?.[0]?.id ?? null;
@@ -1041,7 +1214,11 @@ console.log("\n11b. The desk cannot sell to an unconfirmed account either");
   );
 
   const detail = await req(staff, `/api/admin/members?id=${id}`);
-  check("their balance is still nothing", detail.json?.member?.credits === 0, detail.json?.member?.credits);
+  check(
+    "their balance is still nothing",
+    detail.json?.member?.credits === 0,
+    detail.json?.member?.credits,
+  );
   check(
     "and the desk is told why on their card",
     detail.json?.member?.emailVerifiedAt === null,
@@ -1065,7 +1242,11 @@ console.log("\n11b. The desk cannot sell to an unconfirmed account either");
     method: "POST",
     body: { userId: id, credits: -3, method: "adjustment" },
   });
-  check("and sessions can be taken back", takeBack.json?.ok === true, takeBack.json);
+  check(
+    "and sessions can be taken back",
+    takeBack.json?.ok === true,
+    takeBack.json,
+  );
 }
 
 /* ------------------------------------------------------------------ 12 */

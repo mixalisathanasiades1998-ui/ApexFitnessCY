@@ -5,13 +5,17 @@ import {
   PILATES_LEVELS,
 } from "./intake";
 import { isValidReminderMinutes } from "./profile";
+import { TIMETABLE_WEEKS } from "./horizon";
 
 export const PASSWORD_MIN = 8;
 
 /* A phone number the studio can actually ring. Loose on formatting, strict on
    there being enough digits to be real. */
 const phone = z
-  .string({ required_error: "PHONE_REQUIRED", invalid_type_error: "PHONE_REQUIRED" })
+  .string({
+    required_error: "PHONE_REQUIRED",
+    invalid_type_error: "PHONE_REQUIRED",
+  })
   .trim()
   .min(8, "PHONE_REQUIRED")
   .max(32, "PHONE_INVALID")
@@ -23,12 +27,18 @@ const phone = z
 
 export const registerSchema = z.object({
   name: z
-    .string({ required_error: "NAME_REQUIRED", invalid_type_error: "NAME_REQUIRED" })
+    .string({
+      required_error: "NAME_REQUIRED",
+      invalid_type_error: "NAME_REQUIRED",
+    })
     .trim()
     .min(2, "NAME_REQUIRED")
     .max(80, "NAME_TOO_LONG"),
   email: z
-    .string({ required_error: "EMAIL_INVALID", invalid_type_error: "EMAIL_INVALID" })
+    .string({
+      required_error: "EMAIL_INVALID",
+      invalid_type_error: "EMAIL_INVALID",
+    })
     .trim()
     .toLowerCase()
     .email("EMAIL_INVALID"),
@@ -36,7 +46,10 @@ export const registerSchema = z.object({
      a booking reminder by SMS is impossible without it. */
   phone,
   password: z
-    .string({ required_error: "PASSWORD_SHORT", invalid_type_error: "PASSWORD_SHORT" })
+    .string({
+      required_error: "PASSWORD_SHORT",
+      invalid_type_error: "PASSWORD_SHORT",
+    })
     .min(PASSWORD_MIN, "PASSWORD_SHORT")
     .max(200, "PASSWORD_LONG"),
   /* Studio and timetable notices. Must be accepted to hold an account, so it
@@ -62,7 +75,10 @@ export const registerSchema = z.object({
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "CURRENT_PASSWORD_REQUIRED"),
-    newPassword: z.string().min(PASSWORD_MIN, "PASSWORD_SHORT").max(200, "PASSWORD_LONG"),
+    newPassword: z
+      .string()
+      .min(PASSWORD_MIN, "PASSWORD_SHORT")
+      .max(200, "PASSWORD_LONG"),
   })
   .refine((v) => v.currentPassword !== v.newPassword, {
     message: "PASSWORD_UNCHANGED",
@@ -182,8 +198,24 @@ export const attendanceSchema = z.object({
   status: z.enum(["ATTENDED", "NO_SHOW", "CONFIRMED"]),
 });
 
+/**
+ * How many weeks the desk may generate in one press.
+ *
+ * The ceiling was a hardcoded 26 and it went stale the moment the booking
+ * horizon became a year: `rollTimetableForward` generates 53 weeks by itself,
+ * so a human pressing Generate at the desk could reach only half of what the
+ * app maintains automatically — and, because of the silent fallback this route
+ * used to have, was told it had worked.
+ *
+ * Derived from `TIMETABLE_WEEKS` with room to overshoot on purpose. Overshooting
+ * is a supported move, not an accident: generation returns the ids of everything
+ * it created precisely so a run that went too far can be taken back, which is
+ * what the Undo on the timetable tab does.
+ */
+export const MAX_GENERATE_WEEKS = TIMETABLE_WEEKS * 2;
+
 export const generateSchema = z.object({
-  weeks: z.number().int().min(1).max(26),
+  weeks: z.number().int().min(1).max(MAX_GENERATE_WEEKS),
 });
 
 /**

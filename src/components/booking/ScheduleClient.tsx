@@ -10,6 +10,8 @@ import { isPersonalCancellable } from "@/lib/personal";
 import { repeatWhy } from "@/lib/repeat-why";
 import { studioAddDays, studioDateKey, studioStartOfDay } from "@/lib/time";
 import { cn, FREE_CANCELLATION_HOURS } from "@/lib/utils";
+import { DateField } from "@/components/ui/DateField";
+import { TIMETABLE_DAYS } from "@/lib/horizon";
 
 /**
  * One class type, sent once per page rather than once per class. Ninety days of
@@ -54,6 +56,33 @@ function endOf(
   return new Date(start.getTime() + mins * 60_000).toISOString();
 }
 
+/**
+ * How long a repeat run covers, offered in the terms the studio sells.
+ *
+ * Labelled in months and sent in weeks, because those are two different
+ * audiences. `repeatWeekly` matches on weekday and minute-of-day and counts in
+ * weeks; a member choosing "book my Monday for six months" is not thinking in
+ * twenty-sixes.
+ *
+ * The weeks are the honest conversion of a month to Mondays — a month has about
+ * 4.3 of them — and the run stops itself early anyway if the sessions or the
+ * pack expiry run out first, reporting which. So a slight difference between
+ * "9 months" and 39 Mondays costs nobody a session.
+ *
+ * Previously offered as bare week counts, 4 / 8 / 13 / 26 / 52, which asked the
+ * member to work out that 13 was three months and left out 39 entirely — so
+ * there was no way to book nine months at all, on the same page that sells a
+ * nine-month pack.
+ */
+const REPEAT_RUNS = [
+  { months: 1, weeks: 4 },
+  { months: 2, weeks: 9 },
+  { months: 3, weeks: 13 },
+  { months: 6, weeks: 26 },
+  { months: 9, weeks: 39 },
+  { months: 12, weeks: 52 },
+] as const;
+
 const LEVEL: Record<string, { en: string; el: string }> = {
   ALL: { en: "All levels", el: "Όλα τα επίπεδα" },
   BEGINNER: { en: "Beginner", el: "Αρχάριοι" },
@@ -71,6 +100,8 @@ export function ScheduleClient({
   personalCredits = 0,
   days,
   closedDays,
+  firstBookableDay,
+  lastBookableDay,
   pushPublicKey = "",
 }: {
   sessions: ScheduleSession[];
@@ -86,6 +117,18 @@ export function ScheduleClient({
   days: string[]; // ISO date strings, one per day shown
   closedDays: Set<string>;
   /**
+   * The whole bookable range, which is a year wide while `days` above is
+   * ninety.
+   *
+   * The strip is a window onto this, not the extent of it. These two bound the
+   * calendar picker, and a date chosen outside the current window reloads the
+   * page with the window moved — see `jumpTo`. Passed as day keys rather than a
+   * day count so the client is never doing the same arithmetic as the server
+   * and getting a different answer at a clock change.
+   */
+  firstBookableDay: string;
+  lastBookableDay: string;
+  /**
    * For the offer made after a first booking. Empty when the server has no
    * usable VAPID pair, which is the same as "push is off" — see
    * lib/messaging/push.ts — and the panel then never appears.
@@ -97,10 +140,9 @@ export function ScheduleClient({
     locale,
     fmtTime,
     fmtLongDate,
-    fmtDayNumber,
     fmtDayMonth,
-    fmtMonthShort,
     fmtWeekdayShort,
+    fmtSpots,
   } = useI18n();
   const router = useRouter();
   const el = locale === "el";
@@ -232,6 +274,54 @@ export function ScheduleClient({
     });
   }
 
+  /**
+   * Going to a date the strip does not hold.
+   *
+   * Inside the window this is just selecting a chip. Outside it — the calendar
+   * is a year wide and the strip is ninety days — there is nothing to select,
+   * so the window itself has to move, and that is a page load with `?date=`.
+   *
+   * Deliberately a navigation rather than a fetch. The server already knows how
+   * to render any ninety days; adding a second path that assembles days on the
+   * client would be a second copy of the closure rules, the bookable rules and
+   * the personal-hours rules. The cost is a page load a member takes perhaps
+   * twice a year, when they are booking into next spring.
+   */
+  function jumpTo(key: string) {
+    if (!key) return;
+    if (days.includes(key)) {
+      setActiveDay(key);
+      strip.current
+        ?.querySelector<HTMLElement>(`[data-day="${key}"]`)
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      return;
+    }
+    router.push(`/timetable?date=${key}`);
+  }
+
+  /**
+   * The next window along, as a day key.
+   *
+   * Forward: the day after the last chip, so the windows abut rather than
+   * overlap or skip. Backward: a full window before the first chip, clamped to
+   * today — going back from day 20 should land on today, not on day minus ten.
+   */
+  function windowShift(dir: -1 | 1) {
+    if (dir === 1) {
+      const last = days[days.length - 1]!;
+      return studioDateKey(studioAddDays(new Date(`${last}T12:00:00`), 1));
+    }
+    const first = days[0]!;
+    const back = studioDateKey(
+      studioAddDays(new Date(`${first}T12:00:00`), -TIMETABLE_DAYS),
+    );
+    return back < firstBookableDay ? firstBookableDay : back;
+  }
+
   function stepDay(dir: -1 | 1) {
     const i = days.indexOf(activeDay);
     const next = days[i + dir];
@@ -247,8 +337,22 @@ export function ScheduleClient({
   }
 
   const dayIndex = days.indexOf(activeDay);
-  const isPersonal = (s: ScheduleSession) =>
-    types[s.type]?.kind === "PERSONAL";
+
+  /**
+   * Whether the arrows are stepping a day or fetching the next thirty.
+   *
+   * The strip is a thirty-day window on a year, so its two ends mean different
+   * things depending on where the window is. On the last chip of the window with
+   * more year left, the next arrow is a door: it loads the following thirty
+   * days. On the last chip of the *year* it is a wall and disables. Same in
+   * reverse at the near end, except the near wall is today — there is no
+   * booking backwards.
+   */
+  const atWindowStart = dayIndex <= 0;
+  const atWindowEnd = dayIndex >= days.length - 1;
+  const windowIsFirst = days[0] === firstBookableDay;
+  const windowIsLast = (days[days.length - 1] ?? "") >= lastBookableDay;
+  const isPersonal = (s: ScheduleSession) => types[s.type]?.kind === "PERSONAL";
   const pickedPersonal = picked ? isPersonal(picked) : false;
 
   /* The same split as the server: an appointment closes to cancellation at the
@@ -385,7 +489,10 @@ export function ScheduleClient({
         flash({
           kind: "warn",
           text: t.booking.unverified,
-          cta: { href: "/verify?next=/timetable", label: t.booking.unverifiedCta },
+          cta: {
+            href: "/verify?next=/timetable",
+            label: t.booking.unverifiedCta,
+          },
         });
         return;
       }
@@ -606,21 +713,75 @@ export function ScheduleClient({
         </div>
       </div>
 
-      {/* Date strip with arrows either side. */}
-      <div className="mt-7 flex items-center gap-3">
+      {/**
+       * Date strip, with arrows either side and a calendar for jumping.
+       *
+       * The calendar is not a mobile affordance bolted on: it is the only way
+       * to reach month nine of a twelve-month pack, because the strip holds
+       * ninety days and nobody drags a scroller through three hundred chips.
+       * On a phone it also replaces the arrow-tapping the studio complained
+       * about. Shown at every width for that reason.
+       *
+       * **The layout is two rows on a phone and one from `sm` up**, out of a
+       * single DOM order, using wrap and `order`.
+       *
+       * Measured twice to get here. Inline with everything on one line left the
+       * strip a four-pixel sliver at 390px, because the button reads
+       * "4 September 2026". Picker on its own row above was better but still
+       * only fitted three chips, since the two arrows took a third of the
+       * remaining width. So on a phone the picker and both arrows share the top
+       * row and the strip gets the whole of the second one; from `sm` the strip
+       * slots back between the arrows where there is room for ten chips.
+       */}
+      <div className="mt-7 flex flex-wrap items-center gap-2 sm:gap-3">
+        <DateField
+          id="tt-jump"
+          value={activeDay}
+          onChange={jumpTo}
+          min={firstBookableDay}
+          max={lastBookableDay}
+          placeholder={t.timetablePage.pickDate}
+          className="min-w-0 flex-1 sm:flex-none sm:shrink-0"
+        />
         <StripArrow
           dir="prev"
-          label={t.timetablePage.prevWeek}
-          disabled={dayIndex <= 0}
+          label={
+            atWindowStart
+              ? t.timetablePage.prevWindow.replace(
+                  "{n}",
+                  String(TIMETABLE_DAYS),
+                )
+              : t.timetablePage.prevWeek
+          }
+          showLabel={atWindowStart && !windowIsFirst}
+          disabled={atWindowStart && windowIsFirst}
           onClick={() => {
-            stepDay(-1);
-            nudge(-1);
+            if (!atWindowStart) {
+              stepDay(-1);
+              nudge(-1);
+              return;
+            }
+            router.push(`/timetable?date=${windowShift(-1)}`);
           }}
         />
 
         <div
           ref={strip}
-          className="no-scrollbar flex flex-1 gap-2 overflow-x-auto scroll-smooth py-1"
+          /**
+           * The strip drops to a row of its own on a phone.
+           *
+           * `order-last w-full` inside the wrapping row is what does it; from
+           * `sm` it returns to its place between the arrows. Measured rather
+           * than guessed: with everything on one line the strip was 238px of
+           * a 390px screen and fitted three chips, because the picker reads
+           * "4 September 2026" and the two arrows took a third of what was
+           * left. Full width it fits six.
+           *
+           * `min-w-0` is the part that is easy to miss: a flex child whose
+           * content overflows will refuse to shrink below its content width
+           * without it, and the row then pushes past the viewport.
+           */
+          className="no-scrollbar order-last flex w-full min-w-0 gap-2 overflow-x-auto scroll-smooth py-1 sm:order-none sm:w-auto sm:flex-1"
         >
           {days.map((d, i) => {
             const date = new Date(`${d}T12:00:00`);
@@ -632,7 +793,9 @@ export function ScheduleClient({
             const isClosedDay = closedDays.has(d);
             const closed = isSunday || isClosedDay;
             const todayKey = studioDateKey(studioStartOfDay(new Date()));
-            const tomorrowKey = studioDateKey(studioAddDays(studioStartOfDay(new Date()), 1));
+            const tomorrowKey = studioDateKey(
+              studioAddDays(studioStartOfDay(new Date()), 1),
+            );
             const isToday = d === todayKey;
             const isTomorrow = d === tomorrowKey;
 
@@ -669,30 +832,29 @@ export function ScheduleClient({
                           : fmtWeekdayShort(date)}
                 </span>
                 {/**
-                  * The day number with its month beside it.
-                  *
-                  * The month was not here while the strip held four weeks — it
-                  * could only ever be this month or the next one, and the
-                  * heading under the strip spells the date out in full anyway.
-                  * At ninety days the strip spans three months and passes
-                  * through the same day number three times, so "5" on its own
-                  * is genuinely ambiguous to somebody scrolling ahead to book a
-                  * term. Small and beside the number rather than on its own
-                  * line: it reads as a date that way, and a fourth line would
-                  * make ninety chips taller for a word.
-                  */}
-                <span className="mt-1 flex items-baseline gap-1">
-                  <span className="font-display text-2xl lining-nums tabular-nums">
-                    {fmtDayNumber(date)}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[9px] uppercase tracking-widest",
-                      active ? "text-cream/60" : "text-clay",
-                    )}
-                  >
-                    {fmtMonthShort(date)}
-                  </span>
+                 * The date, numerically: `05/09`.
+                 *
+                 * It was `5 SEPT` — the day number large with an abbreviated
+                 * month beside it. The month has to be there at all because
+                 * the strip spans three months and passes the same day number
+                 * three times, so "5" alone is ambiguous to somebody scrolling
+                 * ahead to book a term.
+                 *
+                 * The studio asked for digits, and they are better here than
+                 * the words were: `05/09` is one token the eye reads as a
+                 * date, it is the form written on everything else in Cyprus,
+                 * and it is the same width in both languages — `SEPT` and
+                 * `ΣΕΠ` are not, which made the chips jog sideways when the
+                 * language changed.
+                 *
+                 * Day first, month second, zero-padded. Deliberately not
+                 * `Intl`: every locale format is a different order, and this
+                 * has to be `dd/mm` for a Cypriot reader whichever language
+                 * the site is in.
+                 */}
+                <span className="mt-1 font-display text-xl lining-nums tabular-nums">
+                  {String(date.getDate()).padStart(2, "0")}/
+                  {String(date.getMonth() + 1).padStart(2, "0")}
                 </span>
                 <span
                   className={cn(
@@ -709,11 +871,23 @@ export function ScheduleClient({
 
         <StripArrow
           dir="next"
-          label={t.timetablePage.nextWeek}
-          disabled={dayIndex >= days.length - 1}
+          label={
+            atWindowEnd
+              ? t.timetablePage.nextWindow.replace(
+                  "{n}",
+                  String(TIMETABLE_DAYS),
+                )
+              : t.timetablePage.nextWeek
+          }
+          showLabel={atWindowEnd && !windowIsLast}
+          disabled={atWindowEnd && windowIsLast}
           onClick={() => {
-            stepDay(1);
-            nudge(1);
+            if (!atWindowEnd) {
+              stepDay(1);
+              nudge(1);
+              return;
+            }
+            router.push(`/timetable?date=${windowShift(1)}`);
           }}
         />
       </div>
@@ -753,7 +927,8 @@ export function ScheduleClient({
 
         {list.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-mocha-200 px-6 py-14 text-center text-sm text-clay">
-            {new Date(`${activeDay}T12:00:00`).getDay() === 0 || closedDays.has(activeDay)
+            {new Date(`${activeDay}T12:00:00`).getDay() === 0 ||
+            closedDays.has(activeDay)
               ? t.home.timetable.closed
               : t.timetablePage.noClasses}
           </p>
@@ -793,7 +968,11 @@ export function ScheduleClient({
                       <span
                         className={cn(
                           "mt-1 block text-[9px] uppercase tracking-widest",
-                          on ? "text-cream/60" : solo ? "text-[#8a6f1a]" : "text-clay/80",
+                          on
+                            ? "text-cream/60"
+                            : solo
+                              ? "text-[#8a6f1a]"
+                              : "text-clay/80",
                         )}
                       >
                         {/* "1/1" is not a number anybody needs. One reformer is
@@ -804,7 +983,11 @@ export function ScheduleClient({
                             : t.booking.personalChip
                           : full
                             ? t.common.full
-                            : `${s.spotsLeft}/${s.capacity}`}
+                            : /* Was "4/5", which reads as a score and left the
+                                 member to work out which half was the one they
+                                 cared about. `fmtSpots` says "4 spots left",
+                                 singular when it is one, in either language. */
+                              fmtSpots(s.spotsLeft)}
                       </span>
                       {mine && (
                         <span
@@ -873,7 +1056,7 @@ export function ScheduleClient({
                               : t.common.full
                             : pickedPersonal
                               ? t.booking.personalFree
-                              : `${picked.spotsLeft}/${picked.capacity} ${t.common.spotsLeft}`}
+                              : fmtSpots(picked.spotsLeft)}
                         </span>
                       </p>
 
@@ -907,15 +1090,15 @@ export function ScheduleClient({
                       )}
 
                       {/**
-                        * How many of you, asked before the button and not after.
-                        *
-                        * Only shown to somebody holding a duet session. Offering
-                        * "two of us" to a member who cannot pay for two is an
-                        * invitation to type a friend's name and be told no, and
-                        * the refusal would arrive after the decision rather than
-                        * before it. Somebody who has not bought one yet reads the
-                        * explainer above instead, which says what a duet is.
-                        */}
+                       * How many of you, asked before the button and not after.
+                       *
+                       * Only shown to somebody holding a duet session. Offering
+                       * "two of us" to a member who cannot pay for two is an
+                       * invitation to type a friend's name and be told no, and
+                       * the refusal would arrive after the decision rather than
+                       * before it. Somebody who has not bought one yet reads the
+                       * explainer above instead, which says what a duet is.
+                       */}
                       {pickedPersonal &&
                         !picked.myBookingId &&
                         picked.bookable &&
@@ -980,16 +1163,16 @@ export function ScheduleClient({
                         <>
                           <Button
                             /**
-                              * Filled grey once cancelling has closed, rather
-                              * than the outline at 45% opacity it used to be.
-                              *
-                              * A faded outline reads as "this is still a
-                              * button and the page has not finished loading",
-                              * which is the wrong impression at exactly the
-                              * moment somebody is trying to get out of a class.
-                              * A solid grey block reads as a door that is shut.
-                              * The sentence underneath then explains why.
-                              */
+                             * Filled grey once cancelling has closed, rather
+                             * than the outline at 45% opacity it used to be.
+                             *
+                             * A faded outline reads as "this is still a
+                             * button and the page has not finished loading",
+                             * which is the wrong impression at exactly the
+                             * moment somebody is trying to get out of a class.
+                             * A solid grey block reads as a door that is shut.
+                             * The sentence underneath then explains why.
+                             */
                             variant={canCancelPicked ? "outline" : "solid"}
                             size="sm"
                             className={cn(
@@ -1050,25 +1233,25 @@ export function ScheduleClient({
                           )}
 
                           {/**
-                            * Booking the same slot for a term.
-                            *
-                            * Members train on a fixed slot and the studio sells
-                            * three-month packs, so a term of Mondays was twelve
-                            * separate visits to this page. Two days a week is
-                            * two presses now instead of twenty-four.
-                            *
-                            * Group classes only, and that is a studio decision
-                            * rather than a gap: every Personal hour commits
-                            * somebody to come in and teach it, arranged by hand
-                            * the day before, so twelve of them booked in one
-                            * press is twelve instructor hours promised without
-                            * anybody at the desk seeing it happen.
-                            *
-                            * Collapsed until asked for. It is the second thing
-                            * anybody wants from this panel and putting a row of
-                            * week counts above the Book button would make the
-                            * common case read as a decision.
-                            */}
+                           * Booking the same slot for a term.
+                           *
+                           * Members train on a fixed slot and the studio sells
+                           * three-month packs, so a term of Mondays was twelve
+                           * separate visits to this page. Two days a week is
+                           * two presses now instead of twenty-four.
+                           *
+                           * Group classes only, and that is a studio decision
+                           * rather than a gap: every Personal hour commits
+                           * somebody to come in and teach it, arranged by hand
+                           * the day before, so twelve of them booked in one
+                           * press is twelve instructor hours promised without
+                           * anybody at the desk seeing it happen.
+                           *
+                           * Collapsed until asked for. It is the second thing
+                           * anybody wants from this panel and putting a row of
+                           * week counts above the Book button would make the
+                           * common case read as a decision.
+                           */}
                           {!pickedPersonal && signedIn && (
                             <div className="mt-1 w-full">
                               {repeatWeeks === null ? (
@@ -1085,7 +1268,10 @@ export function ScheduleClient({
                                     {t.booking.repeatTitle}
                                   </p>
                                   <div className="mt-3 flex flex-wrap gap-2">
-                                    {[4, 8, 12].map((w) => (
+                                    {/* In weeks, as the studio asked, but chosen to read as the terms they
+    sell: a month, two, a term, half a year, a year. Anything finer is a
+    number nobody is choosing between. */}
+                                    {REPEAT_RUNS.map(({ months, weeks: w }) => (
                                       <button
                                         key={w}
                                         type="button"
@@ -1098,10 +1284,12 @@ export function ScheduleClient({
                                             : "border-mocha-200/70 bg-white/60 text-mocha-600 hover:border-mocha-400",
                                         )}
                                       >
-                                        {t.booking.repeatWeeks.replace(
-                                          "{n}",
-                                          String(w),
-                                        )}
+                                        {months === 1
+                                          ? t.booking.repeatOneMonth
+                                          : t.booking.repeatMonths.replace(
+                                              "{n}",
+                                              String(months),
+                                            )}
                                       </button>
                                     ))}
                                   </div>
@@ -1143,15 +1331,27 @@ export function ScheduleClient({
  * A thin ring with a hand-drawn chevron. Two strokes rather than a glyph, so
  * the weight matches the hairline rules used everywhere else on the page.
  */
+/**
+ * The strip's arrows, which do two different jobs depending on where you are.
+ *
+ * In the middle of the window they step a day. On the last chip of the window
+ * they fetch the next thirty days — a different action, so it stops being a
+ * bare glyph and says what it does. A round arrow that silently changes meaning
+ * is the version of this nobody discovers: the studio asked for the arrow to
+ * "say click to see the next 30 days", and that is what `showLabel` is.
+ */
 function StripArrow({
   dir,
   label,
   disabled,
+  showLabel,
   onClick,
 }: {
   dir: "prev" | "next";
   label: string;
   disabled?: boolean;
+  /** Spell the label out beside the glyph, for when this pages the window. */
+  showLabel?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -1162,12 +1362,16 @@ function StripArrow({
       aria-label={label}
       title={label}
       className={cn(
-        "group grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-all duration-500 ease-silk",
+        "group grid shrink-0 place-items-center rounded-full border transition-all duration-500 ease-silk",
+        showLabel
+          ? "h-11 auto-cols-auto grid-flow-col items-center gap-2 px-4 text-[10px] uppercase tracking-widest"
+          : "h-11 w-11",
         disabled
           ? "cursor-not-allowed border-mocha-200/50 text-mocha-300"
           : "border-mocha-300 text-mocha-500 hover:border-mocha-600 hover:bg-mocha-600 hover:text-cream",
       )}
     >
+      {showLabel && dir === "prev" ? <span>{label}</span> : null}
       <svg
         viewBox="0 0 24 24"
         aria-hidden
@@ -1185,6 +1389,7 @@ function StripArrow({
         <path d="M14.5 4.5 7 12l7.5 7.5" />
         <path d="M18.5 12H7.4" />
       </svg>
+      {showLabel && dir === "next" ? <span>{label}</span> : null}
     </button>
   );
 }

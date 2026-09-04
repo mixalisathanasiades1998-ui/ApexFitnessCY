@@ -60,6 +60,26 @@ type Appointment = {
   seats: number;
 };
 
+/**
+ * How long a repeat run covers, in the terms the studio sells.
+ *
+ * The same table as the member's timetable — see ScheduleClient — kept here
+ * rather than imported because that file is a thousand lines of booking panel
+ * and this needs six pairs of numbers. If a third screen ever needs them they
+ * belong in lib.
+ *
+ * `months: 0` is the single booking: one class, no run.
+ */
+const REPEAT_RUNS = [
+  { months: 0, weeks: 1 },
+  { months: 1, weeks: 4 },
+  { months: 2, weeks: 9 },
+  { months: 3, weeks: 13 },
+  { months: 6, weeks: 26 },
+  { months: 9, weeks: 39 },
+  { months: 12, weeks: 52 },
+] as const;
+
 export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
   const { t, locale, fmtTime, fmtLongDate, fmtDayMonth, fmtSessions } =
     useI18n();
@@ -228,7 +248,13 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
     const [open, setOpen] = useState(false);
     const [q, setQ] = useState("");
     const [hits, setHits] = useState<
-      { id: string; name: string; email: string; phone: string | null; credits: number }[]
+      {
+        id: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        credits: number;
+      }[]
     >([]);
     const [looking, setLooking] = useState(false);
     const [guest, setGuest] = useState("");
@@ -298,7 +324,9 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
           /* The code, said as a sentence. "No sessions left" and "that class is
              full" send the person at the desk in completely different
              directions, so a single "could not book" would be useless. */
-          onNotice(`${name}: ${d.deskBookErrors[data.error ?? ""] ?? data.error}`);
+          onNotice(
+            `${name}: ${d.deskBookErrors[data.error ?? ""] ?? data.error}`,
+          );
           setSending(null);
           return;
         }
@@ -411,25 +439,33 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
         )}
 
         {/**
-          * A term of the same slot, for the member who rings up asking for it.
-          *
-          * The member's own screen has had this since the three-month packs
-          * went on sale, and the people who telephone rather than use the site
-          * are the ones most likely to want a fixed slot for a term — so
-          * reception was doing it twelve clicks at a time.
-          *
-          * Group classes only, and not a limitation to be lifted: every
-          * Personal or Duet hour commits somebody to come in and teach it,
-          * arranged by hand the day before, so twelve in one press is twelve
-          * instructor hours promised without anybody at the desk seeing it.
-          */}
+         * A term of the same slot, for the member who rings up asking for it.
+         *
+         * The member's own screen has had this since the three-month packs
+         * went on sale, and the people who telephone rather than use the site
+         * are the ones most likely to want a fixed slot for a term — so
+         * reception was doing it twelve clicks at a time.
+         *
+         * Group classes only, and not a limitation to be lifted: every
+         * Personal or Duet hour commits somebody to come in and teach it,
+         * arranged by hand the day before, so twelve in one press is twelve
+         * instructor hours promised without anybody at the desk seeing it.
+         */}
         {!personal && (
           <div className="mt-3 rounded-xl border border-mocha-200/70 bg-cream-200/40 p-3">
             <p className="text-[10px] uppercase tracking-widest text-clay">
               {d.deskRepeatLabel}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[1, 4, 8, 12].map((w) => (
+              {/**
+               * Same ladder as the member's own timetable, in the same terms.
+               *
+               * Labelled in months and sent in weeks. Reception says "book her
+               * Monday for six months" down a telephone; nobody at a desk
+               * converts that to twenty-six. The single booking keeps its own
+               * chip because it is the one reception takes most often.
+               */}
+              {REPEAT_RUNS.map(({ months, weeks: w }) => (
                 <button
                   key={w}
                   type="button"
@@ -442,9 +478,11 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                       : "border-mocha-200 text-mocha-600 hover:border-mocha-400",
                   )}
                 >
-                  {w === 1
+                  {months === 0
                     ? d.deskRepeatOne
-                    : d.deskRepeatWeeks.replace("{n}", String(w))}
+                    : months === 1
+                      ? t.booking.repeatOneMonth
+                      : t.booking.repeatMonths.replace("{n}", String(months))}
                 </button>
               ))}
             </div>
@@ -541,19 +579,19 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
   return (
     <div className="mt-10">
       {/**
-        * Appointments first, and above the day control on purpose.
-        *
-        * This panel answers "who is in today". An appointment asks the opposite
-        * question: an hour in the middle of a weekday that nobody is rostered
-        * for, which somebody has to ring an instructor about before it arrives.
-        * Answering that by opening tomorrow, then the day after, then Thursday,
-        * is exactly how an hour gets missed.
-        *
-        * Not a tab of its own. Reception opens this screen first, so the thing
-        * that needs a phone call is the first thing on it, and nothing new has
-        * to be learned or remembered to find it. It disappears entirely when
-        * there is nothing booked, which is most of the time.
-        */}
+       * Appointments first, and above the day control on purpose.
+       *
+       * This panel answers "who is in today". An appointment asks the opposite
+       * question: an hour in the middle of a weekday that nobody is rostered
+       * for, which somebody has to ring an instructor about before it arrives.
+       * Answering that by opening tomorrow, then the day after, then Thursday,
+       * is exactly how an hour gets missed.
+       *
+       * Not a tab of its own. Reception opens this screen first, so the thing
+       * that needs a phone call is the first thing on it, and nothing new has
+       * to be learned or remembered to find it. It disappears entirely when
+       * there is nothing booked, which is most of the time.
+       */}
       {appointments.length > 0 && (
         <section className="mb-6 rounded-3xl border border-gold/50 bg-[#FBF6E7]/70 p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -679,7 +717,10 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                         instructor calling in ill is the ordinary case, and it
                         needs fixing on one day rather than on the rota. */}
                     {s.status !== "CANCELLED" && (
-                      <TeacherPicker sessionId={s.id} current={s.instructorId} />
+                      <TeacherPicker
+                        sessionId={s.id}
+                        current={s.instructorId}
+                      />
                     )}
                     <p className="text-[11px] uppercase tracking-widest text-clay lining-nums tabular-nums">
                       {live.length}/{s.capacity}

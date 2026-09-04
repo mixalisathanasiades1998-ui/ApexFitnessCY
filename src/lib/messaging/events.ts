@@ -29,6 +29,7 @@ import {
   promoWords,
   purchasedWords,
   reminderWords,
+  repeatBookedWords,
   studioPaidWords,
   studioAppointmentWords,
   say,
@@ -248,6 +249,84 @@ export async function notifyBooked(bookingId: string) {
   }
 
   return deliverPersonal(f, bookedWords(f), SENDS.booked);
+}
+
+/**
+ * Fired once when a whole run of weeks is booked in one press.
+ *
+ * ---
+ *
+ * **One message, and it took two attempts to get right.**
+ *
+ * The first attempt was fifty-two of them: `notifyBooked` per booking. That is
+ * a phone buzzing every few hundred milliseconds and it is how a member learns
+ * to turn notifications off, which costs the studio the only channel it has for
+ * saying a class is cancelled.
+ *
+ * The second was one `notifyBooked` for the first class of the run, which is
+ * quiet and misleading. A member who booked a year of Mondays was told
+ * "Reformer Flow, Monday 8 September at 16:00" — true about one class, silent
+ * about the fifty-one others and the fifty-two sessions that had just left
+ * their balance.
+ *
+ * This is the third: one message that describes the run. The account copy is
+ * one card as well, for the same reason — fifty-two cards in a list is not a
+ * record of anything, it is a wall.
+ *
+ * ---
+ *
+ * **The reminders are untouched, and that is the distinction that matters.**
+ *
+ * This is the *confirmation*: one event, one message. The reminder before each
+ * class is a different thing, queued per booking at the member's own lead time,
+ * and it stays per class because that is the whole point of it. Collapsing
+ * those would mean telling somebody in September about a class in November.
+ *
+ * ---
+ *
+ * Takes the run rather than a booking id, because half of what the message has
+ * to say — the count, the span, the weeks refused and why — is not written on
+ * any one booking. The class and the member still come from the first booking,
+ * which is the only place they are recorded.
+ */
+export async function notifyRepeatBooked(run: {
+  firstBookingId: string | null;
+  booked: number;
+  alreadyHad: number;
+  outcomes: { startsAt: string; ok: boolean }[];
+  failed: { startsAt: string; code?: string; until?: string }[];
+}) {
+  if (!run.firstBookingId || run.booked < 1) return 0;
+
+  const f = factsFor(run.firstBookingId);
+  if (!f) return 0;
+
+  /* An appointment is never repeatable — `repeatWeekly` refuses PERSONAL
+     outright — so there is no branch here. If that ever changes, the studio
+     also has to be told, and this should refuse rather than send the wrong
+     message quietly. */
+  if (f.classKind === "PERSONAL") return notifyBooked(run.firstBookingId);
+
+  const taken = run.outcomes.filter((o) => o.ok).map((o) => o.startsAt).sort();
+  /* `f.startsAt` is the first booking's own class, which is the same date as
+     `taken[0]`. Read from the facts anyway: it is already a Date, and a run
+     whose first booking somehow is not its earliest should still describe the
+     class it names. */
+  const last = new Date(taken[taken.length - 1] ?? f.startsAt);
+
+  return deliverPersonal(
+    f,
+    repeatBookedWords({
+      classEn: f.classEn,
+      classEl: f.classEl,
+      firstStartsAt: f.startsAt,
+      lastStartsAt: last,
+      booked: run.booked,
+      alreadyHad: run.alreadyHad,
+      failed: run.failed,
+    }),
+    SENDS.booked,
+  );
 }
 
 /** Fired when a booking is cancelled, saying whether the session came back. */
