@@ -1,7 +1,7 @@
 import { studioWallTimeToInstant } from "./time";
 
 /**
- * The opening-week offer, in one place.
+ * The opening offer, in one place.
  *
  * One free session for every account created between `grantFrom` and
  * `grantUntil`, spendable only on classes inside `spendFrom`…`spendUntil`.
@@ -27,15 +27,25 @@ import { studioWallTimeToInstant } from "./time";
  *
  * ---
  *
- * **If the week fills up, widen it here.**
+ * **If the month fills up, widen it here.**
  *
- * The rota puts a full week of classes and roughly 300 seats in the week of the
- * 7th, and Sunday the 13th has none — the studio is closed Sundays, so the real
- * last class is Saturday the 12th. One free session each therefore fits about 295 members if
- * every single one redeems, which is comfortable but not enormous. If the week
- * runs out, moving `spendUntil` and `expiresAt` a week later is a one-line change
- * and no member loses anything by it. That escape hatch is the reason the dates
- * are constants rather than a hard-coded string.
+ * The offer ran for one week when it was written and now runs for the whole of
+ * September, which is roughly four times the seats: the rota puts about 300
+ * seats a week into the schedule, so the month holds something over a thousand.
+ * One free session each is comfortable at that size. If it does run out, moving
+ * `spendUntil` and `expiresAt` later is a one-line change and no member loses
+ * anything by it. That escape hatch is the reason the dates are constants
+ * rather than a hard-coded string.
+ *
+ * ---
+ *
+ * **When the session is actually handed over.**
+ *
+ * Not at registration. See `promoForJoin` at the bottom of this file: the offer
+ * is decided by the date the account was *created* and granted the moment the
+ * emailed code is typed back. Registering inside the window and confirming
+ * afterwards still qualifies, so nothing is lost by the delay, and an address
+ * that never confirms is never given anything.
  */
 
 /** Studio wall-clock, so a date here means that date in Larnaca. */
@@ -76,35 +86,52 @@ export const PROMO = {
    * refused by a rule they were never told about. Better to make no promise than
    * an empty one.
    */
-  grantUntil: at(2026, 9, 13, 0, 0),
+  grantUntil: at(2026, 10, 1, 0, 0),
 
   /**
-   * The classes it may be spent on. Monday the 7th to the end of Saturday the
-   * 12th: Sunday the 13th has no classes at all, so ending on the 12th is
-   * honest rather than restrictive.
+   * The classes it may be spent on: Monday 7 September to the end of Wednesday
+   * 30 September, which is the last day of the month and a day the studio is
+   * open.
    */
   spendFrom: at(2026, 9, 7, 0, 0),
-  spendUntil: at(2026, 9, 12, 23, 59),
+  spendUntil: at(2026, 9, 30, 23, 59),
 
   /**
    * And the last moment it can be spent at all.
    *
-   * The end of Sunday the 13th, a day *after* the last class it can buy. The two
-   * were the same evening before, which was tidy and slightly unkind: a member
-   * looking at their balance on Saturday night saw a session and a date that had
-   * both just gone. Giving the spend deadline one more day costs the studio
-   * nothing — there are no classes on Sunday for it to buy — and means the offer
-   * ends on a date the member can read rather than in the middle of the evening
-   * they were told about.
+   * The end of the 30th, the same evening as the last class it can buy. It used
+   * to be a day later than `spendUntil` so that a member looking at their
+   * balance did not see a session and a date that had both just gone; that
+   * kindness does not survive the month boundary, because a session that
+   * outlives the offer by a day can buy nothing at all and reads as a promise
+   * broken rather than kept. Ending both together is the honest version.
    */
-  expiresAt: at(2026, 9, 13, 23, 59),
+  expiresAt: at(2026, 9, 30, 23, 59),
 } as const;
 
-/** The offer, if a new account right now would qualify for it. */
-export function activePromo(now = new Date()) {
+/**
+ * The offer, if an account created at this moment qualifies for it.
+ *
+ * Takes the account's creation date rather than "now", and that is the whole
+ * point of the parameter. The session is handed over when the emailed code is
+ * typed back, which can be minutes or a day after registering, and the member
+ * must not be punished for reading their email in the morning: somebody who
+ * signs up at 23:50 on the 30th and confirms on the 1st registered inside the
+ * offer and gets it.
+ *
+ * The other direction is closed by the same rule. Confirming an account that
+ * was created before the offer opened grants nothing, so an old development or
+ * staff account cannot collect a free session by verifying late.
+ */
+export function promoForJoin(createdAt: Date) {
   if (!PROMO.enabled) return null;
-  if (now < PROMO.grantFrom || now >= PROMO.grantUntil) return null;
+  if (createdAt < PROMO.grantFrom || createdAt >= PROMO.grantUntil) return null;
   return PROMO;
+}
+
+/** The offer, if somebody registering right now would qualify for it. */
+export function activePromo(now = new Date()) {
+  return promoForJoin(now);
 }
 
 /** Whether a batch with this window may be spent on a class at this time. */

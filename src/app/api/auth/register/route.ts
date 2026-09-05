@@ -4,16 +4,20 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { createSession, hashPassword } from "@/lib/auth";
-import { grantCredits } from "@/lib/credits";
-import { notifyPromoGranted, sendVerificationCode } from "@/lib/messaging/events";
+import { sendVerificationCode } from "@/lib/messaging/events";
 import { toE164 } from "@/lib/messaging/sms";
-import { activePromo } from "@/lib/promo";
 import { REMINDER_DEFAULT_MINUTES } from "@/lib/profile";
 import { LOCALE_COOKIE } from "@/i18n/dictionaries";
 import { registerSchema } from "@/lib/validation";
 import { OTP_TTL_MINUTES, issueCode } from "@/lib/verify";
+import { clientIp, hit, tooMany } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  /* One address may open a handful of accounts, not a hundred: registration
+     writes a row and sends an email, so an unthrottled loop is both a spam
+     vector and a bill. Twenty in an hour is far past any honest use. */
+  const rl = hit("register", clientIp(req), 20, 60 * 60 * 1000);
+  if (!rl.ok) return tooMany(rl.retryAfter);
   const body = await req.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
@@ -173,42 +177,22 @@ export async function POST(req: Request) {
   await createSession(user);
 
   /**
-   * The opening-week offer.
+   * The opening offer is deliberately NOT granted here.
    *
-   * Granted here rather than waiting for the code to come back, and I went back
-   * and forth on that. Waiting would mean one email at a time instead of two
-   * landing together — but it would also mean somebody who registers at 23:58 on
-   * the last day of the offer and reads their email at 00:05 has lost the session
-   * the page promised them. A promise made at registration should be kept at
-   * registration.
+   * It used to be, on the argument that a promise made at registration should be
+   * kept at registration. That argument was wrong, and in a way that is easy to
+   * miss because nothing visibly breaks: this account has not proved it owns the
+   * address yet. Anybody could type somebody else's email, or a made-up one, and
+   * the studio would hand out a session and send a congratulatory message about
+   * it. Unverified accounts are also deleted by the sweep after seven days, so
+   * some of those sessions were granted to records that were about to be thrown
+   * away, and every one of them sat in the studio's figures until it was.
    *
-   * The two-emails problem is handled where it belongs, in the code email itself:
-   * the six digits are in its subject line, so it is the one message in the inbox
-   * that can be identified without opening anything.
-   *
-   * Never allowed to fail the registration. An account that exists without its
-   * free session is a problem the desk can fix in ten seconds; a registration
-   * that failed because a promotional grant threw is a customer lost.
+   * It moves to the verify route, which runs exactly once per account. Nothing
+   * is lost by the wait: the offer is decided by `promoForJoin(user.createdAt)`,
+   * so registering inside the window and confirming afterwards still qualifies.
+   * See lib/promo.ts.
    */
-  const promo = activePromo();
-  if (promo) {
-    try {
-      grantCredits({
-        userId: user.id,
-        credits: promo.credits,
-        validityDays: null,
-        expiresAt: promo.expiresAt,
-        usableFrom: promo.spendFrom,
-        usableTo: promo.spendUntil,
-        source: "GRANT",
-        reason: "ADMIN_GRANT",
-        note: `${promo.name}: free session on joining`,
-      });
-      void notifyPromoGranted(user.id, promo).catch(() => {});
-    } catch (e) {
-      console.error("[promo] grant failed for", user.email, e);
-    }
-  }
 
   return NextResponse.json({
     ok: true,

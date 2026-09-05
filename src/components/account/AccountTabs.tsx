@@ -23,8 +23,9 @@ export type AccountTab =
  * Password sits at the end because it is the one thing here nobody opens on
  * purpose — they open it once, when something is wrong.
  *
- * Upcoming classes sits third, between Notifications and Session activity,
- * where the studio asked for it. It used to be a permanently open list above
+ * The three that are about classes run in time order: what is coming, what has
+ * been, and then the sessions ledger that explains both. Upcoming sits third,
+ * straight after Notifications, where the studio asked for it. It used to be a permanently open list above
  * this bar, which is fine for the member with two bookings and not for the one
  * with sixteen: a member opening their account to change a password scrolled
  * past every class they had booked to get to the pills. It is a panel like the
@@ -35,8 +36,8 @@ export const ACCOUNT_TABS: AccountTab[] = [
   "profile",
   "notifications",
   "upcoming",
-  "activity",
   "classes",
+  "activity",
   "payments",
   "password",
 ];

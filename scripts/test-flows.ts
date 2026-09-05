@@ -2046,8 +2046,8 @@ async function main() {
         day: "2-digit",
       }).format(d);
     check("the week starts Monday 7 September", key(P.PROMO.spendFrom) === "2026-09-07", key(P.PROMO.spendFrom));
-    check("and ends Saturday 12 September", key(P.PROMO.spendUntil) === "2026-09-12", key(P.PROMO.spendUntil));
-    check("granting stops on 13 September", key(P.PROMO.grantUntil) === "2026-09-13", key(P.PROMO.grantUntil));
+    check("and ends Wednesday 30 September", key(P.PROMO.spendUntil) === "2026-09-30", key(P.PROMO.spendUntil));
+    check("granting stops when October does", key(P.PROMO.grantUntil) === "2026-10-01", key(P.PROMO.grantUntil));
     /* The one that would go unnoticed: granting must never outlive the window
        the session can be spent in, or a new account is handed a dead credit. */
     check(
@@ -2071,10 +2071,10 @@ async function main() {
       to: P.PROMO.spendUntil,
       expires: P.PROMO.expiresAt,
     });
-    check("the message names both dates", /7 September/.test(words.en.body) && /12 September/.test(words.en.body), words.en.body);
+    check("the message names both dates", /7 September/.test(words.en.body) && /30 September/.test(words.en.body), words.en.body);
     /* The expiry date has to be in the words, or a member saves the session for
        a week that no longer accepts it. */
-    check("and says when it expires", /expires on 13 September/.test(words.en.body), words.en.body);
+    check("and says when it expires", /expires on 30 September/.test(words.en.body), words.en.body);
     /* No em dash: the studio reads one as machine-written. */
     check("and is written without an em dash", !words.en.body.includes("—") && !words.el.body.includes("—"), words.en.body);
     check("the Greek version names them too", /Σεπτεμβρίου/.test(words.el.body), words.el.body);

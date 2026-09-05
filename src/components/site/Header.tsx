@@ -369,7 +369,7 @@ export function Header({ user }: { user: HeaderUser }) {
                 /* Takes its clicks back from the bar above: on a phone this is
                    the only way to shut the sheet, so it has to stay live while
                    the sheet is open. */
-                "pointer-events-auto relative z-50 flex h-10 w-10 items-center justify-center rounded-full border transition-colors",
+                "pointer-events-auto relative z-50 flex h-11 w-11 items-center justify-center rounded-full border transition-colors",
                 cover ? "md:hidden" : "lg:hidden",
                 onDark && !open ? "border-cream/30" : "border-mocha-200",
               )}

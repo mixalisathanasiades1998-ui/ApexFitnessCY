@@ -1,5 +1,5 @@
 /**
- * The opening-week offer, over HTTP, with the offer switched on.
+ * The opening offer, over HTTP, with the offer switched on.
  *
  *   npm run build
  *   PROMO_ENABLED=true npx next start -p 3100
@@ -11,10 +11,16 @@
  * assertions that change with the calendar, which is the kind of test that gets
  * deleted in six months rather than fixed.
  *
- * What it is really checking is one thing: that a free session tied to one week
- * cannot be spent anywhere else. Everything above that is scaffolding.
+ * What it is really checking is two things: that the free session arrives only
+ * once the emailed code has been typed back, and that a session tied to the
+ * offer's dates cannot be spent outside them. Everything else is scaffolding.
+ *
+ * Note that this suite verifies through the real route rather than through the
+ * `markVerified` fixture every other suite uses. It has to: the grant now lives
+ * in that route, so a fixture that writes the column would run none of the code
+ * this file exists to test. See `plantCode` in fixture-verify.mjs.
  */
-import { markOnboarded, markVerified } from "./fixture-verify.mjs";
+import { creditsHeld, markOnboarded, plantCode } from "./fixture-verify.mjs";
 
 const B = process.argv[2] ?? "http://localhost:3000";
 
@@ -75,32 +81,62 @@ async function member(tag) {
       serviceOptIn: true, termsAccepted: true,
     },
   });
-  /* Confirm the address the way a member would. The free session is granted at
-     registration, so nothing about the offer depends on this — but the member's
-     own screens do, and this suite reads them. */
   markOnboarded(email);
-  if (reg.json?.ok && markVerified(email) !== 1) {
-    throw new Error(`fixture ${email} did not verify`);
-  }
-  if (reg.json?.ok) {
-  /* And signed in again, which re-issues the cookie with the confirmed stamp on
-       it. The middleware reads the cookie, so the database write alone would leave
-       every page still redirecting to the code box. */
-    await req(j, "/api/auth/login", {
-      method: "POST",
-      body: { email, password: "test12345" },
-    });
-  }
   return { j, email, ok: reg.json?.ok === true, err: reg.json?.error };
 }
 
+/**
+ * Type the code back, the way a member does.
+ *
+ * The whole route runs, which is the point: this is where the free session is
+ * handed over now. The cookie the verify route sets carries the confirmed stamp,
+ * so no re-login is needed either — the database-writing fixture needed one only
+ * because it left the cookie saying otherwise.
+ */
+async function confirm(m) {
+  const code = plantCode(m.email);
+  const res = await req(m.j, "/api/auth/verify", {
+    method: "POST",
+    body: { code },
+  });
+  return res;
+}
+
 /* ------------------------------------------------------------------ 1 */
-console.log("\n1. A new account is given the free session");
+console.log("\n1. The free session waits for the code, and then arrives");
 const m = await member("joiner");
 check("registration succeeds", m.ok, m.err);
 
+/* The bug this section exists for. Registering is a claim about an address;
+   until the code comes back it is only a claim, and the studio should not have
+   paid out on it.
+
+   Read from the database rather than from /api/bookings, because that route is
+   behind the verification gate: it would answer with a refusal, and a refusal
+   is not the same claim as "nothing was granted". */
+check(
+  "registering alone grants nothing",
+  creditsHeld(m.email) === 0,
+  creditsHeld(m.email),
+);
+
+/* And nothing has been said about a session that does not exist. */
+const quiet = await req(m.j, "/api/notices?filter=all&page=1&locale=en");
+check(
+  "and no message about it has been sent yet",
+  !(quiet.json?.rows ?? []).some((r) => /free session/i.test(r.title)),
+  (quiet.json?.rows ?? []).map((r) => r.title),
+);
+
+const confirmed = await confirm(m);
+check("the emailed code is accepted", confirmed.json?.ok === true, confirmed.json);
+
 const wallet = await req(m.j, "/api/bookings");
-check("the free session is in the balance", wallet.json?.credits === 1, wallet.json?.credits);
+check(
+  "and the free session appears the moment it is",
+  wallet.json?.credits === 1,
+  wallet.json?.credits,
+);
 
 if (wallet.json?.credits !== 1) {
   console.error(
@@ -114,13 +150,13 @@ const notes = await req(m.j, "/api/notices?filter=all&page=1&locale=en");
 const promoNote = (notes.json?.rows ?? []).find((r) => /free session/i.test(r.title));
 check("they are told about it", Boolean(promoNote), (notes.json?.rows ?? []).map((r) => r.title));
 check(
-  "and the message names the week",
-  /7 September/.test(promoNote?.body ?? "") && /12 September/.test(promoNote?.body ?? ""),
+  "and the message names the window",
+  /7 September/.test(promoNote?.body ?? "") && /30 September/.test(promoNote?.body ?? ""),
   promoNote?.body,
 );
 check(
   "and says when the session expires",
-  /expires on 13 September/i.test(promoNote?.body ?? ""),
+  /expires on 30 September/i.test(promoNote?.body ?? ""),
   promoNote?.body,
 );
 
@@ -134,7 +170,7 @@ check(
 );
 
 /* ------------------------------------------------------------------ 2 */
-console.log("\n2. It can only be spent on the opening week");
+console.log("\n2. It can only be spent inside the offer");
 
 /* Find a class inside the promo week, and one well outside it. */
 const sessions = await req(m.j, "/api/sessions?days=42");
@@ -163,14 +199,14 @@ const inWeek = all.filter((s) => {
   return (
     free(s) &&
     d >= new Date("2026-09-07T00:00:00+03:00") &&
-    d <= new Date("2026-09-12T23:59:00+03:00")
+    d <= new Date("2026-09-30T23:59:00+03:00")
   );
 });
 const outside = all.filter(
-  (s) => free(s) && new Date(s.startsAt) > new Date("2026-09-14T00:00:00+03:00"),
+  (s) => free(s) && new Date(s.startsAt) > new Date("2026-10-01T00:00:00+03:00"),
 );
 
-check("there are classes in the opening week", inWeek.length > 0, inWeek.length);
+check("there are classes inside the offer", inWeek.length > 0, inWeek.length);
 check("and classes after it", outside.length > 0, outside.length);
 
 if (outside.length > 0) {
@@ -180,7 +216,7 @@ if (outside.length > 0) {
     body: { sessionId: outside[0].id },
   });
   check(
-    "a class outside the week is refused",
+    "a class outside the offer is refused",
     stolen.json?.error === "CREDITS_NOT_VALID_HERE",
     stolen.json,
   );

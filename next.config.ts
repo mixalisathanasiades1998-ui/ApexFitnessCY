@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   images: { formats: ["image/avif", "image/webp"] },
 
   /**
+   * Do not announce the framework.
+   *
+   * `X-Powered-By: Next.js` tells an attacker which CVEs to try before they try
+   * anything. It buys nobody anything and it is one line to stop sending it.
+   */
+  poweredByHeader: false,
+
+  /**
    * Packages webpack must not try to bundle.
    *
    * Both of these are native or Node-only and have no business inside a browser
@@ -71,7 +79,51 @@ const nextConfig: NextConfig = {
      * immutable caching and the service-worker rule, which is exactly the kind
      * of thing that looks fine until a deploy behaves oddly.
      */
+    /**
+     * The security headers, on every response.
+     *
+     * A penetration probe found the site sending none of these. Each closes one
+     * whole class of attack and none of them changes how the site behaves, so
+     * they go on `/:path*` and apply everywhere the other rules below then layer
+     * their caching on top of.
+     *
+     * What is deliberately NOT here is a full `script-src` Content-Security-
+     * Policy. Next injects inline scripts to hydrate the page, so a strict
+     * script policy needs a per-request nonce threaded through middleware and
+     * every page tested behind it — a real piece of work, and a wrong value is a
+     * white screen rather than a caught attack. So this ships the part of CSP
+     * that is safe and complete on its own — `frame-ancestors 'none'`, which is
+     * the clickjacking defence and the modern replacement for X-Frame-Options —
+     * and leaves the scripting policy as a named follow-up rather than a rushed
+     * guess. X-Frame-Options is kept alongside it for the older browsers that do
+     * not read frame-ancestors.
+     */
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+      },
+      {
+        /* Told to browsers only once the site is on HTTPS, which it is in
+           production and is not in local dev. Harmless on http (browsers ignore
+           it there); two years with subdomains and preload is the standard
+           strong value. */
+        key: "Strict-Transport-Security",
+        value: "max-age=63072000; includeSubDomains; preload",
+      },
+    ];
+
     return [
+      {
+        /* The security headers, everywhere. Listed first so the caching rules
+           below add to the response rather than replace it. */
+        source: "/:path*",
+        headers: securityHeaders,
+      },
       {
         /**
          * Everything, which in practice means the pages.

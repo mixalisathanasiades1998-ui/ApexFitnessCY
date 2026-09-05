@@ -566,7 +566,7 @@ export function reminderWords(a: {
 }
 
 /**
- * "Here is a free session, and here is the week you can use it."
+ * "Here is a free session, and here are the dates you can use it."
  *
  * The window is the whole message. A free session a member cannot work out how
  * to spend is worse than no free session, because they try, fail, and conclude
@@ -578,6 +578,12 @@ export function reminderWords(a: {
  * `expires` defaults to `to` because they are the same day in this campaign, but
  * they answer different questions (the last class it books, versus the last
  * moment it can be spent) and a future offer may separate them.
+ *
+ * The dates are interpolated and the campaign is never named in words. It said
+ * "our opening week" until the offer became a month, at which point the message
+ * was describing a week and quoting a month at the member in the same sentence.
+ * A campaign whose length is written into the prose is a campaign that has to be
+ * translated again every time the studio moves a date.
  */
 export function promoWords(a: {
   credits: number;
@@ -607,7 +613,7 @@ export function promoWords(a: {
         one ? "A free session, on us" : `${a.credits} free sessions, on us`,
       body:
         `Welcome to APEX pilates. ${sessionWords(a.credits)} ` +
-        `${one ? "is" : "are"} already in your balance for our opening week.\n\n` +
+        `${one ? "is" : "are"} already in your balance, on the studio.\n\n` +
         `You can use ${one ? "it" : "them"} for any class from ${dayEn(a.from)} to ` +
         `${dayEn(a.to)}. ${one ? "The session expires" : "The sessions expire"} on ` +
         `${dayEn(expires)}, so please book before then.`,
@@ -617,8 +623,8 @@ export function promoWords(a: {
       subject: one ? "Μια συνεδρία δώρο" : `${a.credits} συνεδρίες δώρο`,
       body:
         `Καλώς ήρθατε στο APEX pilates. ${sessionWords(a.credits, "el")} ` +
-        `βρίσκ${one ? "εται" : "ονται"} ήδη στο υπόλοιπό σας για την εβδομάδα ` +
-        `των εγκαινίων.\n\n` +
+        `βρίσκ${one ? "εται" : "ονται"} ήδη στο υπόλοιπό σας, με την ευγενική ` +
+        `προσφορά του στούντιο.\n\n` +
         `Μπορείτε να ${one ? "τη" : "τις"} χρησιμοποιήσετε σε οποιοδήποτε μάθημα ` +
         `από τις ${dayEl(a.from)} έως τις ${dayEl(a.to)}. ` +
         `${one ? "Η συνεδρία λήγει" : "Οι συνεδρίες λήγουν"} στις ` +
