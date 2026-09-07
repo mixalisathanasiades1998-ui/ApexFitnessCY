@@ -205,6 +205,49 @@ services:
       - key: SMS_DEFAULT_COUNTRY
         value: "357"
 
+      # -------------------------------------------------- backups to Drive
+      # Off until these are set. The site runs fine without them; what is missing
+      # is the copy of the database in the studio's own Google Drive. The whole
+      # setup is walked through in docs/backup.md — create one OAuth client in
+      # Google, run `npm run drive:auth` once to get the refresh token, paste the
+      # three values here. Every six hours the server then snapshots the database
+      # and uploads it, owned by the company, into a folder in their Drive.
+      #
+      # The refresh token and the client secret are secrets and stay in the
+      # dashboard. The client id is not really a secret but lives with them so the
+      # three are set together or not at all: any one missing means no backup, and
+      # the log says which.
+      - key: GDRIVE_CLIENT_ID
+        sync: false
+      - key: GDRIVE_CLIENT_SECRET
+        sync: false
+      - key: GDRIVE_REFRESH_TOKEN
+        sync: false
+      # The folder the backups go into, created on first use. A plain name, not a
+      # secret. One studio per Google account, so the default is fine; give each
+      # company its own name only if several ever share one Drive.
+      - key: BACKUP_FOLDER_NAME
+        value: APEX pilates backups
+      # How often, in hours. Six is four copies a day. Floored at one in code so a
+      # typo cannot hammer Google.
+      - key: BACKUP_INTERVAL_HOURS
+        value: "6"
+      # How many copies to keep in Drive. Twenty-eight is one week at six-hourly
+      # (four a day). Older ones are deleted after each successful upload, so the
+      # folder holds a rolling week and never grows without bound.
+      - key: BACKUP_KEEP
+        value: "28"
+      # STRONGLY recommended, and a secret. Set it and every backup is sealed with
+      # AES-256 before it leaves — so a copy sitting in Drive is unreadable to
+      # anyone without this password, which matters because the file holds members'
+      # health notes. To open a sealed backup later: `npm run backup:decrypt`.
+      # Leave it unset and backups are plain .db files that open with a
+      # double-click, which is friendlier and less private. Write this password
+      # down somewhere safe and separate: lose it and the encrypted backups cannot
+      # be opened, by anyone, ever.
+      - key: BACKUP_ENCRYPT_PASSWORD
+        sync: false
+
       # ------------------------------------------------- the first boot only
       # Read once, by the seed, when the disk is empty. Without them the desk
       # accounts are created with the passwords written in src/db/seed.ts.

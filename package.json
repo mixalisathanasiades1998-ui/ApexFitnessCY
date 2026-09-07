@@ -46,7 +46,10 @@
     "db:mirror": "node scripts/db-mirror.mjs",
     "db:sql": "node scripts/db-sql.mjs",
     "go-live": "tsx scripts/go-live.ts",
-    "qr": "node scripts/qr.mjs"
+    "qr": "node scripts/qr.mjs",
+    "drive:auth": "node scripts/drive-auth.mjs",
+    "backup:now": "tsx scripts/backup-now.ts",
+    "backup:decrypt": "node scripts/backup-decrypt.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.2",

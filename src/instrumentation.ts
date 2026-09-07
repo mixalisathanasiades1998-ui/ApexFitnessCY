@@ -37,9 +37,23 @@
 declare global {
   // eslint-disable-next-line no-var
   var __apexSweep: NodeJS.Timeout | undefined;
+  // eslint-disable-next-line no-var
+  var __apexBackup: NodeJS.Timeout | undefined;
 }
 
 const EVERY_MS = 60_000;
+
+/**
+ * How often the backup door is knocked on.
+ *
+ * Not the backup interval — that is six hours and lives in the route, which
+ * checks a marker on the disk and answers "not due" the rest of the time. This
+ * is only how often it is *asked*. Every fifteen minutes means a server that
+ * came up part way through a window still takes its backup close to on time,
+ * while the route's own clock guarantees at most one actual backup per six
+ * hours however often this fires.
+ */
+const BACKUP_POKE_MS = 15 * 60_000;
 
 export async function register() {
   /* Edge has no timers worth the name and no database. Node only. */
@@ -109,4 +123,49 @@ export async function register() {
   setTimeout(() => void tick(), 5_000);
 
   console.log(`[reminders] sweeping every ${EVERY_MS / 1000}s`);
+
+  /**
+   * The backup clock, on the same knock-on-a-door pattern.
+   *
+   * Its own route and its own timer because it runs on a different cadence and
+   * does heavier work (a database snapshot, then an upload to Google), which has
+   * no place on the every-minute reminder path. The route decides whether a
+   * backup is actually due from a marker on the disk, so this can poke often and
+   * cheaply without over-backing-up. Guarded, like the sweep, so a dev reload
+   * does not leave two timers running.
+   */
+  if (!global.__apexBackup) {
+    const backupUrl = `http://127.0.0.1:${port}/api/cron/backup`;
+    const backupTick = async () => {
+      try {
+        const res = await fetch(backupUrl, {
+          method: "POST",
+          headers: { authorization: `Bearer ${secret}` },
+        });
+        if (!res.ok) {
+          console.error(`[backup] poke refused: ${res.status}`);
+          return;
+        }
+        const r = (await res.json()) as {
+          ran?: boolean;
+          filename?: string;
+          reason?: string;
+          error?: string;
+        };
+        /* Silent on "not due", which is almost every poke. Loud on a real run
+           and on a failure, because a backup nobody knows failed is the whole
+           problem it exists to prevent. */
+        if (r.error) console.error(`[backup] ${r.error}`);
+        else if (r.ran) console.log(`[backup] done: ${r.filename}`);
+      } catch (e) {
+        console.error("[backup] poke failed", (e as Error).message);
+      }
+    };
+    global.__apexBackup = setInterval(backupTick, BACKUP_POKE_MS);
+    global.__apexBackup.unref?.();
+    /* A little after the reminder catch-up, so the two cold-start requests do
+       not land on the compiler at once. */
+    setTimeout(() => void backupTick(), 20_000);
+    console.log(`[backup] checking every ${BACKUP_POKE_MS / 60000} min`);
+  }
 }

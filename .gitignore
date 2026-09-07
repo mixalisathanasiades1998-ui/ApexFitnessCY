@@ -44,9 +44,5 @@ docs/manual/built.html
 # the social cards are generated from PACKS and the timetable by `npm run social`,
 # so the PNGs are output rather than source. The script is the thing to keep.
 docs/social/
-
-.env.bak*
-
-
-# never commit a generated secret, even by accident
-.auth-secret*
+backups/
+apex-last-backup.json
