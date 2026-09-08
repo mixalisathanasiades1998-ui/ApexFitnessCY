@@ -31,6 +31,9 @@ export const en = {
     close: "Close",
   },
   common: {
+    /* Short weekday names, indexed by day number (0 = Sunday), for the opening
+       hours summary. */
+    daysShort: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     credits: "sessions",
     credit: "session",
     creditsLeft: "sessions left",
@@ -151,7 +154,7 @@ export const en = {
     },
     timetable: {
       eyebrow: "Timetable",
-      title: "Six days a week, four weeks ahead.",
+      title: "Five days a week, four weeks ahead.",
       body: "Live availability. Sign in to reserve your reformer.",
       cta: "Open live timetable",
       weekday: "Monday – Friday",
@@ -240,7 +243,7 @@ export const en = {
     hero: {
       eyebrow: "The studio",
       title: "A room built for attention.",
-      body: "Low light, warm materials, no mirrors to perform for. Five reformers, one instructor, sixty minutes that belong entirely to how you move.",
+      body: "Low light, warm materials, no mirrors to perform for. Five reformers, one instructor, fifty minutes that belong entirely to how you move.",
     },
     sections: [
       {
@@ -1302,6 +1305,8 @@ export const el: typeof en = {
     close: "Κλείσιμο",
   },
   common: {
+    /* Σύντομα ονόματα ημερών, με δείκτη τον αριθμό ημέρας (0 = Κυριακή). */
+    daysShort: ["Κυρ", "Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ"],
     credits: "συνεδρίες",
     credit: "συνεδρία",
     creditsLeft: "συνεδρίες διαθέσιμες",
@@ -1417,7 +1422,7 @@ export const el: typeof en = {
     },
     timetable: {
       eyebrow: "Πρόγραμμα",
-      title: "Έξι ημέρες την εβδομάδα, τέσσερις εβδομάδες μπροστά.",
+      title: "Πέντε ημέρες την εβδομάδα, τέσσερις εβδομάδες μπροστά.",
       body: "Ζωντανή διαθεσιμότητα. Συνδέσου για να κρατήσεις τον reformer σου.",
       cta: "Άνοιξε το πρόγραμμα",
       weekday: "Δευτέρα – Παρασκευή",
@@ -1498,7 +1503,7 @@ export const el: typeof en = {
     hero: {
       eyebrow: "Το στούντιο",
       title: "Ένας χώρος φτιαγμένος για προσοχή.",
-      body: "Απαλός φωτισμός, ζεστά υλικά, χωρίς καθρέφτες για επίδειξη. Πέντε reformers, ένας εκπαιδευτής, εξήντα λεπτά που ανήκουν αποκλειστικά στο πώς κινείσαι.",
+      body: "Απαλός φωτισμός, ζεστά υλικά, χωρίς καθρέφτες για επίδειξη. Πέντε reformers, ένας εκπαιδευτής, πενήντα λεπτά που ανήκουν αποκλειστικά στο πώς κινείσαι.",
     },
     sections: [
       {

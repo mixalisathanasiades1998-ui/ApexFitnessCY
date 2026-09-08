@@ -1,60 +1,96 @@
 /**
- * The weekly rota, in one place: which hours the studio runs classes in.
+ * The weekly rota, in one place: which hours run a group class, and who teaches
+ * each one.
  *
- * This used to live in `src/db/seed.ts`, which meant it only existed at the
- * moment a database was created. Two consequences, and the studio hit both:
+ * This is the single source of truth. The seed builds the weekly templates from
+ * it, `timetable-repair` adds any a live database is missing, and the opening
+ * hours shown on the site are *computed* from it rather than typed alongside it.
+ * A class cannot appear on the timetable without appearing in the published
+ * hours, because they are the same fact.
  *
- *   - a rota change reached a live database only by re-seeding it, which nobody
- *     is going to do to a database holding real bookings;
- *   - the published opening hours were written out by hand in three components
- *     and a constant. When Saturday gained an 11:00 class, the timetable said
- *     one thing and the footer said another, and the footer was the one members
- *     read before driving over.
+ * ---
  *
- * So the hours are the source and everything else is derived: the seed builds
- * templates from them, `timetable-repair` adds any that a live database is
- * missing, and the opening hours shown on the site are *computed* from them
- * rather than typed alongside them. A class cannot appear on the timetable
- * without appearing in the published hours, because they are the same fact.
+ * **The schedule is now per day, not one weekday shape.**
+ *
+ * It used to be "every weekday, 06:00–12:00 and 15:00–20:00", one uniform block.
+ * The studio's real timetable is not uniform: some afternoons are closed, the
+ * instructor changes partway through a morning, and Saturday is shut. So the
+ * rota is a list, per day, of `{ hour, instructor }` — the hour a class starts
+ * and who teaches it. Everything else (the hours, the opening summary, the
+ * templates) is derived from that one list, so the three can never drift apart.
+ *
+ * `instructor` is the name exactly as it appears in the instructor list in
+ * `src/db/seed.ts`. The seed resolves the name to an instructor row and refuses
+ * to seed if a name here has no match, so a typo is caught at build time rather
+ * than becoming a class with nobody teaching it.
+ *
+ * Middle of the day (12:00–14:00, weekdays) is not here: those are the Personal
+ * and Duet appointments, which are their own thing — see `lib/personal.ts` and
+ * `timetable-repair.ts`.
  */
+
+/** The three instructors, by the name the seed uses. Kept here so the schedule below reads. */
+const EVELINA = "Evelina Ch.";
+const ANNA = "Anna P.";
+const STEPHANI = "Stephani Ch.";
+
+/** A run of consecutive hours taught by one person, as a helper for the table below. */
+function block(from: number, to: number, instructor: string) {
+  const out: { hour: number; instructor: string }[] = [];
+  for (let h = from; h < to; h++) out.push({ hour: h, instructor });
+  return out;
+}
+
+export type Slot = { hour: number; instructor: string };
 
 /**
- * Weekdays: a morning block and an evening block, with the middle of the day
- * kept for Personal and Duet appointments. See lib/personal.ts.
- */
-export const WEEKDAY_CLASS_HOURS = [6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19] as const;
-
-/**
- * Saturday: one morning block to a midday close.
+ * The week, Sunday = 0. Each entry is the group classes that day, in order.
  *
- * The last class starts at 11:00. The studio closes at 12:00, which is what the
- * 11:00 class finishing at 11:50 is for — it had been advertised as closing at
- * 11:00, which lost the studio the busiest hour of a Saturday morning and read
- * to a member as "do not come late".
+ *   Mon   06–12 Evelina                         · afternoon closed
+ *   Tue   06–12 Evelina · 15–17 Anna · 17–20 Stephani
+ *   Wed   06–07 Stephani · 07–12 Anna           · afternoon closed
+ *   Thu   06–12 Evelina · 15–20 Anna
+ *   Fri   06–07 Stephani · 07–12 Anna · 15–20 Anna
+ *   Sat   closed
+ *   Sun   closed
+ *
+ * "06–12" means classes starting at 06:00 through 11:00, the last finishing at
+ * 12:00 — the block ends an hour after the last class starts.
  */
-export const SATURDAY_CLASS_HOURS = [7, 8, 9, 10, 11] as const;
+export const WEEKLY_SCHEDULE: Record<number, readonly Slot[]> = {
+  0: [],
+  1: [...block(6, 12, EVELINA)],
+  2: [...block(6, 12, EVELINA), ...block(15, 17, ANNA), ...block(17, 20, STEPHANI)],
+  3: [...block(6, 7, STEPHANI), ...block(7, 12, ANNA)],
+  4: [...block(6, 12, EVELINA), ...block(15, 20, ANNA)],
+  5: [...block(6, 7, STEPHANI), ...block(7, 12, ANNA), ...block(15, 20, ANNA)],
+  6: [],
+};
 
-/** Sunday: closed. Present so the week is stated in full rather than implied. */
-export const SUNDAY_CLASS_HOURS = [] as const;
+/** Which hours run a group class on a given day of the week, Sunday being 0. */
+export function classHoursOn(dayOfWeek: number): number[] {
+  return (WEEKLY_SCHEDULE[dayOfWeek] ?? []).map((s) => s.hour);
+}
 
-/** Which hours run on a given day of the week, Sunday being 0. */
-export function classHoursOn(dayOfWeek: number): readonly number[] {
-  if (dayOfWeek >= 1 && dayOfWeek <= 5) return WEEKDAY_CLASS_HOURS;
-  if (dayOfWeek === 6) return SATURDAY_CLASS_HOURS;
-  return SUNDAY_CLASS_HOURS;
+/** Who teaches the class at this day and hour, or null if there is no class then. */
+export function instructorForSlot(dayOfWeek: number, hour: number): string | null {
+  return (
+    (WEEKLY_SCHEDULE[dayOfWeek] ?? []).find((s) => s.hour === hour)?.instructor ??
+    null
+  );
 }
 
 /**
- * The opening hours as a member reads them, worked out from the rota.
+ * The opening hours as a member reads them, worked out from a day's hours.
  *
  * A run of consecutive starting hours becomes one block, and the block ends an
  * hour after the last class starts rather than when it starts: a 19:00 class
  * means the studio is open until 20:00, and saying "until 19:00" would be both
- * wrong and discouraging. The class itself is fifty minutes; the slot is an
- * hour, and the ten minutes are the changeover.
+ * wrong and discouraging.
  *
  *   [6,7,8,9,10,11,15,16,17,18,19]  ->  ["06:00 – 12:00", "15:00 – 20:00"]
- *   [7,8,9,10,11]                   ->  ["07:00 – 12:00"]
+ *   [6,7,8,9,10,11]                 ->  ["06:00 – 12:00"]
+ *   []                              ->  []
  */
 export function openingBlocks(hours: readonly number[]): string[] {
   const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -75,4 +111,43 @@ export function openingBlocks(hours: readonly number[]): string[] {
     out.push(`${hh(start)} – ${hh(previous + 1)}`);
   }
   return out;
+}
+
+/**
+ * The whole week's opening hours, grouped so days with identical hours share a
+ * line.
+ *
+ * Now that the weekdays differ, a single "Monday – Friday" line would be wrong.
+ * This walks the week in order and merges days whose opening blocks are the same
+ * — for the current rota that is "Mon & Wed" (mornings only), "Tue, Thu & Fri"
+ * (mornings and afternoons) and "Sat & Sun" (closed) — so the published hours
+ * stay both accurate and tidy, and re-group themselves automatically the next
+ * time the studio changes a day.
+ *
+ * Closed days are included, with empty `blocks`, so the display can list them as
+ * closed rather than silently dropping them.
+ */
+export function openingSummary(): { days: number[]; blocks: string[] }[] {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const groups: { key: string; days: number[]; blocks: string[] }[] = [];
+  for (const day of order) {
+    const blocks = openingBlocks(classHoursOn(day));
+    const key = blocks.join("|") || "closed";
+    const existing = groups.find((g) => g.key === key);
+    if (existing) existing.days.push(day);
+    else groups.push({ key, days: [day], blocks });
+  }
+  return groups.map(({ days, blocks }) => ({ days, blocks }));
+}
+
+/**
+ * "Mon", "Mon & Wed", "Tue, Thu & Fri" — a run of day numbers as words.
+ *
+ * `names` is a 7-entry array indexed by day number (0 = Sunday), passed in by
+ * the caller so the labels are localised where they are shown rather than here.
+ */
+export function formatDayList(days: number[], names: readonly string[]): string {
+  const labels = days.map((d) => names[d] ?? String(d));
+  if (labels.length <= 1) return labels.join("");
+  return `${labels.slice(0, -1).join(", ")} & ${labels[labels.length - 1]}`;
 }

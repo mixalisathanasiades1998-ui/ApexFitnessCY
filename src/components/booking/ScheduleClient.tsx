@@ -7,6 +7,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { PushInvite } from "@/components/booking/PushInvite";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { isPersonalCancellable } from "@/lib/personal";
+import { classHoursOn } from "@/lib/rota";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { repeatWhy } from "@/lib/repeat-why";
 import { studioAddDays, studioDateKey, studioStartOfDay } from "@/lib/time";
@@ -819,9 +820,15 @@ export function ScheduleClient({
               (x) => x.spotsLeft > 0 && x.bookable,
             ).length;
             const active = d === activeDay;
-            const isSunday = date.getDay() === 0;
+            const weekday = date.getDay();
+            const isSunday = weekday === 0;
+            const isSaturday = weekday === 6;
             const isClosedDay = closedDays.has(d);
-            const closed = isSunday || isClosedDay;
+            /* Closed is a fact of the rota now, not a hard-coded Sunday: a day
+               the weekly schedule gives no classes reads as closed, so Saturday
+               shows "Studio closed" exactly as Sunday does, and a future change
+               to the rota carries the strip with it. Admin closures still count. */
+            const closed = classHoursOn(weekday).length === 0 || isClosedDay;
             const todayKey = studioDateKey(studioStartOfDay(new Date()));
             const tomorrowKey = studioDateKey(
               studioAddDays(studioStartOfDay(new Date()), 1),
@@ -857,9 +864,11 @@ export function ScheduleClient({
                       ? t.common.tomorrow
                       : isSunday
                         ? t.home.timetable.sunday
-                        : isClosedDay
-                          ? t.home.timetable.closed
-                          : fmtWeekdayShort(date)}
+                        : isSaturday
+                          ? t.home.timetable.saturday
+                          : isClosedDay
+                            ? t.home.timetable.closed
+                            : fmtWeekdayShort(date)}
                 </span>
                 {/**
                  * The date, numerically: `05/09`.
@@ -957,8 +966,8 @@ export function ScheduleClient({
 
         {list.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-mocha-200 px-6 py-14 text-center text-sm text-clay">
-            {new Date(`${activeDay}T12:00:00`).getDay() === 0 ||
-            closedDays.has(activeDay)
+            {classHoursOn(new Date(`${activeDay}T12:00:00`).getDay()).length ===
+              0 || closedDays.has(activeDay)
               ? t.home.timetable.closed
               : t.timetablePage.noClasses}
           </p>

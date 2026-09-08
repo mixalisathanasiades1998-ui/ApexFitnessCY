@@ -4,7 +4,8 @@ import {
   PERSONAL_SLOT_DAYS,
   PERSONAL_SLOT_HOURS,
 } from "./personal";
-import { classHoursOn } from "./rota";
+import { classHoursOn, instructorForSlot } from "./rota";
+import { reconcileRoster } from "./roster";
 import { generateSessions, TIMETABLE_WEEKS } from "./schedule";
 import { STUDIO } from "./studio";
 import { studioStartOfDay } from "./time";
@@ -59,6 +60,12 @@ export type TimetableSync = {
   personalTemplates: number;
   /** Group class slots the rota calls for that the database was missing. */
   classTemplates: number;
+  /** Group templates switched off because their hour is no longer in the rota. */
+  staleTemplates: number;
+  /** Future classes removed because their hour left the rota (unbooked only). */
+  sessionsPruned: number;
+  /** Future classes whose instructor was brought back in line with the rota. */
+  sessionsReassigned: number;
 };
 
 /** The one name every group class on the timetable carries. */
@@ -94,6 +101,9 @@ export function repairTimetable(now = new Date()): TimetableSync {
     withdrawn: 0,
     personalTemplates: 0,
     classTemplates: 0,
+    staleTemplates: 0,
+    sessionsPruned: 0,
+    sessionsReassigned: 0,
   };
 
   /* Nothing to repair before the schema exists. */
@@ -101,6 +111,13 @@ export function repairTimetable(now = new Date()): TimetableSync {
     .prepare("select name from sqlite_master where type='table' and name='class_types'")
     .get();
   if (!hasTypes) return out;
+
+  /* Bring the instructors in line with the roster first, and keep the
+     name → id map: the schedule below names who teaches each hour, and this is
+     what turns those names into the ids the templates carry. Done outside the
+     transaction because reconcileRoster opens its own and better-sqlite3 will
+     not nest one inside another. */
+  const instructorByName = reconcileRoster();
 
   sqlite.transaction(() => {
     /* ------------------------------------------------ the single class name */
@@ -263,23 +280,46 @@ export function repairTimetable(now = new Date()): TimetableSync {
        a promise the site is not in a position to make. */
 
     /**
-     * Every hour the rota calls for, as a group template.
+     * The rota, made authoritative for the group timetable.
      *
      * The rota used to exist only inside the seed, so changing it reached a live
      * database by re-seeding — which nobody will do to a database holding real
-     * bookings. When Saturday's close moved from 11:00 to 12:00, the new 11:00
-     * class existed in the code and nowhere a member could book it.
+     * bookings. And the studio's rota genuinely changed: from one uniform weekday
+     * shape, open six days a week, to a per-day schedule with a named instructor
+     * for each hour, closed on Saturday and Sunday. Adding the new hours was not
+     * enough — the old hours the studio no longer runs (Saturday classes, the
+     * old uniform afternoons) were still in the table, still generating classes a
+     * member could see and book at a time the studio is shut, and every class
+     * still carried whichever instructor first taught it.
      *
-     * Missing slots are added; nothing is removed. A template the rota does not
-     * mention is left alone on purpose, because the desk can add a one-off class
-     * and having it quietly deleted on the next boot would be far worse than an
-     * extra row.
+     * So the rota is reconciled, not merely topped up:
+     *
+     *   - every hour the rota calls for exists as a group template, with the
+     *     instructor the rota names for that hour;
+     *   - a group template at an hour the rota no longer mentions is switched
+     *     off — this is a weekly recurring slot, which the rota owns; a one-off
+     *     class the desk adds for a single date is a session, not a template, so
+     *     it is untouched by this;
+     *   - the future classes are brought with the templates: those at a dropped
+     *     hour are removed if nobody has booked them, and the rest have their
+     *     instructor set back to whoever the rota now names.
+     *
+     * Days already past are never touched: a class that has happened is history.
      */
     const flowType = sqlite
       .prepare("select id from class_types where slug = ? limit 1")
       .get(FLOW.slug) as { id: string } | undefined;
 
     if (flowType) {
+      /* The id the rota's instructor name resolves to, or null for an hour the
+         rota leaves unstaffed. A name in the rota with no matching instructor
+         row would be a bug caught upstream; here it simply leaves the slot
+         unassigned rather than throwing on a page render. */
+      const instructorFor = (day: number, hour: number): string | null => {
+        const name = instructorForSlot(day, hour);
+        return name ? (instructorByName.get(name) ?? null) : null;
+      };
+
       const findSlot = sqlite.prepare(
         `select id from class_templates
           where day_of_week = ? and start_minutes = ?
@@ -290,23 +330,105 @@ export function repairTimetable(now = new Date()): TimetableSync {
         `insert into class_templates
            (id, class_type_id, instructor_id, day_of_week, start_minutes,
             duration_min, capacity, active)
-         values (?, ?, null, ?, ?, ?, ?, 1)`,
+         values (?, ?, ?, ?, ?, ?, ?, 1)`,
       );
+      const setSlot = sqlite.prepare(
+        `update class_templates
+            set class_type_id = ?, instructor_id = ?, duration_min = ?,
+                capacity = ?, active = 1
+          where id = ?`,
+      );
+
+      /* Which (day, minute) pairs the rota actually calls for, so a group
+         template outside the set can be recognised as stale. */
+      const valid = new Set<string>();
 
       for (let day = 0; day <= 6; day++) {
         for (const hour of classHoursOn(day)) {
-          if (findSlot.get(day, hour * 60)) continue;
-          addSlot.run(
-            crypto.randomUUID(),
-            flowType.id,
-            day,
-            hour * 60,
-            STUDIO.classLengthMinutes,
-            STUDIO.capacity,
-          );
-          out.classTemplates++;
+          const minutes = hour * 60;
+          valid.add(`${day}:${minutes}`);
+          const instructorId = instructorFor(day, hour);
+          const row = findSlot.get(day, minutes) as { id: string } | undefined;
+          if (row) {
+            setSlot.run(
+              flowType.id,
+              instructorId,
+              STUDIO.classLengthMinutes,
+              STUDIO.capacity,
+              row.id,
+            );
+          } else {
+            addSlot.run(
+              crypto.randomUUID(),
+              flowType.id,
+              instructorId,
+              day,
+              minutes,
+              STUDIO.classLengthMinutes,
+              STUDIO.capacity,
+            );
+            out.classTemplates++;
+          }
         }
       }
+
+      /* Switch off group templates the rota no longer mentions. */
+      const activeGroup = sqlite
+        .prepare(
+          `select id, day_of_week, start_minutes from class_templates
+            where active = 1
+              and class_type_id in (select id from class_types where kind = 'GROUP')`,
+        )
+        .all() as { id: string; day_of_week: number; start_minutes: number }[];
+      const deactivate = sqlite.prepare(
+        "update class_templates set active = 0 where id = ?",
+      );
+      const staleIds: string[] = [];
+      for (const t of activeGroup) {
+        if (!valid.has(`${t.day_of_week}:${t.start_minutes}`)) {
+          deactivate.run(t.id);
+          staleIds.push(t.id);
+          out.staleTemplates++;
+        }
+      }
+
+      /* Bring the future classes with them. From the start of today, because
+         that is the window the timetable shows; yesterday is history. */
+      const cutoff = Math.floor(studioStartOfDay(now).getTime() / 1000);
+
+      /* Classes at a dropped hour that nobody has booked are removed; a booked
+         one is left for the desk to cancel, because un-booking someone silently
+         is worse than an extra row. */
+      if (staleIds.length > 0) {
+        const marks = staleIds.map(() => "?").join(", ");
+        out.sessionsPruned = sqlite
+          .prepare(
+            `delete from class_sessions
+              where starts_at >= ?
+                and template_id in (${marks})
+                and id not in (
+                  select session_id from bookings where status = 'CONFIRMED'
+                )`,
+          )
+          .run(cutoff, ...staleIds).changes;
+      }
+
+      /* Every remaining future group class takes its instructor from its
+         template, which the rota has just corrected. Without this a class
+         generated under the old rota keeps the old instructor's name on it for
+         as long as the row exists. */
+      out.sessionsReassigned = sqlite
+        .prepare(
+          `update class_sessions
+              set instructor_id = (
+                select t.instructor_id from class_templates t
+                 where t.id = class_sessions.template_id
+              )
+            where starts_at >= ?
+              and template_id is not null
+              and class_type_id in (select id from class_types where kind = 'GROUP')`,
+        )
+        .run(cutoff).changes;
     }
   })();
 
@@ -323,7 +445,12 @@ export function repairTimetable(now = new Date()): TimetableSync {
    * and nothing on every boot after. `generateSessions` is idempotent, so even
    * the pathological case of it running twice creates nothing twice.
    */
-  if (out.personalTemplates > 0 || out.classTemplates > 0) {
+  if (
+    out.personalTemplates > 0 ||
+    out.classTemplates > 0 ||
+    out.staleTemplates > 0 ||
+    out.sessionsPruned > 0
+  ) {
     try {
       generateSessions(GENERATE_WEEKS, now);
     } catch (err) {

@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { classTypes, creditPackages, instructors } from "@/db/schema";
 import { repairCatalogueOnce } from "./catalogue-repair";
+import { reconcileRosterOnce } from "./roster";
 import { groupOf, INSTRUCTOR_PHOTOS } from "./packs";
 import { priceList } from "@/lib/pricing";
 
@@ -46,6 +47,10 @@ export async function getPackageById(id: string) {
 }
 
 export async function getInstructors() {
+  /* Bring the roster in line with the studio's real team before reading it, so
+     placeholders from an earlier seed drop off without needing a re-seed. */
+  reconcileRosterOnce();
+
   const rows = await db
     .select()
     .from(instructors)

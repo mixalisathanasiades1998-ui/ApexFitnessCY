@@ -121,7 +121,6 @@ export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
             <SectionHead
               eyebrow={t.studio.team.eyebrow}
               title={t.studio.team.title}
-              body={t.studio.team.body}
             />
             <RevealGroup className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {team.map((m) => (

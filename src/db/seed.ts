@@ -15,7 +15,8 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { repairCatalogue } from "@/lib/catalogue-repair";
 import { PACKS } from "@/lib/packs";
-import { SATURDAY_CLASS_HOURS, WEEKDAY_CLASS_HOURS } from "@/lib/rota";
+import { INSTRUCTOR_ROSTER, reconcileRoster } from "@/lib/roster";
+import { WEEKLY_SCHEDULE } from "@/lib/rota";
 import { REMINDER_DEFAULT_MINUTES } from "@/lib/profile";
 import { STUDIO } from "@/lib/studio";
 import { db, sqlite } from "./index";
@@ -23,7 +24,6 @@ import {
   classTemplates,
   classTypes,
   creditPackages,
-  instructors,
   users,
 } from "./schema";
 
@@ -174,79 +174,30 @@ const CLASS_TYPES = [
 
 const PACKAGES = PACKS;
 
-const INSTRUCTORS = [
-  {
-    name: "Maria K.",
-    bioEn:
-      "Comprehensive Reformer certification, ten years teaching. Specialises in post-injury return to movement.",
-    bioEl:
-      "Ολοκληρωμένη πιστοποίηση Reformer, δέκα χρόνια διδασκαλίας. Ειδικεύεται στην επιστροφή στην κίνηση μετά από τραυματισμό.",
-    photoUrl: "/team/maria-k.jpg",
-    sortOrder: 1,
-  },
-  {
-    name: "Andreas P.",
-    bioEn:
-      "Strength coach turned Pilates instructor. Teaches the athletic classes and works with the gym's PT clients.",
-    bioEl:
-      "Από προπονητής δύναμης σε εκπαιδευτή Pilates. Διδάσκει τα μαθήματα Athletic Reformer και συνεργάζεται με τους γυμναστές του γυμναστηρίου.",
-    photoUrl: "/team/andreas-p.jpg",
-    sortOrder: 2,
-  },
-  {
-    name: "Elena S.",
-    bioEn:
-      "Dance background, obsessive about alignment. Her Flow classes are the studio's most requested.",
-    bioEl:
-      "Με υπόβαθρο στον χορό και εμμονή στην ευθυγράμμιση. Τα μαθήματα Flow της είναι τα πιο ζητούμενα του στούντιο.",
-    photoUrl: "/team/elena-s.jpg",
-    sortOrder: 3,
-  },
-  {
-    name: "Chris M.",
-    bioEn:
-      "Early mornings and Jumpboard. Believes 06:00 is the best hour of the day.",
-    bioEl:
-      "Πρωινά και Jumpboard. Πιστεύει ότι οι 06:00 είναι η καλύτερη ώρα της ημέρας.",
-    photoUrl: "/team/chris-m.jpg",
-    sortOrder: 4,
-  },
-] as const;
+/*
+ * The studio's instructors live in lib/roster.ts now, not here, because the
+ * roster has to be reconciled on every boot and not only on a fresh seed — see
+ * that file. The seed calls reconcileRoster() below, which upserts the team and
+ * switches off anyone no longer on it, and hands back the name → id map the
+ * templates need.
+ */
 
 /* ---------------------------------------------------------------- timetable */
 
-/**
- * Published studio hours:
- *   Mon–Fri  06:00–12:00 and 15:00–20:00
- *   Saturday 07:00–11:00
- * Classes are 50 minutes on the hour.
- */
-/* One source of truth for the two numbers the studio actually publishes. */
+/* Class length and capacity, from the one place they are defined. */
 const CLASS_LENGTH_MIN = STUDIO.classLengthMinutes;
 const CLASS_CAPACITY = STUDIO.capacity;
 
-/* The rota itself lives in lib/rota.ts, so a live database can be repaired to
-   match it without being re-seeded. See the note at the top of that file. */
-const WEEKDAY_SLOTS = [...WEEKDAY_CLASS_HOURS];
-const SATURDAY_SLOTS = [...SATURDAY_CLASS_HOURS];
-
-/** Deterministic class-type rota so the week has a sensible mix. */
-function typeForSlot(
-  day: number,
-  hour: number,
-): (typeof CLASS_TYPES)[number]["slug"] {
-  if (hour === 6) return day % 2 === 1 ? "flow" : "jumpboard";
-  if (hour === 7) return "flow";
-  if (hour === 8) return day === 6 ? "foundations" : "sculpt";
-  if (hour === 9) return day === 6 ? "flow" : "foundations";
-  if (hour === 10) return day === 6 ? "restore" : "flow";
-  if (hour === 11) return "restore";
-  if (hour === 15) return "foundations";
-  if (hour === 16) return "flow";
-  if (hour === 17) return "sculpt";
-  if (hour === 18) return day % 2 === 1 ? "jumpboard" : "athletic";
-  return "restore"; // 19:00
-}
+/*
+ * The whole timetable — which hours run and who teaches them — lives in
+ * lib/rota.ts (WEEKLY_SCHEDULE), so a live database can be repaired to match it
+ * without being re-seeded. See the note at the top of that file.
+ *
+ * Every group class is Reformer Flow. The studio runs one kind of group class,
+ * so the slot's type is always "flow"; the other class types remain in the
+ * catalogue but are not put on the timetable.
+ */
+const GROUP_TYPE_SLUG = "flow";
 
 /* --------------------------------------------------------------------- run */
 
@@ -300,31 +251,10 @@ async function main() {
       (sync.withdrawn ? `, ${sync.withdrawn} withdrawn from sale` : ""),
   );
 
-  /* Instructors */
-  const instructorRows = [];
-  for (const i of INSTRUCTORS) {
-    const found = db
-      .select()
-      .from(instructors)
-      .all()
-      .find((x) => x.name === i.name);
-    if (found) {
-      db.update(instructors)
-        .set({ ...i })
-        .where(eq(instructors.id, found.id))
-        .run();
-      instructorRows.push(found);
-    } else {
-      instructorRows.push(
-        db
-          .insert(instructors)
-          .values({ ...i })
-          .returning()
-          .get(),
-      );
-    }
-  }
-  console.log(`  ✓ ${instructorRows.length} instructors`);
+  /* Instructors — upserted and reconciled from the roster, which also switches
+     off anyone no longer on the team. Returns the name → id map used below. */
+  const instructorByName = reconcileRoster();
+  console.log(`  ✓ ${INSTRUCTOR_ROSTER.length} instructors`);
 
   /* Weekly templates — wiped and rebuilt so the rota always matches this file */
   const typeIds = new Map(
@@ -346,23 +276,36 @@ async function main() {
   const existingTemplates = db.select().from(classTemplates).all();
   const keptTemplateIds = new Set<string>();
   let n = 0;
-  const plan: { day: number; hours: number[] }[] = [
-    { day: 1, hours: WEEKDAY_SLOTS },
-    { day: 2, hours: WEEKDAY_SLOTS },
-    { day: 3, hours: WEEKDAY_SLOTS },
-    { day: 4, hours: WEEKDAY_SLOTS },
-    { day: 5, hours: WEEKDAY_SLOTS },
-    { day: 6, hours: SATURDAY_SLOTS },
-  ];
-  for (const { day, hours } of plan) {
-    for (const [idx, hour] of hours.entries()) {
-      const slug = typeForSlot(day, hour);
-      const classTypeId = typeIds.get(slug);
-      if (!classTypeId) continue;
+
+  /* Every group slot is Reformer Flow. */
+  const flowTypeId = typeIds.get(GROUP_TYPE_SLUG);
+  if (!flowTypeId) {
+    throw new Error(`seed: the "${GROUP_TYPE_SLUG}" class type is missing.`);
+  }
+
+  /* The instructor named in the schedule, resolved to a row. Every name in
+     WEEKLY_SCHEDULE must match one of the roster instructors; a mismatch is a
+     typo that would otherwise become a class with nobody teaching it, so it
+     stops the seed rather than shipping quietly. */
+  const instructorId = (name: string) => {
+    const id = instructorByName.get(name);
+    if (!id) {
+      throw new Error(
+        `seed: the schedule names an instructor "${name}" who is not in the instructor list.`,
+      );
+    }
+    return id;
+  };
+
+  /* Build every day's templates straight from WEEKLY_SCHEDULE (lib/rota.ts):
+     the hours it lists, each taught by the named instructor, all Reformer Flow.
+     Saturday and Sunday have no entries, so no group templates. */
+  for (let day = 0; day <= 6; day++) {
+    for (const slot of WEEKLY_SCHEDULE[day] ?? []) {
+      const hour = slot.hour;
       const values = {
-        classTypeId,
-        instructorId:
-          instructorRows[(day + idx) % instructorRows.length]?.id ?? null,
+        classTypeId: flowTypeId,
+        instructorId: instructorId(slot.instructor),
         dayOfWeek: day,
         startMinutes: hour * 60,
         durationMin: CLASS_LENGTH_MIN,

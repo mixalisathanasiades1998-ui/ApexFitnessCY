@@ -232,10 +232,11 @@ export const PACKS = [
     /**
      * Unlimited, and the session count is what makes the word true.
      *
-     * **The arithmetic.** The pack runs 90 days and the studio opens six days a
-     * week, Monday to Saturday. Ninety days is twelve whole weeks and six days
-     * over, so twelve sixes plus six is 78 training days in the quarter. That is
-     * the number granted: one for every day the member could walk in.
+     * **The arithmetic.** The pack runs 90 days. The studio opens five days a
+     * week, Monday to Friday, so a member could walk in on roughly 64 of those
+     * 90 days. The count granted, 78, sits comfortably above that: it is a
+     * ceiling the plan can never actually reach, which is the point — the real
+     * limit is `perDayLimit`, one class a day, below.
      *
      * **Why it is not just a big balance.** 78 sessions with no other rule is
      * not an unlimited plan, it is a bulk discount somebody could spend in a
@@ -327,8 +328,8 @@ export const PACKS = [
     slug: "half-4",
     nameEn: "6 months · Unlimited",
     nameEl: "6 μήνες · Unlimited",
-    /* 180 days at six open days a week is 155 chances to walk
-       in, so that is the ceiling — the same arithmetic as the quarter.
+    /* 180 days at five open days a week (Mon–Fri) is about 129 chances to walk
+       in, and 155 sits above that as the ceiling — the same idea as the quarter.
        `perDayLimit` is what makes it a plan rather than a bulk buy. */
     credits: 155,
     priceCents: 89500,
@@ -389,8 +390,8 @@ export const PACKS = [
     slug: "nine-4",
     nameEn: "9 months · Unlimited",
     nameEl: "9 μήνες · Unlimited",
-    /* 270 days at six open days a week is 232 chances to walk
-       in, so that is the ceiling — the same arithmetic as the quarter.
+    /* 270 days at five open days a week (Mon–Fri) is about 193 chances to walk
+       in, and 232 sits above that as the ceiling — the same idea as the quarter.
        `perDayLimit` is what makes it a plan rather than a bulk buy. */
     credits: 232,
     priceCents: 129500,
@@ -455,8 +456,8 @@ export const PACKS = [
     slug: "year-4",
     nameEn: "12 months · Unlimited",
     nameEl: "12 μήνες · Unlimited",
-    /* 360 days at six open days a week is 309 chances to walk
-       in, so that is the ceiling — the same arithmetic as the quarter.
+    /* 360 days at five open days a week (Mon–Fri) is about 257 chances to walk
+       in, and 309 sits above that as the ceiling — the same idea as the quarter.
        `perDayLimit` is what makes it a plan rather than a bulk buy. */
     credits: 309,
     priceCents: 165500,
@@ -544,10 +545,9 @@ export const OFFERED_PACK_SLUGS: ReadonlySet<string> = new Set(
  * faces on the team cards.
  */
 export const INSTRUCTOR_PHOTOS: Record<string, string> = {
-  "Maria K.": "/team/maria-k.jpg",
-  "Andreas P.": "/team/andreas-p.jpg",
-  "Elena S.": "/team/elena-s.jpg",
-  "Chris M.": "/team/chris-m.jpg",
+  "Evelina Ch.": "/team/evelina-ch.jpg",
+  "Anna P.": "/team/anna-p.jpg",
+  "Stephani Ch.": "/team/stephani-ch.jpg",
 };
 
 /** Which commitment a pack belongs to, by slug. */

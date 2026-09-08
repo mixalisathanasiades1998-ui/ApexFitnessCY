@@ -1,11 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  SATURDAY_CLASS_HOURS,
-  WEEKDAY_CLASS_HOURS,
-  openingBlocks,
-} from "@/lib/rota";
+import { formatDayList, openingSummary } from "@/lib/rota";
 import Link from "next/link";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
 import { Monogram } from "@/components/ui/Monogram";
@@ -134,31 +130,37 @@ export function Footer() {
                 share one grid, and "Monday – Friday: 06:00 – 12:00 · 15:00 –
                 20:00" on one line wrapped in the middle of a time range, which
                 is the one place a line of times must not break. */}
+            {/* Built from the rota so the footer can never disagree with the
+                timetable. Days with the same hours share a line; the closed
+                days are shown as closed rather than dropped. The midday
+                appointment line sits in the middle, for the same reason it is
+                on the home page: without it the day has a three-hour hole that
+                reads as the studio being shut. */}
             <div className="space-y-2 text-sm leading-relaxed text-cream/75">
-              <p>
-                {t.home.timetable.weekday}
-                <span className="block lining-nums tabular-nums">
-                  {openingBlocks(WEEKDAY_CLASS_HOURS).join(" · ")}
-                </span>
-              </p>
-              {/* The midday hours, for the same reason they are on the home
-                  page: without them the weekday line has a three-hour hole in
-                  it that reads as the studio being shut. */}
+              {openingSummary()
+                .filter((g) => g.blocks.length > 0)
+                .map((g) => (
+                  <p key={g.days.join(",")}>
+                    {formatDayList(g.days, t.common.daysShort)}
+                    <span className="block lining-nums tabular-nums">
+                      {g.blocks.join(" · ")}
+                    </span>
+                  </p>
+                ))}
               <p>
                 {t.home.timetable.personalLabel}
                 <span className="block lining-nums tabular-nums">
                   {t.home.timetable.personalHours}
                 </span>
               </p>
-              <p>
-                {t.home.timetable.saturday}
-                <span className="block lining-nums tabular-nums">
-                  {openingBlocks(SATURDAY_CLASS_HOURS).join(" · ")}
-                </span>
-              </p>
-              <p className="text-cream/45">
-                {t.home.timetable.sunday}: {t.home.timetable.closed}
-              </p>
+              {openingSummary()
+                .filter((g) => g.blocks.length === 0)
+                .map((g) => (
+                  <p key={g.days.join(",")} className="text-cream/45">
+                    {formatDayList(g.days, t.common.daysShort)}:{" "}
+                    {t.home.timetable.closed}
+                  </p>
+                ))}
             </div>
           </div>
           {/* Column 4, under Legal. */}

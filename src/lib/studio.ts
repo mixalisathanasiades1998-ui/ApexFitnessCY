@@ -52,6 +52,6 @@ export const STUDIO = {
   classLengthMinutes: 50,
   /** Reformers in the room, so the cap on every class */
   capacity: 5,
-  /** Monday to Saturday; the studio is closed on Sunday */
-  openDays: 6,
+  /** Monday to Friday; the studio is closed on Saturday and Sunday */
+  openDays: 5,
 } as const;

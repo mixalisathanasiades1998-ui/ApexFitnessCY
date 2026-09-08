@@ -1264,13 +1264,13 @@ async function main() {
     classEn: "Reformer Flow",
     classEl: "Reformer Flow",
     startsAt: when,
-    from: "Elena S.",
-    to: "Andreas P.",
+    from: "Evelina Ch.",
+    to: "Anna P.",
   });
   check(
     "the notice names both instructors, so the member can see what changed",
-    swapWords.en.body.includes("Elena S.") &&
-      swapWords.en.body.includes("Andreas P."),
+    swapWords.en.body.includes("Evelina Ch.") &&
+      swapWords.en.body.includes("Anna P."),
     swapWords.en.body,
   );
   check(

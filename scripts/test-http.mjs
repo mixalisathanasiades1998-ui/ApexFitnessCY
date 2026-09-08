@@ -1085,14 +1085,14 @@ console.log("\n12c. Instructor portraits");
 /* The team moved off the retired Classes page and onto the studio page, where
    it sits between Powered by Technogym and Standards not slogans. */
 const studioPage = await req("/studio");
-for (const slug of ["maria-k", "elena-s", "andreas-p", "chris-m"]) {
+for (const slug of ["evelina-ch", "anna-p", "stephani-ch"]) {
   check(`team card shows ${slug}`, studioPage.text.includes(`${slug}.jpg`));
 }
 check(
   "and it is between Technogym and the standards",
   (() => {
     const gym = studioPage.text.indexOf("technogym.svg");
-    const team = studioPage.text.indexOf("maria-k.jpg");
+    const team = studioPage.text.indexOf("evelina-ch.jpg");
     const standards = studioPage.text.search(/Standards|Πρότυπα/);
     return gym > -1 && team > gym && standards > team;
   })(),

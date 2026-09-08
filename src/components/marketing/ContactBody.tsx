@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  SATURDAY_CLASS_HOURS,
-  WEEKDAY_CLASS_HOURS,
-  openingBlocks,
-} from "@/lib/rota";
+import { formatDayList, openingSummary } from "@/lib/rota";
 import { Button } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
 import { SocialLinks } from "@/components/ui/SocialLinks";
@@ -248,16 +244,19 @@ export function ContactBody() {
           <div>
             <p className="eyebrow mb-3">{t.contactPage.hoursTitle}</p>
             <p className="text-[15px] leading-relaxed text-mocha-500">
+              {openingSummary().map((g) => (
+                <span
+                  key={g.days.join(",")}
+                  className={g.blocks.length ? "block" : "block text-clay"}
+                >
+                  {formatDayList(g.days, t.common.daysShort)}:{" "}
+                  {g.blocks.length
+                    ? g.blocks.join(" · ")
+                    : t.home.timetable.closed}
+                </span>
+              ))}
               <span className="block">
-                {t.home.timetable.weekday}:{" "}
-                {openingBlocks(WEEKDAY_CLASS_HOURS).join(" · ")}
-              </span>
-              <span className="block">
-                {t.home.timetable.saturday}:{" "}
-                {openingBlocks(SATURDAY_CLASS_HOURS).join(" · ")}
-              </span>
-              <span className="block text-clay">
-                {t.home.timetable.sunday}: {t.home.timetable.closed}
+                {t.home.timetable.personalLabel}: {t.home.timetable.personalHours}
               </span>
             </p>
           </div>

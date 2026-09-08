@@ -8,11 +8,7 @@ import { Parallax } from "@/components/ui/Parallax";
 import { Reveal, RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import { Section, SectionHead } from "@/components/ui/Section";
 import { useI18n } from "@/i18n/LanguageProvider";
-import {
-  SATURDAY_CLASS_HOURS,
-  WEEKDAY_CLASS_HOURS,
-  openingBlocks,
-} from "@/lib/rota";
+import { formatDayList, openingSummary } from "@/lib/rota";
 import { STUDIO } from "@/lib/studio";
 
 /* ------------------------------------------------------------------ marquee */
@@ -288,23 +284,30 @@ export function TimetablePreview() {
    * that hides the thing worth knowing. `note` marks the row that is by
    * appointment rather than on the timetable.
    */
+  const summary = openingSummary();
   const rows = [
-    {
-      label: t.home.timetable.weekday,
-      blocks: openingBlocks(WEEKDAY_CLASS_HOURS),
-      note: null as string | null,
-    },
+    /* The days that run classes, grouped by identical hours. */
+    ...summary
+      .filter((g) => g.blocks.length > 0)
+      .map((g) => ({
+        label: formatDayList(g.days, t.common.daysShort),
+        blocks: g.blocks,
+        note: null as string | null,
+      })),
+    /* The midday appointments, between the class rows and the closed days. */
     {
       label: t.home.timetable.personalLabel,
       blocks: [t.home.timetable.personalHours],
       note: t.home.timetable.personalNote,
     },
-    {
-      label: t.home.timetable.saturday,
-      blocks: openingBlocks(SATURDAY_CLASS_HOURS),
-      note: null as string | null,
-    },
-    { label: t.home.timetable.sunday, blocks: [], note: null as string | null },
+    /* The closed days, shown with no hours. */
+    ...summary
+      .filter((g) => g.blocks.length === 0)
+      .map((g) => ({
+        label: formatDayList(g.days, t.common.daysShort),
+        blocks: [] as string[],
+        note: null as string | null,
+      })),
   ];
 
   return (
