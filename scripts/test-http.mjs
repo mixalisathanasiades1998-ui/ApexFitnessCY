@@ -669,32 +669,30 @@ console.log("\n8a-iv. Booking one slot for a whole term");
   );
 
   /**
-   * A year is now allowed, and one week past it is not.
+   * Nine months is the ceiling now, and one week past it is not allowed.
    *
-   * This asserted that 52 weeks was refused, which was right while the longest
-   * pack was three months and MAX_REPEAT_WEEKS was 13. The studio now sells
-   * twelve-month packs, so 52 is the ceiling rather than over it — and the
-   * assertion worth having is the boundary, not a number that used to be too
-   * big.
+   * The longest pack the studio sells is nine months (39 weeks), so 39 is the
+   * ceiling and 40 the first refusal. It was 52 while a twelve-month pack was on
+   * sale; that pack is gone. The assertion worth having is the boundary.
    */
-  const aYear = await req("/api/bookings/repeat", {
+  const ceiling = await req("/api/bookings/repeat", {
     method: "POST",
-    body: { sessionId: slot?.id, weeks: 52 },
+    body: { sessionId: slot?.id, weeks: 39 },
   });
   check(
-    "a year of weeks is accepted",
-    aYear.status !== 400 || aYear.json?.error !== "BAD_WEEKS",
-    aYear.json,
+    "the nine-month ceiling of weeks is accepted",
+    ceiling.status !== 400 || ceiling.json?.error !== "BAD_WEEKS",
+    ceiling.json,
   );
 
-  const overAYear = await req("/api/bookings/repeat", {
+  const overCeiling = await req("/api/bookings/repeat", {
     method: "POST",
-    body: { sessionId: slot?.id, weeks: 53 },
+    body: { sessionId: slot?.id, weeks: 40 },
   });
   check(
-    "and one week past a year is refused",
-    overAYear.status === 400 && overAYear.json?.error === "BAD_WEEKS",
-    overAYear.json,
+    "and one week past the ceiling is refused",
+    overCeiling.status === 400 && overCeiling.json?.error === "BAD_WEEKS",
+    overCeiling.json,
   );
 
   const missing = await req("/api/bookings/repeat", {

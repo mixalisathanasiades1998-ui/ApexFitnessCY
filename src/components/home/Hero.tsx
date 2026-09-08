@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UserAvatar } from "@/components/account/UserAvatar";
 import { ButtonLink } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
+import { HERO_BLUR_DATA_URL } from "@/lib/hero-blur";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { STUDIO } from "@/lib/studio";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,12 @@ export function Hero({ user }: { user: HeroUser }) {
           priority
           sizes="100vw"
           quality={80}
+          /* A blurred copy of the photo, embedded in the page, so the cover
+             always opens on a picture of the class rather than the bare dark
+             background while the optimised image is still being generated on a
+             cold or just-deployed server. See lib/hero-blur.ts. */
+          placeholder="blur"
+          blurDataURL={HERO_BLUR_DATA_URL}
           className="kenburns object-cover object-[54%_38%]"
         />
         {/* Warm scrim: enough to carry cream type at any screen size, without

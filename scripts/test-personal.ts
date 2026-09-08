@@ -235,16 +235,17 @@ async function main() {
   /**
    * The arithmetic, asserted rather than trusted.
    *
-   * 90 days is twelve whole weeks and six days over. The studio opens six days
-   * a week, so twelve sixes plus six is 78 training days in the quarter. This is
-   * the one number in the price list that is a calculation rather than a
-   * decision, which makes it the one worth a test.
+   * 90 days is twelve whole weeks and six days over. The studio opens five days
+   * a week, Monday to Friday, so the most a member could attend at one class a
+   * day is twelve fives plus the five weekdays in the six spare days: 65. That
+   * is the Unlimited count — the one number in the price list that is a
+   * calculation rather than a decision, which makes it the one worth a test.
    */
   const weeks = Math.floor((unlimited?.validityDays ?? 0) / 7);
   const spare = (unlimited?.validityDays ?? 0) % 7;
-  const expected = weeks * 6 + Math.min(spare, 6);
+  const expected = weeks * 5 + Math.min(spare, 5);
   check(
-    `Unlimited credits one a day: ${weeks} weeks x 6 plus ${spare} = ${expected}`,
+    `Unlimited credits one a day: ${weeks} weeks x 5 plus ${Math.min(spare, 5)} = ${expected}`,
     unlimited?.credits === expected,
     unlimited?.credits,
   );

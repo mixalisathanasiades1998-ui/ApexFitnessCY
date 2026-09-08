@@ -32,7 +32,6 @@ export type PackGroup =
   | "quarter"
   | "half"
   | "nine"
-  | "year"
   /** The midday appointments. Their own group again, and at the foot of the
    *  page: see the note on CARD_GROUPS. */
   | "personal";
@@ -94,7 +93,6 @@ export const CARD_GROUPS = [
 export const BUILDER_TERMS = [
   { group: "half", months: 6 },
   { group: "nine", months: 9 },
-  { group: "year", months: 12 },
 ] as const;
 
 /** Which card section the builder sits after. */
@@ -190,7 +188,7 @@ export const PACKS = [
     nameEn: "3 months · 1 a week",
     nameEl: "3 μήνες · 1 την εβδομάδα",
     credits: 12,
-    priceCents: 16000,
+    priceCents: 15000,
     validityDays: 90,
     badge: null as string | null,
     sortOrder: 6,
@@ -204,7 +202,7 @@ export const PACKS = [
     nameEn: "3 months · 2 a week",
     nameEl: "3 μήνες · 2 την εβδομάδα",
     credits: 24,
-    priceCents: 27000,
+    priceCents: 28000,
     validityDays: 90,
     badge: null as string | null,
     sortOrder: 7,
@@ -218,7 +216,7 @@ export const PACKS = [
     nameEn: "3 months · 3 a week",
     nameEl: "3 μήνες · 3 την εβδομάδα",
     credits: 36,
-    priceCents: 37500,
+    priceCents: 41000,
     validityDays: 90,
     badge: null as string | null,
     sortOrder: 8,
@@ -233,32 +231,28 @@ export const PACKS = [
      * Unlimited, and the session count is what makes the word true.
      *
      * **The arithmetic.** The pack runs 90 days. The studio opens five days a
-     * week, Monday to Friday, so a member could walk in on roughly 64 of those
-     * 90 days. The count granted, 78, sits comfortably above that: it is a
-     * ceiling the plan can never actually reach, which is the point — the real
-     * limit is `perDayLimit`, one class a day, below.
+     * week, Monday to Friday, and 90 consecutive days hold at most 65 of those
+     * weekdays. So the count granted is 65: exactly the most a member could ever
+     * attend at one class a day, which is what makes "unlimited" honest — you
+     * can train every day the studio is open and never run out.
      *
-     * **Why it is not just a big balance.** 78 sessions with no other rule is
-     * not an unlimited plan, it is a bulk discount somebody could spend in a
-     * fortnight and then be out of sessions with ten weeks to go — which is the
-     * opposite of what the word promises. So the batch carries a cap of one
-     * class a day (`perDayLimit`), and the two together are the plan: train
-     * every day if you like, but one a day, all quarter.
+     * **Why it is not just a big balance.** A number this size with no other
+     * rule would be a bulk discount somebody could spend in a fortnight and then
+     * be out of sessions with ten weeks to go — the opposite of what the word
+     * promises. So the batch carries a cap of one class a day (`perDayLimit`),
+     * and the two together are the plan: train every day if you like, one a day,
+     * all quarter. At €520 that is €8.00 a class if used to the full.
      */
     nameEn: "3 months · Unlimited",
     nameEl: "3 μήνες · Unlimited",
-    credits: 78,
-    priceCents: 47000,
+    credits: 65,
+    priceCents: 52000,
     validityDays: 90,
     /**
-     * Six euro a class if used as intended, and the badge the studio wants here.
-     *
-     * It moved to the twelve-month pack for a day, on the grounds that EUR 5.36
-     * beats EUR 6.03 and a "best value" badge should point at the best value.
-     * The studio moved it back, and with the plan builder in place that reads
-     * correctly: three months is the term they are selling, the badge appears
-     * on the combination somebody is most likely to land on, and the builder
-     * states the longer-term discounts in its own note for anybody comparing.
+     * The badge the studio wants here: three months is the headline term, the
+     * one with its own cards, and the combination most people land on. The
+     * longer terms live in the plan builder, which states their own better
+     * per-class rates for anybody comparing.
      */
     badge: "BEST_VALUE" as string | null,
     sortOrder: 9,
@@ -272,13 +266,10 @@ export const PACKS = [
      From here on the shape stops changing and only the term does: the same four
      cadences, twice the sessions, a hundred and eighty days to use them.
 
-     Each step down the page takes a little off the price of a class — five per
-     cent here, eight at nine months, twelve at a year — which is the whole
-     reason to commit for longer. Without it a longer pack is only a longer
-     expiry date, and nobody pays in advance for an expiry date. The percentages
-     are applied to the three-month rate and then rounded to the nearest five
-     euro, because a price list with 304 and 513 on it looks computed and one
-     with 305 and 515 looks decided.
+     Each longer term is a little cheaper per class than the one before, which is
+     the whole reason to commit for longer — without it a longer pack is only a
+     longer expiry date, and nobody pays in advance for an expiry date. The
+     prices here are the ones the studio set, not computed from a percentage.
 
      Months are thirty days here, as they are for every other pack in this file:
      ninety for three, so a hundred and eighty for six. */
@@ -287,7 +278,7 @@ export const PACKS = [
     nameEn: "6 months · 1 a week",
     nameEl: "6 μήνες · 1 την εβδομάδα",
     credits: 24,
-    priceCents: 30500,
+    priceCents: 29000,
     validityDays: 180,
     badge: null as string | null,
     sortOrder: 10,
@@ -301,7 +292,7 @@ export const PACKS = [
     nameEn: "6 months · 2 a week",
     nameEl: "6 μήνες · 2 την εβδομάδα",
     credits: 48,
-    priceCents: 51500,
+    priceCents: 53000,
     validityDays: 180,
     badge: null as string | null,
     sortOrder: 11,
@@ -315,7 +306,7 @@ export const PACKS = [
     nameEn: "6 months · 3 a week",
     nameEl: "6 μήνες · 3 την εβδομάδα",
     credits: 72,
-    priceCents: 71000,
+    priceCents: 72000,
     validityDays: 180,
     badge: null as string | null,
     sortOrder: 12,
@@ -328,11 +319,12 @@ export const PACKS = [
     slug: "half-4",
     nameEn: "6 months · Unlimited",
     nameEl: "6 μήνες · Unlimited",
-    /* 180 days at five open days a week (Mon–Fri) is about 129 chances to walk
-       in, and 155 sits above that as the ceiling — the same idea as the quarter.
-       `perDayLimit` is what makes it a plan rather than a bulk buy. */
-    credits: 155,
-    priceCents: 89500,
+    /* 180 consecutive days hold at most 130 weekdays, so 130 is the count: the
+       most a member could attend at one class a day, which is what makes it
+       unlimited. `perDayLimit` is what makes it a plan rather than a bulk buy.
+       At €850 that is about €6.54 a class if used to the full. */
+    credits: 130,
+    priceCents: 85000,
     validityDays: 180,
     badge: null as string | null,
     sortOrder: 13,
@@ -343,13 +335,13 @@ export const PACKS = [
   },
 
   /* --------------------------------------------------------------- 9 months
-     Eight per cent off the three-month rate per class. */
+     The longest term the studio sells, and the cheapest class on the list. */
   {
     slug: "nine-1",
     nameEn: "9 months · 1 a week",
     nameEl: "9 μήνες · 1 την εβδομάδα",
     credits: 36,
-    priceCents: 44000,
+    priceCents: 42000,
     validityDays: 270,
     badge: null as string | null,
     sortOrder: 14,
@@ -363,7 +355,7 @@ export const PACKS = [
     nameEn: "9 months · 2 a week",
     nameEl: "9 μήνες · 2 την εβδομάδα",
     credits: 72,
-    priceCents: 74500,
+    priceCents: 75000,
     validityDays: 270,
     badge: null as string | null,
     sortOrder: 15,
@@ -377,7 +369,7 @@ export const PACKS = [
     nameEn: "9 months · 3 a week",
     nameEl: "9 μήνες · 3 την εβδομάδα",
     credits: 108,
-    priceCents: 103500,
+    priceCents: 103000,
     validityDays: 270,
     badge: null as string | null,
     sortOrder: 16,
@@ -390,11 +382,13 @@ export const PACKS = [
     slug: "nine-4",
     nameEn: "9 months · Unlimited",
     nameEl: "9 μήνες · Unlimited",
-    /* 270 days at five open days a week (Mon–Fri) is about 193 chances to walk
-       in, and 232 sits above that as the ceiling — the same idea as the quarter.
-       `perDayLimit` is what makes it a plan rather than a bulk buy. */
-    credits: 232,
-    priceCents: 129500,
+    /* 270 consecutive days hold at most 194 weekdays, so 194 is the count: the
+       most a member could attend at one class a day, which is what makes it
+       unlimited. `perDayLimit` is what makes it a plan rather than a bulk buy.
+       At €1150 that is about €5.93 a class if used to the full — the cheapest
+       class the studio sells. */
+    credits: 194,
+    priceCents: 115000,
     validityDays: 270,
     badge: null as string | null,
     sortOrder: 17,
@@ -404,71 +398,6 @@ export const PACKS = [
     seats: 1,
   },
 
-  /* -------------------------------------------------------------- 12 months
-     Twelve per cent off, and the cheapest class the studio sells: a year of
-     Unlimited works out at EUR 5.36 a session if it is used as intended, which
-     is why the BEST VALUE badge moved here off the three-month pack. It sat
-     there truthfully until this row existed and would now be pointing at the
-     second-best price on the page. */
-  {
-    slug: "year-1",
-    nameEn: "12 months · 1 a week",
-    nameEl: "12 μήνες · 1 την εβδομάδα",
-    credits: 48,
-    priceCents: 56500,
-    validityDays: 360,
-    badge: null as string | null,
-    sortOrder: 18,
-    group: "year" as PackGroup,
-    kind: "CLASS" as CreditKind,
-    perDayLimit: null as number | null,
-    seats: 1,
-  },
-  {
-    slug: "year-2",
-    nameEn: "12 months · 2 a week",
-    nameEl: "12 μήνες · 2 την εβδομάδα",
-    credits: 96,
-    priceCents: 95000,
-    validityDays: 360,
-    badge: null as string | null,
-    sortOrder: 19,
-    group: "year" as PackGroup,
-    kind: "CLASS" as CreditKind,
-    perDayLimit: null as number | null,
-    seats: 1,
-  },
-  {
-    slug: "year-3",
-    nameEn: "12 months · 3 a week",
-    nameEl: "12 μήνες · 3 την εβδομάδα",
-    credits: 144,
-    priceCents: 132000,
-    validityDays: 360,
-    badge: null as string | null,
-    sortOrder: 20,
-    group: "year" as PackGroup,
-    kind: "CLASS" as CreditKind,
-    perDayLimit: null as number | null,
-    seats: 1,
-  },
-  {
-    slug: "year-4",
-    nameEn: "12 months · Unlimited",
-    nameEl: "12 μήνες · Unlimited",
-    /* 360 days at five open days a week (Mon–Fri) is about 257 chances to walk
-       in, and 309 sits above that as the ceiling — the same idea as the quarter.
-       `perDayLimit` is what makes it a plan rather than a bulk buy. */
-    credits: 309,
-    priceCents: 165500,
-    validityDays: 360,
-    badge: null as string | null,
-    sortOrder: 21,
-    group: "year" as PackGroup,
-    kind: "CLASS" as CreditKind,
-    perDayLimit: 1 as number | null,
-    seats: 1,
-  },
   /* ------------------------------------------------- personal and duet
      A different thing from the plans above, sold in the same currency, and
      grouped on the price list with the day pass rather than alone at the foot

@@ -747,10 +747,11 @@ console.log("\n3b. Booking a member a whole term, over the telephone");
     second: twice.json?.balance,
   });
 
-  /* What it refuses: a fraction, nothing, and anything past a year. 52 used to
-     be in this list and is now the ceiling itself — the studio sells a
-     twelve-month pack, so a run of a year is the point. 53 is the first refusal. */
-  for (const weeks of [1.5, 0, 53, 100]) {
+  /* What it refuses: a fraction, nothing, and anything past the ceiling. The
+     longest pack the studio sells is nine months, so 39 weeks is the ceiling and
+     40 is the first refusal. (It was 52 while a twelve-month pack was on sale;
+     that pack is gone.) */
+  for (const weeks of [1.5, 0, 40, 100]) {
     const bad = await req(staff, "/api/admin/bookings", {
       method: "PUT",
       body: { sessionId: slot.id, userId: buyerId, weeks },

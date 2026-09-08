@@ -82,7 +82,6 @@ const REPEAT_RUNS = [
   { months: 3, weeks: 13 },
   { months: 6, weeks: 26 },
   { months: 9, weeks: 39 },
-  { months: 12, weeks: 52 },
 ] as const;
 
 const LEVEL: Record<string, { en: string; el: string }> = {

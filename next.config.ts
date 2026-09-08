@@ -2,7 +2,34 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  images: { formats: ["image/avif", "image/webp"] },
+  /**
+   * WebP only, and a long cache.
+   *
+   * AVIF is a little smaller than WebP but far slower to encode — seconds of CPU
+   * for a large photo on a small server. Next optimises images on demand and
+   * caches the result on disk, but that cache is empty on a cold or
+   * just-deployed instance, so the very first visit had to encode the hero
+   * before it could show it. With AVIF in the list that wait was long enough to
+   * open the cover on the bare dark background. WebP encodes quickly, is
+   * supported everywhere the studio's visitors are, and drops that wait to a
+   * blink; the blur placeholder on the hero covers even that. `minimumCacheTTL`
+   * keeps each optimised image for a year so a warm instance never re-encodes.
+   */
+  images: {
+    formats: ["image/webp"],
+    minimumCacheTTL: 31536000,
+    /**
+     * The widths the optimiser will ever generate.
+     *
+     * The default list runs up to 3840px for 4K screens. Encoding a photo at
+     * that width is the single largest thing the image engine does for memory,
+     * and on a 512 MB instance a couple of those at once is enough to tip it
+     * over. This site is a handful of fixed marketing photos, not a gallery, so
+     * 1920 is the most any of them ever needs — a background photo at 1920 on a
+     * 4K screen is indistinguishable here, and it keeps each optimisation small.
+     */
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+  },
 
   /**
    * Do not announce the framework.

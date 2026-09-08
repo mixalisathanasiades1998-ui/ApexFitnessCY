@@ -207,6 +207,39 @@ if (needsBuilding()) {
 }
 
 /**
+ * Cap the JavaScript heap, because the container is smaller than Node thinks.
+ *
+ * Render runs this on a 512 MB instance, but Node does not see that limit — it
+ * reads the *host* machine's memory and sizes its old-space heap for gigabytes.
+ * So under load V8 lets the heap grow toward a ceiling that does not exist here,
+ * sails past 512 MB, and the platform kills the instance and restarts it. That
+ * is the memory-limit email, and it is not a leak: it is Node being generous
+ * with memory it has not got.
+ *
+ * Telling it the real ceiling makes it collect garbage sooner and keep the heap
+ * small. 384 MB leaves room for the parts that live outside the JS heap — the
+ * image optimiser's native buffers and the SQLite library — inside the 512.
+ * Only for the running site: the build runs on separate, larger compute and is
+ * left alone, so this is set on the child rather than for the whole service.
+ *
+ * MEMORY_MB overrides it from the environment, so moving to a bigger instance is
+ * one dashboard value and not a code change: set it to the new size and the cap
+ * follows.
+ *
+ * Any heap size already in NODE_OPTIONS is *replaced*, not kept. A large value
+ * inherited from the build step — where a bigger heap is wanted and the compute
+ * is bigger too — is exactly what must not reach the running site, so the
+ * runtime always gets this cap regardless of what it inherited.
+ */
+const HEAP_CAP_MB = Number(process.env.MEMORY_MB) || 384;
+const priorNodeOptions = (process.env.NODE_OPTIONS ?? "")
+  .replace(/--max-old-space-size=\d+/g, "")
+  .replace(/--max_old_space_size=\d+/g, "")
+  .trim();
+const nodeOptions =
+  `${priorNodeOptions} --max-old-space-size=${HEAP_CAP_MB}`.trim();
+
+/**
  * Hand over.
  *
  * Signals are forwarded rather than swallowed, so the host's "stop the old
@@ -218,6 +251,7 @@ if (needsBuilding()) {
 const child = spawn("npm", ["run", "start:next"], {
   stdio: "inherit",
   shell: process.platform === "win32",
+  env: { ...process.env, NODE_OPTIONS: nodeOptions },
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {
