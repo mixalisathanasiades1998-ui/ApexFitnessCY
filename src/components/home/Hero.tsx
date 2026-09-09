@@ -121,29 +121,25 @@ export function Hero({ user }: { user: HeroUser }) {
             rasters are what tear. */}
         <h1 className="flex flex-col items-center [text-shadow:0_1px_2px_rgba(26,20,20,0.5),0_2px_14px_rgba(26,20,20,0.42)]">
           <span
-            className="block animate-fade-up font-wordmark text-[length:max(1.7rem,min(3.2rem,5.2vw,8svh))] uppercase leading-none tracking-[0.30em] text-cream"
-            style={{ animationDelay: "160ms" }}
+            className="block font-wordmark text-[length:max(1.7rem,min(3.2rem,5.2vw,8svh))] uppercase leading-none tracking-[0.30em] text-cream"
           >
             {t.home.hero.kicker}
           </span>
           <span
-            className="mt-2 block animate-fade-up font-wordmark text-[length:max(4.2rem,min(10.5rem,17vw,26svh))] uppercase leading-[0.9] tracking-[0.01em] text-cream"
-            style={{ animationDelay: "300ms" }}
+            className="mt-2 block font-wordmark text-[length:max(4.2rem,min(10.5rem,17vw,26svh))] uppercase leading-[0.9] tracking-[0.01em] text-cream"
           >
             {t.home.hero.word}
           </span>
         </h1>
 
         <p
-          className="mt-5 animate-fade-up font-wordmark text-[11px] uppercase tracking-[0.62em] text-cream/85 [text-shadow:0_1px_10px_rgba(26,20,20,0.55)] sm:text-[14px]"
-          style={{ animationDelay: "440ms" }}
+          className="mt-5 font-wordmark text-[11px] uppercase tracking-[0.62em] text-cream/85 [text-shadow:0_1px_10px_rgba(26,20,20,0.55)] sm:text-[14px]"
         >
           {STUDIO.city}
         </p>
 
         <div
-          className="mt-[clamp(1.75rem,4.5svh,3.5rem)] flex animate-fade-in flex-wrap items-center justify-center gap-3"
-          style={{ animationDelay: "620ms" }}
+          className="mt-[clamp(1.75rem,4.5svh,3.5rem)] flex flex-wrap items-center justify-center gap-3"
         >
           <ButtonLink href="/timetable" variant="cream" size="lg">
             {t.home.hero.primary}
@@ -161,10 +157,7 @@ export function Hero({ user }: { user: HeroUser }) {
             visitor, and proof of being signed in for a member. Neither is the
             thing the cover is asking anybody to do, so neither is a third
             button competing with the two above. */}
-        <div
-          className="mt-[clamp(1.1rem,2.5svh,1.75rem)] animate-fade-in"
-          style={{ animationDelay: "700ms" }}
-        >
+        <div className="mt-[clamp(1.1rem,2.5svh,1.75rem)]">
           {user ? (
             <Link
               /* Profile showing, and the top of the page. Somebody pressing
@@ -225,8 +218,7 @@ export function Hero({ user }: { user: HeroUser }) {
             — and on a short window it steps aside rather than being clipped in
             half by the bottom of the cover. */}
         <Monogram
-          className="mt-[clamp(1.5rem,4svh,3.25rem)] h-9 w-9 animate-fade-in text-cream/45 [@media(max-height:700px)]:hidden sm:h-11 sm:w-11"
-          style={{ animationDelay: "820ms" }}
+          className="mt-[clamp(1.5rem,4svh,3.25rem)] h-9 w-9 text-cream/45 [@media(max-height:700px)]:hidden sm:h-11 sm:w-11"
         />
       </div>
     </section>

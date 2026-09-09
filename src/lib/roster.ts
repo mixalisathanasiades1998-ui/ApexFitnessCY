@@ -42,9 +42,9 @@ export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
   {
     name: "Anna P.",
     bioEn:
-      "Anna teaches with warmth and a sharp eye for form. First class or fiftieth, she finds the one cue that makes a movement click, and you leave standing taller than you came in.",
+      "Anna teaches with warmth and a sharp eye for form. First class or fiftieth, she finds the one cue that makes a movement click, and you leave with better posture than you walked in with.",
     bioEl:
-      "Η Anna διδάσκει με ζεστασιά και κοφτερό μάτι στη λεπτομέρεια. Είτε είναι το πρώτο σου μάθημα είτε το πεντηκοστό, βρίσκει τη μία οδηγία που κάνει την κίνηση να «κουμπώσει», και φεύγεις νιώθοντας πιο ψηλά και πιο δυνατά.",
+      "Η Anna διδάσκει με ζεστασιά και κοφτερό μάτι στη λεπτομέρεια. Είτε είναι το πρώτο σου μάθημα είτε το πεντηκοστό, βρίσκει τη μία οδηγία που κάνει την κίνηση να «κουμπώσει», και φεύγεις με καλύτερη στάση σώματος απ' ό,τι ήρθες.",
     photoUrl: "/team/anna-p.jpg",
     sortOrder: 2,
   },
