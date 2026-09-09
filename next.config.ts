@@ -15,20 +15,30 @@ const nextConfig: NextConfig = {
    * blink; the blur placeholder on the hero covers even that. `minimumCacheTTL`
    * keeps each optimised image for a year so a warm instance never re-encodes.
    */
+  /**
+   * No runtime image optimisation.
+   *
+   * Next optimises images on demand, in-process, using `sharp`/`libvips`. That
+   * native code is the single biggest thing this server does for memory, and on
+   * a 512 MB instance it was the whole problem: its memory is not returned to the
+   * OS between images, so RSS ratcheted up as photos were processed and settled
+   * near the ceiling with barely any traffic. Capping heap and malloc arenas
+   * only softened it.
+   *
+   * This site is not a gallery — it is a fixed handful of marketing photos, each
+   * already sized and compressed for the web in `public/`. So the optimiser earns
+   * nothing here and costs the studio its headroom. Turning it off makes
+   * `next/image` serve those files straight from disk: `sharp` never runs, memory
+   * stays flat and low, and the cold-start delay that used to leave the hero blank
+   * for a second is gone too. The trade — one fixed size per image rather than a
+   * per-device resize — is invisible for photos this small, and the source files
+   * are kept appropriately sized so a phone is never sent something huge.
+   *
+   * If the studio ever grows a real gallery of user-uploaded images, revisit this
+   * on a larger instance.
+   */
   images: {
-    formats: ["image/webp"],
-    minimumCacheTTL: 31536000,
-    /**
-     * The widths the optimiser will ever generate.
-     *
-     * The default list runs up to 3840px for 4K screens. Encoding a photo at
-     * that width is the single largest thing the image engine does for memory,
-     * and on a 512 MB instance a couple of those at once is enough to tip it
-     * over. This site is a handful of fixed marketing photos, not a gallery, so
-     * 1920 is the most any of them ever needs — a background photo at 1920 on a
-     * 4K screen is indistinguishable here, and it keeps each optimisation small.
-     */
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    unoptimized: true,
   },
 
   /**

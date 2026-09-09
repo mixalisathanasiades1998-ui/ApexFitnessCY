@@ -240,18 +240,29 @@ const nodeOptions =
   `${priorNodeOptions} --max-old-space-size=${HEAP_CAP_MB}`.trim();
 
 /**
- * Hand over.
+ * Stop the image library hoarding memory it has finished with.
  *
- * Signals are forwarded rather than swallowed, so the host's "stop the old
- * instance" is a clean stop: SQLite gets to close its write-ahead log instead of
- * being killed mid-write. With a disk attached there is no overlap between the
- * old instance and the new one, which makes that closing moment the only chance
- * the file gets.
+ * The site's memory was seen climbing in steps over a day and settling near the
+ * 512 MB ceiling — not a leak in this code, but the image optimiser (`sharp`,
+ * built on `libvips`) doing what it does on Linux: each photo it resizes is
+ * handled by native, multi-threaded code, and glibc's allocator keeps a separate
+ * memory pool per thread and hands very little of it back to the system once the
+ * work is done. RSS therefore ratchets up as more photos and sizes are processed
+ * and then plateaus, high.
+ *
+ * `MALLOC_ARENA_MAX=2` caps the number of those pools. It is the standard fix
+ * for exactly this pattern and costs nothing but a hair of allocator contention,
+ * which a site serving a handful of images will never notice. Overridable from
+ * the environment for anyone who wants to tune it.
  */
 const child = spawn("npm", ["run", "start:next"], {
   stdio: "inherit",
   shell: process.platform === "win32",
-  env: { ...process.env, NODE_OPTIONS: nodeOptions },
+  env: {
+    ...process.env,
+    NODE_OPTIONS: nodeOptions,
+    MALLOC_ARENA_MAX: process.env.MALLOC_ARENA_MAX ?? "2",
+  },
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {
