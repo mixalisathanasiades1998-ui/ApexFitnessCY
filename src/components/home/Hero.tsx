@@ -62,7 +62,11 @@ export function Hero({ user }: { user: HeroUser }) {
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: `url(${HERO_BLUR_DATA_URL})`,
+          /* Quoted on purpose: an unquoted url() holding a base64 data URI can
+             fail to parse in some browsers (the +, / and = in the payload), and
+             a backdrop that fails to parse leaves the bare brown section showing
+             through — which is the flash we are trying to kill. */
+          backgroundImage: `url("${HERO_BLUR_DATA_URL}")`,
           backgroundSize: "cover",
           backgroundPosition: "54% 38%",
         }}

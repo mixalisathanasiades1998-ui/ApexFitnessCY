@@ -6,6 +6,12 @@
   :root {
     --brand: 91 70 69;
     --cream: 250 245 242;
+    /* The font families Tailwind reads (see tailwind.config fontFamily). These
+       names are the ones the self-hosted @fontsource packages register — see
+       the imports in layout.tsx. */
+    --font-jost: "Jost";
+    --font-cormorant: "Cormorant Garamond";
+    --font-wordmark: "Marcellus";
   }
 
   * {

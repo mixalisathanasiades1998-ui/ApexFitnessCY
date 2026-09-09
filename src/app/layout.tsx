@@ -14,6 +14,29 @@ import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { currentUser } from "@/lib/auth";
 import { hasAvatar } from "@/lib/avatars";
 import { getAvailableCredits } from "@/lib/credits";
+/**
+ * The fonts, self-hosted from the `@fontsource` packages instead of fetched from
+ * Google at runtime.
+ *
+ * They used to load from a Google Fonts <link> with `display=swap`, which is
+ * what made the headline flash on every fresh load: the browser painted a
+ * fallback serif, fetched the real font from Google (a whole extra connection to
+ * a third-party server), then swapped it in — the visible "correction". Serving
+ * the woff2 files from our own domain instead collapses that fetch from hundreds
+ * of milliseconds to tens, so the swap is effectively gone, and it removes the
+ * dependency on Google being reachable at build or run time.
+ *
+ * Only the weights actually used, latin only — none of the three ship Greek
+ * glyphs, so Greek text falls back to a system face exactly as it did before.
+ */
+import "@fontsource/jost/200.css";
+import "@fontsource/jost/300.css";
+import "@fontsource/jost/400.css";
+import "@fontsource/jost/500.css";
+import "@fontsource/cormorant-garamond/300.css";
+import "@fontsource/cormorant-garamond/400.css";
+import "@fontsource/cormorant-garamond/500.css";
+import "@fontsource/marcellus/400.css";
 import "./globals.css";
 import { unreadCount } from "@/lib/notices";
 
@@ -118,30 +141,6 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        {/* Jost carries the geometric feel of the wordmark; Cormorant is the
-            editorial display face. Swap to next/font later if you prefer the
-            fonts self-hosted — see README. */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&family=Cormorant+Garamond:wght@300;400;500&family=Marcellus&display=swap"
-          rel="stylesheet"
-        />
-        <style
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{
-            __html:
-              `:root{--font-jost:'Jost';--font-cormorant:'Cormorant Garamond';` +
-              /* the headline face, closest to the flare of the wordmark */
-              `--font-wordmark:'Marcellus';}`,
-          }}
-        />
-      </head>
       <body className="min-h-dvh bg-cream">
         <LanguageProvider initialLocale={locale}>
           {/* Reopening the installed app lands on the homepage rather than on
