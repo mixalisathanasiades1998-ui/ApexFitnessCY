@@ -52,7 +52,21 @@ export function Hero({ user }: { user: HeroUser }) {
 
   return (
     <section className="relative -mt-24 flex h-[100svh] min-h-[560px] flex-col overflow-hidden bg-mocha-800">
-      <div className="absolute inset-0">
+      {/* The blurred photo is painted straight onto the backdrop, as a CSS
+          background, so it is there the instant the HTML arrives — before
+          next/image mounts, before hydration, before the optimised file has
+          been generated on a cold server. That is what removes the second of
+          bare brown the studio was seeing: the worst case is now a blurred
+          photo of the class, not the empty section colour. The <Image> then
+          loads its own sharp version over the top. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `url(${HERO_BLUR_DATA_URL})`,
+          backgroundSize: "cover",
+          backgroundPosition: "54% 38%",
+        }}
+      >
         <Image
           src="/media/class.jpg"
           alt="A Reformer Pilates class in progress at APEX pilates"

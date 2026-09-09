@@ -150,14 +150,23 @@ export function ScheduleClient({
 
   const [sessions, setSessions] = useState(initial);
   const [balance, setBalance] = useState(credits);
-  /* Open on the first day that actually has classes — the studio is closed on
-     Sundays, and landing on an empty day reads as a broken timetable. */
-  const [activeDay, setActiveDay] = useState(
-    () =>
+  /* Open on today. The timetable is a place you check "what's on today", so
+     landing anywhere else — the old code opened on the first day with a class
+     still bookable, which on an afternoon skipped a morning-only today and
+     jumped to tomorrow — reads as the site having moved the date on you. Today
+     is always the first day of the window on load, so this is it; only if today
+     somehow is not in the window (an odd deep-link) does it fall back to the
+     first day that has a class. A closed today shows "Studio closed", which is
+     the honest thing to show for today. */
+  const [activeDay, setActiveDay] = useState(() => {
+    const todayKey = studioDateKey(studioStartOfDay(new Date()));
+    if (days.includes(todayKey)) return todayKey;
+    return (
       days.find((d) => initial.some((s) => s.day === d && s.bookable)) ??
       days.find((d) => initial.some((s) => s.day === d)) ??
-      days[0]!,
-  );
+      days[0]!
+    );
+  });
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   /* The class the member is looking at. Picking a time is a click, not a
      scroll: the times are chips on one or two lines and the detail below
@@ -1295,7 +1304,7 @@ export function ScheduleClient({
                                 <button
                                   type="button"
                                   onClick={() => setRepeatWeeks(4)}
-                                  className="text-[10px] uppercase tracking-widest text-clay underline decoration-mocha-200 underline-offset-4 transition-colors hover:text-mocha-600"
+                                  className="text-[10px] font-semibold uppercase tracking-widest text-mocha-700 underline decoration-mocha-400 underline-offset-4 transition-colors hover:text-mocha-900"
                                 >
                                   {t.booking.repeatTitle}
                                 </button>

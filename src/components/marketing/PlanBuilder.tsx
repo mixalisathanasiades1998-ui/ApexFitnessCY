@@ -198,7 +198,10 @@ export function PlanBuilder({
           <p className="text-[9px] uppercase tracking-widest text-clay/70">
             {d.howOften}
           </p>
-          <div className="flex flex-wrap gap-2">
+          {/* Stacked, one per line, so the longer "sessions per week" labels do
+              not wrap two-and-two — and so Unlimited sits on its own line under
+              "3 sessions per week" rather than beside it. */}
+          <div className="flex flex-col items-start gap-2">
             {CADENCES.map((n) => {
               /* What this chip would actually buy at the selected term, so the
                  fourth one is named by the pack and not by this card. */
@@ -209,7 +212,9 @@ export function PlanBuilder({
                 <Chip key={n} on={cadence === n} onClick={() => setCadence(n)}>
                   {forThisTerm?.perDayLimit
                     ? d.unlimited
-                    : d.perWeek.replace("{n}", String(n))}
+                    : n === 1
+                      ? d.perWeekOne
+                      : d.perWeekMany.replace("{n}", String(n))}
                 </Chip>
               );
             })}

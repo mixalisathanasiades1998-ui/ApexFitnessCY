@@ -32,22 +32,28 @@ export type RosterMember = {
 export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
   {
     name: "Evelina Ch.",
-    bioEn: "Reformer instructor at APEX pilates.",
-    bioEl: "Εκπαιδεύτρια Reformer στο APEX pilates.",
+    bioEn:
+      "Evelina teaches the early mornings, and she likes them unhurried and strong. Calm, precise and quietly demanding, she sets your springs and your pace so every class meets you exactly where you are.",
+    bioEl:
+      "Η Evelina κρατά τα πρωινά, και τα θέλει ήρεμα και δυνατά. Ήρεμη, ακριβής και διακριτικά απαιτητική, ρυθμίζει τα ελατήρια και τον ρυθμό σου ώστε κάθε μάθημα να σε συναντά εκεί ακριβώς που βρίσκεσαι.",
     photoUrl: "/team/evelina-ch.jpg",
     sortOrder: 1,
   },
   {
     name: "Anna P.",
-    bioEn: "Reformer instructor at APEX pilates.",
-    bioEl: "Εκπαιδεύτρια Reformer στο APEX pilates.",
+    bioEn:
+      "Anna teaches with warmth and a sharp eye for form. First class or fiftieth, she finds the one cue that makes a movement click, and you leave standing taller than you came in.",
+    bioEl:
+      "Η Anna διδάσκει με ζεστασιά και κοφτερό μάτι στη λεπτομέρεια. Είτε είναι το πρώτο σου μάθημα είτε το πεντηκοστό, βρίσκει τη μία οδηγία που κάνει την κίνηση να «κουμπώσει», και φεύγεις νιώθοντας πιο ψηλά και πιο δυνατά.",
     photoUrl: "/team/anna-p.jpg",
     sortOrder: 2,
   },
   {
     name: "Stephani Ch.",
-    bioEn: "Reformer instructor at APEX pilates.",
-    bioEl: "Εκπαιδεύτρια Reformer στο APEX pilates.",
+    bioEn:
+      "Stephani turns the fundamentals into something you look forward to. Steady, encouraging and full of energy, she builds the kind of control that carries off the reformer and into the rest of your week.",
+    bioEl:
+      "Η Stephani μετατρέπει τα βασικά σε κάτι που ανυπομονείς να ζήσεις. Σταθερή, ενθαρρυντική και γεμάτη ενέργεια, χτίζει τον έλεγχο που σε ακολουθεί έξω από το reformer, σε όλη σου την εβδομάδα.",
     photoUrl: "/team/stephani-ch.jpg",
     sortOrder: 3,
   },
@@ -80,11 +86,13 @@ export function reconcileRoster(): Map<string, string> {
       `insert into instructors (id, name, bio_en, bio_el, photo_url, active, sort_order)
        values (?, ?, ?, ?, ?, 1, ?)`,
     );
+    /* Bios are written every time, not only when blank: the roster is where
+       they are edited, so a change here has to reach a database that already
+       has the old text. There is no desk screen that edits a bio, so there is
+       nothing of the studio's own to preserve by leaving it alone. */
     const update = sqlite.prepare(
       `update instructors
-          set photo_url = ?, sort_order = ?, active = 1,
-              bio_en = case when bio_en = '' then ? else bio_en end,
-              bio_el = case when bio_el = '' then ? else bio_el end
+          set photo_url = ?, sort_order = ?, active = 1, bio_en = ?, bio_el = ?
         where id = ?`,
     );
 

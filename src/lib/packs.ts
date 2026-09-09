@@ -15,7 +15,7 @@
 /**
  * Which commitment a pack belongs to.
  *
- * The price list needs it because "Monthly · 3 a week" and "3 months · 1 a week"
+ * The price list needs it because "Monthly · 3 sessions per week" and "3 months · 1 session per week"
  * are both twelve classes and a visitor reading nine cards in a grid cannot see
  * which is which. Grouped under headings, the choice is obvious: how often do I
  * train, and for how long am I committing.
@@ -122,8 +122,8 @@ export const PACKS = [
      choice — one a week is four — and it is what the balance is spent from. */
   {
     slug: "month-1",
-    nameEn: "Monthly · 1 a week",
-    nameEl: "Μηνιαίο · 1 την εβδομάδα",
+    nameEn: "Monthly · 1 session per week",
+    nameEl: "Μηνιαίο · 1 συνεδρία την εβδομάδα",
     credits: 4,
     priceCents: 6000,
     validityDays: 30,
@@ -136,8 +136,8 @@ export const PACKS = [
   },
   {
     slug: "month-2",
-    nameEn: "Monthly · 2 a week",
-    nameEl: "Μηνιαίο · 2 την εβδομάδα",
+    nameEn: "Monthly · 2 sessions per week",
+    nameEl: "Μηνιαίο · 2 συνεδρίες την εβδομάδα",
     credits: 8,
     priceCents: 11000,
     validityDays: 30,
@@ -151,8 +151,8 @@ export const PACKS = [
   },
   {
     slug: "month-3",
-    nameEn: "Monthly · 3 a week",
-    nameEl: "Μηνιαίο · 3 την εβδομάδα",
+    nameEn: "Monthly · 3 sessions per week",
+    nameEl: "Μηνιαίο · 3 συνεδρίες την εβδομάδα",
     credits: 12,
     priceCents: 15000,
     validityDays: 30,
@@ -165,8 +165,8 @@ export const PACKS = [
   },
   {
     slug: "month-4",
-    nameEn: "Monthly · 4 a week",
-    nameEl: "Μηνιαίο · 4 την εβδομάδα",
+    nameEn: "Monthly · 4 sessions per week",
+    nameEl: "Μηνιαίο · 4 συνεδρίες την εβδομάδα",
     credits: 16,
     priceCents: 18000,
     validityDays: 30,
@@ -185,8 +185,8 @@ export const PACKS = [
      somebody buys three months rather than three ones. */
   {
     slug: "quarter-1",
-    nameEn: "3 months · 1 a week",
-    nameEl: "3 μήνες · 1 την εβδομάδα",
+    nameEn: "3 months · 1 session per week",
+    nameEl: "3 μήνες · 1 συνεδρία την εβδομάδα",
     credits: 12,
     priceCents: 15000,
     validityDays: 90,
@@ -199,8 +199,8 @@ export const PACKS = [
   },
   {
     slug: "quarter-2",
-    nameEn: "3 months · 2 a week",
-    nameEl: "3 μήνες · 2 την εβδομάδα",
+    nameEn: "3 months · 2 sessions per week",
+    nameEl: "3 μήνες · 2 συνεδρίες την εβδομάδα",
     credits: 24,
     priceCents: 28000,
     validityDays: 90,
@@ -213,8 +213,8 @@ export const PACKS = [
   },
   {
     slug: "quarter-3",
-    nameEn: "3 months · 3 a week",
-    nameEl: "3 μήνες · 3 την εβδομάδα",
+    nameEn: "3 months · 3 sessions per week",
+    nameEl: "3 μήνες · 3 συνεδρίες την εβδομάδα",
     credits: 36,
     priceCents: 41000,
     validityDays: 90,
@@ -275,8 +275,8 @@ export const PACKS = [
      ninety for three, so a hundred and eighty for six. */
   {
     slug: "half-1",
-    nameEn: "6 months · 1 a week",
-    nameEl: "6 μήνες · 1 την εβδομάδα",
+    nameEn: "6 months · 1 session per week",
+    nameEl: "6 μήνες · 1 συνεδρία την εβδομάδα",
     credits: 24,
     priceCents: 29000,
     validityDays: 180,
@@ -289,8 +289,8 @@ export const PACKS = [
   },
   {
     slug: "half-2",
-    nameEn: "6 months · 2 a week",
-    nameEl: "6 μήνες · 2 την εβδομάδα",
+    nameEn: "6 months · 2 sessions per week",
+    nameEl: "6 μήνες · 2 συνεδρίες την εβδομάδα",
     credits: 48,
     priceCents: 53000,
     validityDays: 180,
@@ -303,8 +303,8 @@ export const PACKS = [
   },
   {
     slug: "half-3",
-    nameEn: "6 months · 3 a week",
-    nameEl: "6 μήνες · 3 την εβδομάδα",
+    nameEn: "6 months · 3 sessions per week",
+    nameEl: "6 μήνες · 3 συνεδρίες την εβδομάδα",
     credits: 72,
     priceCents: 72000,
     validityDays: 180,
@@ -338,8 +338,8 @@ export const PACKS = [
      The longest term the studio sells, and the cheapest class on the list. */
   {
     slug: "nine-1",
-    nameEn: "9 months · 1 a week",
-    nameEl: "9 μήνες · 1 την εβδομάδα",
+    nameEn: "9 months · 1 session per week",
+    nameEl: "9 μήνες · 1 συνεδρία την εβδομάδα",
     credits: 36,
     priceCents: 42000,
     validityDays: 270,
@@ -352,8 +352,8 @@ export const PACKS = [
   },
   {
     slug: "nine-2",
-    nameEn: "9 months · 2 a week",
-    nameEl: "9 μήνες · 2 την εβδομάδα",
+    nameEn: "9 months · 2 sessions per week",
+    nameEl: "9 μήνες · 2 συνεδρίες την εβδομάδα",
     credits: 72,
     priceCents: 75000,
     validityDays: 270,
@@ -366,8 +366,8 @@ export const PACKS = [
   },
   {
     slug: "nine-3",
-    nameEn: "9 months · 3 a week",
-    nameEl: "9 μήνες · 3 την εβδομάδα",
+    nameEn: "9 months · 3 sessions per week",
+    nameEl: "9 μήνες · 3 συνεδρίες την εβδομάδα",
     credits: 108,
     priceCents: 103000,
     validityDays: 270,

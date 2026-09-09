@@ -128,7 +128,9 @@ export function PricingGrid({
             <h3 className="h-display text-[1.6rem] text-mocha-600">
               {section.heading.title}
             </h3>
-            <p className="text-[13px] text-clay">{section.heading.note}</p>
+            {section.heading.note && (
+              <p className="text-[13px] text-clay">{section.heading.note}</p>
+            )}
           </div>
           <RevealGroup className={gridFor(section.packs.length)}>
             {section.packs.map((p) => {
@@ -142,7 +144,15 @@ export function PricingGrid({
                 seats > 1
                   ? Math.round(p.priceCents / seats)
                   : Math.round(p.priceCents / p.credits);
-              const showUnit = p.credits > 1 || seats > 1;
+              /* The per-class figure is hidden on the monthly plans and on the
+                 fixed three-month plans, and kept only where it is the point:
+                 the Unlimited plans, whose whole appeal is the price per class,
+                 and the Duet, where "each" is the number two people are working
+                 out. The long terms in the builder keep theirs too. */
+              const hidePerClass =
+                p.group === "month" ||
+                (p.group === "quarter" && !p.perDayLimit);
+              const showUnit = (p.credits > 1 || seats > 1) && !hidePerClass;
               const highlight = p.badge === "POPULAR";
               return (
                 <RevealItem key={p.id}>

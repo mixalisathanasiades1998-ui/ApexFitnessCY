@@ -333,12 +333,12 @@ export const en = {
         note: "A single session, thirty days to use it, nothing to commit to.",
       },
       month: {
-        title: "By the month",
-        note: "Thirty days to use them. Priced by how often you train.",
+        title: "1 Month",
+        note: "",
       },
       quarter: {
-        title: "Three months",
-        note: "The same cadences over twelve weeks, at less per class. Ninety days to use them, so a holiday does not cost you your sessions.",
+        title: "3 Months",
+        note: "",
       },
       personal: {
         title: "Personal and Duet",
@@ -347,12 +347,13 @@ export const en = {
     },
     /* The long terms, as one card. See PlanBuilder.tsx. */
     builder: {
-      title: "Longer terms",
+      title: "Custom Packages",
       howLong: "How long for",
       howOften: "How often",
       oneMonth: "1 month",
       months: "{n} months",
-      perWeek: "{n} a week",
+      perWeekOne: "1 session per week",
+      perWeekMany: "{n} sessions per week",
       unlimited: "Unlimited",
       buy: "Buy this plan",
       unavailable: "That combination is not on sale at the moment.",
@@ -1588,12 +1589,12 @@ export const el: typeof en = {
         note: "Μία συνεδρία, τριάντα ημέρες για να τη χρησιμοποιήσεις, χωρίς δέσμευση.",
       },
       month: {
-        title: "Με τον μήνα",
-        note: "Τριάντα ημέρες για να τις χρησιμοποιήσεις. Η τιμή ακολουθεί το πόσο συχνά προπονείσαι.",
+        title: "1 Μήνας",
+        note: "",
       },
       quarter: {
-        title: "Τρεις μήνες",
-        note: "Οι ίδιες συχνότητες σε δώδεκα εβδομάδες, με λιγότερα ανά μάθημα. Ενενήντα ημέρες για να τις χρησιμοποιήσεις, ώστε μια εκδρομή να μη σου κοστίσει τις συνεδρίες σου.",
+        title: "3 Μήνες",
+        note: "",
       },
       personal: {
         title: "Ατομική και Δυάδα",
@@ -1601,12 +1602,13 @@ export const el: typeof en = {
       },
     },
     builder: {
-      title: "Μεγαλύτερες διάρκειες",
+      title: "Προσαρμοσμένα Πακέτα",
       howLong: "Για πόσο",
       howOften: "Πόσο συχνά",
       oneMonth: "1 μήνας",
       months: "{n} μήνες",
-      perWeek: "{n} την εβδομάδα",
+      perWeekOne: "1 συνεδρία την εβδομάδα",
+      perWeekMany: "{n} συνεδρίες την εβδομάδα",
       unlimited: "Unlimited",
       buy: "Αγόρασε αυτό το πλάνο",
       unavailable: "Αυτός ο συνδυασμός δεν πωλείται αυτή τη στιγμή.",

@@ -430,7 +430,12 @@ export function Header({ user }: { user: HeaderUser }) {
                 href={l.href}
                 tabIndex={open ? 0 : -1}
                 onClick={() => follow(l.href)}
-                className="block py-2.5 font-display text-[2rem] font-light text-mocha-600 sm:text-4xl"
+                /* font-normal, not font-light. The display face has no light
+                   weight for Greek, so the Greek menu fell back to a normal
+                   weight and read heavier than the English, which was rendering
+                   at 300 — the studio saw two menus that did not match. Normal
+                   on both makes the English as solid as the Greek already was. */
+                className="block py-2.5 font-display text-[2rem] font-normal text-mocha-600 sm:text-4xl"
               >
                 {l.label}
               </Link>
