@@ -62,6 +62,18 @@ const MINUTES = STUDIO.classLengthMinutes;
 const AGE = MIN_AGE_YEARS;
 
 /**
+ * The legal entity behind the trading name, for the controller and agreement
+ * clauses. These are facts on the company register and the VAT roll, and the law
+ * (GDPR Art. 13, and consumer/e-commerce rules) wants the registered identity,
+ * not only the name on the door. Kept here beside the other studio facts. A
+ * lawyer should confirm the exact registered spelling and the VAT number before
+ * this is relied on.
+ */
+const LEGAL_ENTITY = "M.M.A. APEX FITNESS CENTER LTD";
+const COMPANY_NO = "HE 497271";
+const VAT_NO = "60395665S";
+
+/**
  * How long an unconfirmed account survives.
  *
  * Quoted from `housekeeping.ts`, where `UNVERIFIED_LIFETIME_DAYS` is the number
@@ -104,7 +116,7 @@ const UNVERIFIED_DAYS = 7;
 const PRIVACY_EN: LegalSection[] = [
   {
     title: "Who is responsible for your information",
-    body: `${STUDIO.name}, the reformer pilates studio inside ${STUDIO.parent} at ${ADDRESS}, decides how the information described here is used. In data protection law that makes the studio the "controller".
+    body: `${STUDIO.name}, the reformer pilates studio inside ${STUDIO.parent} at ${ADDRESS}, decides how the information described here is used. In data protection law that makes the studio the "controller". The studio is operated by ${LEGAL_ENTITY} (company registration ${COMPANY_NO}, VAT ${VAT_NO}), registered at the same address.
 
 Write to ${MAIL} or telephone ${TEL} about anything on this page, including any of the rights set out below.
 
@@ -162,6 +174,8 @@ If you pay in cash or by card at the desk, reception records the amount and the 
 
 **An email provider** carries the studio's mailbox, so any email we send you passes through it.
 
+**A backup service** keeps an off-site copy of the studio's database, so the records can be restored if the main copy is ever lost. That copy contains everything the database holds, the health notes above included.
+
 Two more things your browser does that are worth naming. The typefaces on this site are requested from a font service, which means that service sees the network address your device is using; the site can be changed to serve the typefaces itself if the studio prefers. And notifications are delivered by whichever push service your own browser uses, which depends on your device and which the studio has no relationship with or control over.
 
 We do not use any analytics, advertising or tracking service. Nothing on this site reports your behaviour to anybody, and there is no third-party script anywhere on it apart from the payment provider's, which loads only on the checkout page.
@@ -174,7 +188,9 @@ We do not sell your information and we never will.`,
     title: "Where it is kept, and whether it leaves Europe",
     body: `The database lives in Frankfurt, Germany, inside the European Union.
 
-The payment provider and the email provider both operate outside the European Economic Area as well as inside it, and information reaching them may be transferred to countries whose laws differ from ours. Where that happens they rely on the safeguards European law provides for it, which are either a European Commission decision that the country protects information adequately, or the Commission's standard contractual clauses.`,
+The payment provider and the email provider both operate outside the European Economic Area as well as inside it, and information reaching them may be transferred to countries whose laws differ from ours. Where that happens they rely on the safeguards European law provides for it, which are either a European Commission decision that the country protects information adequately, or the Commission's standard contractual clauses.
+
+The off-site backup of the database is held by a service that operates outside the European Economic Area, under those same safeguards.`,
   },
   {
     title: "How long we keep it",
@@ -261,7 +277,7 @@ Last updated: September 2026.`,
 const TERMS_EN: LegalSection[] = [
   {
     title: "Who you are dealing with",
-    body: `These terms are the agreement between you and ${STUDIO.name}, the reformer pilates studio inside ${STUDIO.parent} at ${ADDRESS}.
+    body: `These terms are the agreement between you and ${STUDIO.name}, the reformer pilates studio inside ${STUDIO.parent} at ${ADDRESS}, operated by ${LEGAL_ENTITY} (company registration ${COMPANY_NO}, VAT ${VAT_NO}).
 
 Contact: ${MAIL}, ${TEL}.
 
@@ -326,6 +342,16 @@ That is the rule, and reception can be asked. Illness, injury, pregnancy and a c
 If the studio cancels a class you had booked, the session goes back to your balance and you have not lost anything. If the studio closes for a period long enough to threaten your expiry date, it will move the date rather than let it run out.
 
 Buying online is a distance contract, and consumer law gives you fourteen days to change your mind about one. That right does not extend to sessions you have already used, and a class you have attended has been provided. If you have bought a pack and used none of it, write within fourteen days and the studio will refund it.`,
+  },
+  {
+    title: "Free and promotional sessions",
+    body: `From time to time the studio gives a session for free, such as an opening offer to new members. A free session follows the same rules as any other, and a few of its own.
+
+It is granted to accounts that qualify during the offer's dates, one per account, and whether you qualify is decided by when your account was created rather than by anything you do afterwards.
+
+It can only be spent on classes inside the offer's own window, which is shown to you when the session is given and is usually shorter than a bought pack. It expires on the date shown and is not extended.
+
+A free session is not refundable in money, cannot be transferred or shared, and the studio can change or withdraw an offer at any time. Sessions already given are honoured on the terms they were given on.`,
   },
   {
     title: "Your health, and being honest with us",
@@ -437,7 +463,7 @@ Last updated: September 2026.`,
 const PRIVACY_EL: LegalSection[] = [
   {
     title: "Ποιος είναι υπεύθυνος για τα στοιχεία σου",
-    body: `Το ${STUDIO.name}, το στούντιο reformer pilates μέσα στο ${STUDIO.parent} στη διεύθυνση ${ADDRESS}, αποφασίζει πώς χρησιμοποιούνται τα στοιχεία που περιγράφονται εδώ. Στη νομοθεσία προστασίας δεδομένων αυτό κάνει το στούντιο "υπεύθυνο επεξεργασίας".
+    body: `Το ${STUDIO.name}, το στούντιο reformer pilates μέσα στο ${STUDIO.parent} στη διεύθυνση ${ADDRESS}, αποφασίζει πώς χρησιμοποιούνται τα στοιχεία που περιγράφονται εδώ. Στη νομοθεσία προστασίας δεδομένων αυτό κάνει το στούντιο "υπεύθυνο επεξεργασίας". Το στούντιο λειτουργεί από την ${LEGAL_ENTITY} (αριθμός εγγραφής εταιρείας ${COMPANY_NO}, ΦΠΑ ${VAT_NO}), με έδρα την ίδια διεύθυνση.
 
 Γράψε στο ${MAIL} ή τηλεφώνησε στο ${TEL} για οτιδήποτε σε αυτή τη σελίδα, συμπεριλαμβανομένων των δικαιωμάτων που αναφέρονται παρακάτω.
 
@@ -495,6 +521,8 @@ const PRIVACY_EL: LegalSection[] = [
 
 **Πάροχος ηλεκτρονικού ταχυδρομείου**: μεταφέρει την αλληλογραφία του στούντιο, οπότε κάθε email που σου στέλνουμε περνά από εκεί.
 
+**Υπηρεσία αντιγράφων ασφαλείας**: κρατά ένα αντίγραφο της βάσης δεδομένων εκτός του κύριου συστήματος, ώστε τα αρχεία να ανακτηθούν αν χαθεί ποτέ το κύριο αντίγραφο. Το αντίγραφο αυτό περιέχει ό,τι κρατά η βάση, συμπεριλαμβανομένων των σημειώσεων υγείας παραπάνω.
+
 Δύο ακόμη πράγματα που κάνει ο browser σου αξίζουν αναφορά. Οι γραμματοσειρές ζητούνται από μια υπηρεσία γραμματοσειρών, που σημαίνει ότι εκείνη βλέπει τη διεύθυνση δικτύου της συσκευής σου· η σελίδα μπορεί να αλλάξει ώστε να σερβίρει μόνη της τις γραμματοσειρές. Και οι ειδοποιήσεις παραδίδονται από την υπηρεσία push του δικού σου browser, που εξαρτάται από τη συσκευή σου και με την οποία το στούντιο δεν έχει σχέση ούτε έλεγχο.
 
 Δεν χρησιμοποιούμε καμία υπηρεσία στατιστικών, διαφήμισης ή παρακολούθησης. Τίποτα σε αυτή τη σελίδα δεν αναφέρει σε κανέναν τη συμπεριφορά σου, και δεν υπάρχει σενάριο τρίτου πουθενά εκτός από του παρόχου πληρωμών, που φορτώνει μόνο στη σελίδα πληρωμής.
@@ -507,7 +535,9 @@ const PRIVACY_EL: LegalSection[] = [
     title: "Πού κρατούνται, και αν φεύγουν από την Ευρώπη",
     body: `Η βάση δεδομένων βρίσκεται στη Φρανκφούρτη της Γερμανίας, μέσα στην Ευρωπαϊκή Ένωση.
 
-Ο πάροχος πληρωμών και ο πάροχος ηλεκτρονικού ταχυδρομείου λειτουργούν και εκτός του Ευρωπαϊκού Οικονομικού Χώρου, και στοιχεία που φτάνουν σε αυτούς μπορεί να μεταφερθούν σε χώρες με διαφορετική νομοθεσία. Όπου συμβαίνει αυτό, βασίζονται στις εγγυήσεις που προβλέπει το ευρωπαϊκό δίκαιο, δηλαδή είτε απόφαση επάρκειας της Ευρωπαϊκής Επιτροπής είτε τις τυποποιημένες συμβατικές ρήτρες της.`,
+Ο πάροχος πληρωμών και ο πάροχος ηλεκτρονικού ταχυδρομείου λειτουργούν και εκτός του Ευρωπαϊκού Οικονομικού Χώρου, και στοιχεία που φτάνουν σε αυτούς μπορεί να μεταφερθούν σε χώρες με διαφορετική νομοθεσία. Όπου συμβαίνει αυτό, βασίζονται στις εγγυήσεις που προβλέπει το ευρωπαϊκό δίκαιο, δηλαδή είτε απόφαση επάρκειας της Ευρωπαϊκής Επιτροπής είτε τις τυποποιημένες συμβατικές ρήτρες της.
+
+Το αντίγραφο ασφαλείας της βάσης δεδομένων φυλάσσεται από υπηρεσία που λειτουργεί εκτός του Ευρωπαϊκού Οικονομικού Χώρου, με τις ίδιες εγγυήσεις.`,
   },
   {
     title: "Πόσο καιρό τα κρατάμε",
@@ -592,7 +622,7 @@ const PRIVACY_EL: LegalSection[] = [
 const TERMS_EL: LegalSection[] = [
   {
     title: "Με ποιον συναλλάσσεσαι",
-    body: `Οι όροι αυτοί είναι η συμφωνία μεταξύ εσού και του ${STUDIO.name}, του στούντιο reformer pilates μέσα στο ${STUDIO.parent} στη διεύθυνση ${ADDRESS}.
+    body: `Οι όροι αυτοί είναι η συμφωνία μεταξύ εσού και του ${STUDIO.name}, του στούντιο reformer pilates μέσα στο ${STUDIO.parent} στη διεύθυνση ${ADDRESS}, που λειτουργεί από την ${LEGAL_ENTITY} (αριθμός εγγραφής εταιρείας ${COMPANY_NO}, ΦΠΑ ${VAT_NO}).
 
 Επικοινωνία: ${MAIL}, ${TEL}.
 
@@ -657,6 +687,16 @@ const TERMS_EL: LegalSection[] = [
 Αν το στούντιο ακυρώσει μάθημα που είχες κλείσει, η συνεδρία γυρίζει στο υπόλοιπό σου και δεν έχασες τίποτα. Αν το στούντιο κλείσει για διάστημα αρκετό να απειλήσει τη λήξη σου, θα μετακινήσει την ημερομηνία αντί να την αφήσει να τρέξει.
 
 Η αγορά μέσω διαδικτύου είναι σύμβαση εξ αποστάσεως, και η νομοθεσία για τους καταναλωτές σου δίνει δεκατέσσερις ημέρες να αλλάξεις γνώμη. Το δικαίωμα δεν επεκτείνεται σε συνεδρίες που έχεις ήδη χρησιμοποιήσει, και ένα μάθημα στο οποίο ήρθες έχει παρασχεθεί. Αν αγόρασες πακέτο και δεν χρησιμοποίησες τίποτα, γράψε μέσα σε δεκατέσσερις ημέρες και το στούντιο θα το επιστρέψει.`,
+  },
+  {
+    title: "Δωρεάν και προωθητικές συνεδρίες",
+    body: `Κατά καιρούς το στούντιο δίνει μια συνεδρία δωρεάν, όπως μια προσφορά υποδοχής για νέα μέλη. Μια δωρεάν συνεδρία ακολουθεί τους ίδιους κανόνες με κάθε άλλη, και μερικούς δικούς της.
+
+Δίνεται σε λογαριασμούς που πληρούν τις προϋποθέσεις μέσα στις ημερομηνίες της προσφοράς, μία ανά λογαριασμό, και το αν πληροίς τις προϋποθέσεις κρίνεται από το πότε δημιουργήθηκε ο λογαριασμός σου και όχι από κάτι που κάνεις μετά.
+
+Ξοδεύεται μόνο σε μαθήματα μέσα στο δικό της παράθυρο, που σου δείχνεται όταν δίνεται η συνεδρία και συνήθως είναι μικρότερο από ένα αγορασμένο πακέτο. Λήγει στην ημερομηνία που φαίνεται και δεν παρατείνεται.
+
+Μια δωρεάν συνεδρία δεν επιστρέφεται σε χρήμα, δεν μεταφέρεται και δεν μοιράζεται, και το στούντιο μπορεί να αλλάξει ή να αποσύρει μια προσφορά οποτεδήποτε. Οι συνεδρίες που έχουν ήδη δοθεί τηρούνται με τους όρους με τους οποίους δόθηκαν.`,
   },
   {
     title: "Η υγεία σου, και η ειλικρίνεια μαζί μας",
