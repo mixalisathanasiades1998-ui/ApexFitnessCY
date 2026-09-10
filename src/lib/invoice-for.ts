@@ -58,7 +58,12 @@ export async function invoiceForPurchase(purchaseId: string) {
     currency: row.currency,
     customer: { name: row.name, email: row.email },
     paidWith: paidWithWords(row.provider),
-    reference: row.providerRef,
+    /* Only a reference a reader can use. A Stripe charge id traces the payment
+       to a deposit, which an accountant wants; a desk sale's ref is `desk:` and
+       a fragment of a staff id, internal plumbing that reads as noise on the
+       client's receipt. So it is kept for card payments online and left off
+       everything taken at the desk. */
+    reference: row.provider === "stripe" ? row.providerRef : null,
   };
 
   return {

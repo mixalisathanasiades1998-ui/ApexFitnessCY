@@ -1002,23 +1002,41 @@ export function ScheduleClient({
         </p>
 
         {list.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-mocha-200 px-6 py-14 text-center text-sm text-clay">
-            {(() => {
-              /* A desk closure carries a reason ("Public holiday") — show it
-                 instead of the bare "Studio closed". A rota-empty day (Sunday)
-                 has no closure row and keeps the generic label. */
-              const c = closedDays.get(activeDay);
-              const reason =
-                (locale === "el" ? c?.reasonEl : c?.reasonEn)?.trim() ||
-                c?.reasonEn?.trim() ||
-                c?.reasonEl?.trim();
-              if (reason) return `${t.home.timetable.closed} — ${reason}`;
-              return classHoursOn(new Date(`${activeDay}T12:00:00`).getDay())
-                .length === 0 || closedDays.has(activeDay)
-                ? t.home.timetable.closed
-                : t.timetablePage.noClasses;
-            })()}
-          </p>
+          (() => {
+            /* A desk closure carries a reason ("Public holiday"), shown inside a
+               label below the "Studio closed" pill. A rota-empty day (Sunday)
+               has no closure row and shows just the pill; a normal open day with
+               nothing scheduled shows the plain "no classes" line. */
+            const c = closedDays.get(activeDay);
+            const reason =
+              (locale === "el" ? c?.reasonEl : c?.reasonEn)?.trim() ||
+              c?.reasonEn?.trim() ||
+              c?.reasonEl?.trim();
+            const isClosed =
+              classHoursOn(new Date(`${activeDay}T12:00:00`).getDay())
+                .length === 0 || closedDays.has(activeDay);
+            if (!isClosed) {
+              return (
+                <p className="rounded-2xl border border-dashed border-mocha-200 px-6 py-14 text-center text-sm text-clay">
+                  {t.timetablePage.noClasses}
+                </p>
+              );
+            }
+            return (
+              <div className="flex flex-col items-center gap-3 rounded-3xl border border-mocha-200/70 bg-white/50 px-6 py-16 text-center">
+                <span className="inline-flex items-center gap-2 rounded-full bg-mocha-600 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-cream">
+                  <span
+                    aria-hidden
+                    className="h-1.5 w-1.5 rounded-full bg-cream/70"
+                  />
+                  {t.home.timetable.closed}
+                </span>
+                {reason && (
+                  <p className="font-display text-xl text-mocha-600">{reason}</p>
+                )}
+              </div>
+            );
+          })()
         ) : (
           <>
             <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">

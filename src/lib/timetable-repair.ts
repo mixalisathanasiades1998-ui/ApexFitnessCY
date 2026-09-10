@@ -1,4 +1,6 @@
-import { sqlite } from "@/db";
+import { desc } from "drizzle-orm";
+import { db, sqlite } from "@/db";
+import { classSessions } from "@/db/schema";
 import {
   PERSONAL_DURATION_MINUTES,
   PERSONAL_SLOT_DAYS,
@@ -445,11 +447,36 @@ export function repairTimetable(now = new Date()): TimetableSync {
    * and nothing on every boot after. `generateSessions` is idempotent, so even
    * the pathological case of it running twice creates nothing twice.
    */
+  /**
+   * The horizon has to move on its own, not only when a template changes.
+   *
+   * `generateSessions` writes a fixed span of weeks from the day it runs, so the
+   * furthest class stays put while the calendar advances underneath it. Rolling
+   * it forward only on a template change — which is what this used to do — meant
+   * a studio that never edited its rota kept whatever horizon it was first
+   * generated with: a database seeded under a ninety-day horizon still ended in
+   * December long after the booking window became a year, and a member trying to
+   * book January was told the studio had no classes. So the furthest class is
+   * compared to where it should reach, and the generator runs whenever it falls
+   * short — with a week of slack so a boot a day later does not redo it for the
+   * sake of one missing day.
+   */
+  const furthest = db
+    .select({ startsAt: classSessions.startsAt })
+    .from(classSessions)
+    .orderBy(desc(classSessions.startsAt))
+    .limit(1)
+    .get();
+  const wantThroughMs =
+    now.getTime() + (GENERATE_WEEKS * 7 - 7) * 24 * 60 * 60 * 1000;
+  const horizonBehind = (furthest?.startsAt?.getTime() ?? 0) < wantThroughMs;
+
   if (
     out.personalTemplates > 0 ||
     out.classTemplates > 0 ||
     out.staleTemplates > 0 ||
-    out.sessionsPruned > 0
+    out.sessionsPruned > 0 ||
+    horizonBehind
   ) {
     try {
       generateSessions(GENERATE_WEEKS, now);
