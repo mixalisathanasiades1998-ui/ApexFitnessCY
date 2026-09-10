@@ -58,12 +58,12 @@ export async function invoiceForPurchase(purchaseId: string) {
     currency: row.currency,
     customer: { name: row.name, email: row.email },
     paidWith: paidWithWords(row.provider),
-    /* Only a reference a reader can use. A Stripe charge id traces the payment
-       to a deposit, which an accountant wants; a desk sale's ref is `desk:` and
-       a fragment of a staff id, internal plumbing that reads as noise on the
-       client's receipt. So it is kept for card payments online and left off
-       everything taken at the desk. */
-    reference: row.provider === "stripe" ? row.providerRef : null,
+    /* No payment reference on the receipt. A Stripe charge id (pi_…) and a desk
+       sale's `desk:` tag are both internal plumbing that reads as noise to the
+       client, and the studio can trace a payment from the Stripe dashboard or
+       the ledger without printing it on everyone's copy. The field stays on
+       InvoiceData for whoever wants it internally; the invoice simply omits it. */
+    reference: null,
   };
 
   return {

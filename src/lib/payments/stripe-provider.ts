@@ -52,21 +52,24 @@ export const stripeProvider: PaymentProvider = {
        */
       payment_method_types: ["card"],
       /**
-       * Where Stripe sends its own receipt, and the reason the studio does not
-       * have to build one.
+       * Stripe's own receipt is deliberately not requested any more.
        *
-       * This is the signed-in member's account address, straight from the
-       * checkout route — not something typed into the payment form, which is
-       * why it cannot be a stranger's inbox. With "Successful payments" turned
-       * on under Customer emails in the Stripe dashboard, every completed
-       * payment gets a receipt at this address, from Stripe, carrying the
-       * studio's name, logo and support details.
+       * `receipt_email` here is what made Stripe email its own receipt to the
+       * member on every payment. The studio now sends its own: a proper VAT
+       * invoice as a PDF, attached to the purchase confirmation (see
+       * notifyPurchased / invoice-for.ts). Two receipts for one payment is one
+       * too many, and the studio's own is the one that is a valid Cyprus invoice,
+       * so this is left off and the "Successful payments" email is turned off in
+       * the Stripe dashboard to match.
        *
-       * Load-bearing, therefore. Removing it would silently stop every receipt
-       * without breaking a single test, because nothing in this application
-       * sends them.
+       * Note this depends on the INVOICE_* configuration being real: the PDF is
+       * only sent for a numbered, non-specimen invoice. Until that config is set,
+       * removing this leaves a gap with no receipt at all, so the studio's own
+       * invoice must be live before this goes to production.
+       *
+       * The Stripe receipt *URL* still exists on the charge regardless (see
+       * `receipt` below) — this only stops Stripe emailing it.
        */
-      receipt_email: req.email,
       description: `APEX pilates: ${req.packName}`,
       statement_descriptor_suffix: "APEX PILATES",
       metadata: {
