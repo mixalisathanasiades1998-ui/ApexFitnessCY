@@ -89,11 +89,12 @@ export const PROMO = {
   grantUntil: at(2026, 10, 1, 0, 0),
 
   /**
-   * The classes it may be spent on: Monday 7 September to the end of Wednesday
+   * The classes it may be spent on: Monday 14 September to the end of Wednesday
    * 30 September, which is the last day of the month and a day the studio is
-   * open.
+   * open. The free-session note on the balance card reads these dates straight
+   * off the granted batch, so moving this date moves the message with it.
    */
-  spendFrom: at(2026, 9, 7, 0, 0),
+  spendFrom: at(2026, 9, 14, 0, 0),
   spendUntil: at(2026, 9, 30, 23, 59),
 
   /**

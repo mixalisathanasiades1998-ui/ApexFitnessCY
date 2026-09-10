@@ -60,15 +60,34 @@ export function upcomingClosures(now = new Date()): StudioClosure[] {
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
-/** The set of closed days, for the timetable to skip. */
-export function closedDaySet(): Set<string> {
-  return new Set(
-    db
-      .select({ day: studioClosures.day })
-      .from(studioClosures)
-      .all()
-      .map((r) => r.day),
-  );
+/**
+ * The closed days, each with the reason the desk typed for it, for the
+ * timetable to skip and to label.
+ *
+ * A Map rather than a Set, because a closed day is not only a date to grey out
+ * — the studio wrote "Public holiday" or "Christmas" against it and the member
+ * should see that instead of a bare "Studio closed". `.has(day)` still answers
+ * the "is this day closed" question the strip asks; `.get(day)` carries the
+ * reason for the panel. A day the weekly rota simply has no classes on (a
+ * Sunday) is not in here and keeps the generic label — only a desk closure has
+ * a reason to show.
+ */
+export function closedDayReasons(): Map<
+  string,
+  { reasonEn: string; reasonEl: string }
+> {
+  const out = new Map<string, { reasonEn: string; reasonEl: string }>();
+  for (const r of db
+    .select({
+      day: studioClosures.day,
+      reasonEn: studioClosures.reasonEn,
+      reasonEl: studioClosures.reasonEl,
+    })
+    .from(studioClosures)
+    .all()) {
+    out.set(r.day, { reasonEn: r.reasonEn, reasonEl: r.reasonEl });
+  }
+  return out;
 }
 
 export function isClosed(day: Date | string) {

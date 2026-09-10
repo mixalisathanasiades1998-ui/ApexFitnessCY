@@ -30,6 +30,7 @@ import {
   notifyRepeatBooked,
   notifyInstructorChanged,
   notifyPurchased,
+  notifyGranted,
 } from "@/lib/messaging/events";
 import type { CreditKind } from "@/lib/packs";
 
@@ -456,6 +457,11 @@ export async function sellSessions(args: {
         console.error(`[desk] could not number purchase ${sold}`, err);
       }
       void notifyPurchased(sold, { staffName }).catch(() => {});
+    } else if (method === "adjustment") {
+      /* Sessions given for free: no purchase was written and there is no
+         invoice, but the member and the studio still hear about it — a
+         confirmation without a receipt. */
+      void notifyGranted(userId, { credits, staffName }).catch(() => {});
     }
 
     return {

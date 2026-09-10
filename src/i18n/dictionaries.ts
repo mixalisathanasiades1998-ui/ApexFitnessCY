@@ -997,6 +997,9 @@ export const en = {
     confirmBody: "One session will be taken from your balance.",
     successTitle: "You're booked.",
     successBody: "See you on the reformer.",
+    firstTopUpTitle: "That's your first class booked.",
+    firstTopUpBody:
+      "Top up your sessions so your place is always ready for the next one.",
     noCredits: "You have no sessions left.",
     noCreditsCta: "Buy a session pack",
     creditsNotValidHere:
@@ -2207,6 +2210,9 @@ export const el: typeof en = {
     confirmBody: "Μία συνεδρία θα αφαιρεθεί από το υπόλοιπό σου.",
     successTitle: "Η θέση σου κλείστηκε.",
     successBody: "Τα λέμε στον reformer.",
+    firstTopUpTitle: "Έκλεισες το πρώτο σου μάθημα.",
+    firstTopUpBody:
+      "Ανανέωσε τις συνεδρίες σου ώστε η θέση σου να είναι πάντα έτοιμη για το επόμενο μάθημα.",
     noCredits: "Δεν έχεις άλλες συνεδρίες.",
     noCreditsCta: "Αγόρασε πακέτο συνεδριών",
     creditsNotValidHere:

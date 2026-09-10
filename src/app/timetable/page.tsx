@@ -6,7 +6,7 @@ import {
 } from "@/components/booking/ScheduleClient";
 import { TimetableIntro } from "@/components/booking/TimetableIntro";
 import { readSession } from "@/lib/auth";
-import { closedDaySet } from "@/lib/closures";
+import { closedDayReasons } from "@/lib/closures";
 import { listSessions } from "@/lib/booking";
 import { getAvailableCredits, getCreditSummary } from "@/lib/credits";
 import {
@@ -125,7 +125,7 @@ export default async function TimetablePage({
 
   /* Keep Sundays and any manually closed days visible so the timetable makes the
      studio's closure status explicit instead of silently dropping the date. */
-  const closed = closedDaySet();
+  const closed = closedDayReasons();
   const days = studioDayKeys(from, DAYS_SHOWN);
 
   return (

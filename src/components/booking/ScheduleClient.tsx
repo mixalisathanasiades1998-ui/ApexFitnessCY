@@ -116,7 +116,8 @@ export function ScheduleClient({
   /** Both kinds together, for the balance line. */
   personalCredits?: number;
   days: string[]; // ISO date strings, one per day shown
-  closedDays: Set<string>;
+  /** Desk closures keyed by day, each carrying the reason the desk typed. */
+  closedDays: Map<string, { reasonEn: string; reasonEl: string }>;
   /**
    * The whole bookable range, which is a year wide while `days` above is
    * ninety.
@@ -188,6 +189,13 @@ export function ScheduleClient({
    * be worse than leaving it.
    */
   const [justBooked, setJustBooked] = useState(false);
+  /**
+   * Whether the member has just made their first ever booking, which the server
+   * tells us on the booking response. The one moment a "top up your sessions"
+   * nudge is welcome rather than pushy: they have committed to one class, and
+   * the natural next thought is keeping the habit. Shown once, only here.
+   */
+  const [firstBooking, setFirstBooking] = useState(false);
   /**
    * How many weeks a term booking should cover, and whether one is running.
    *
@@ -412,6 +420,8 @@ export function ScheduleClient({
         bookingId?: string;
         credits?: number;
         error?: string;
+        /** True when this was the member's first ever booking. */
+        firstBooking?: boolean;
         /** The last class date their sessions reach, on SESSIONS_EXPIRE_FIRST. */
         until?: string;
       };
@@ -439,6 +449,7 @@ export function ScheduleClient({
         setTwoOfUs(false);
         setGuestName("");
         setJustBooked(true);
+        if (data.firstBooking) setFirstBooking(true);
         router.refresh();
         return;
       }
@@ -966,6 +977,24 @@ export function ScheduleClient({
           seconds; this does not, because it is asking something. */}
       <PushInvite publicKey={pushPublicKey} show={justBooked} />
 
+      {/* Shown once, only after a member's very first booking: the moment they
+          have committed to one class and topping up to keep the habit is a
+          welcome suggestion rather than a sell. Everyone else already has the
+          "Top up sessions" button in the row above. */}
+      {firstBooking && (
+        <div className="mt-4 rounded-2xl border border-mocha-200/70 bg-cream-200/40 p-4">
+          <p className="text-[13px] font-medium text-mocha-600">
+            {t.booking.firstTopUpTitle}
+          </p>
+          <p className="mt-1 text-[13px] text-clay">
+            {t.booking.firstTopUpBody}
+          </p>
+          <ButtonLink href="/pricing" size="sm" className="mt-3">
+            {t.account.walletTopUp}
+          </ButtonLink>
+        </div>
+      )}
+
       {/* Times as chips, then one detail panel. No long list to scroll. */}
       <div className="mt-8">
         <p className="eyebrow mb-5">
@@ -974,10 +1003,21 @@ export function ScheduleClient({
 
         {list.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-mocha-200 px-6 py-14 text-center text-sm text-clay">
-            {classHoursOn(new Date(`${activeDay}T12:00:00`).getDay()).length ===
-              0 || closedDays.has(activeDay)
-              ? t.home.timetable.closed
-              : t.timetablePage.noClasses}
+            {(() => {
+              /* A desk closure carries a reason ("Public holiday") — show it
+                 instead of the bare "Studio closed". A rota-empty day (Sunday)
+                 has no closure row and keeps the generic label. */
+              const c = closedDays.get(activeDay);
+              const reason =
+                (locale === "el" ? c?.reasonEl : c?.reasonEn)?.trim() ||
+                c?.reasonEn?.trim() ||
+                c?.reasonEl?.trim();
+              if (reason) return `${t.home.timetable.closed} — ${reason}`;
+              return classHoursOn(new Date(`${activeDay}T12:00:00`).getDay())
+                .length === 0 || closedDays.has(activeDay)
+                ? t.home.timetable.closed
+                : t.timetablePage.noClasses;
+            })()}
           </p>
         ) : (
           <>

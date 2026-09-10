@@ -103,15 +103,14 @@ export async function POST(req: Request) {
         /* So the first thing they are sent — the code, and the promo email that
            follows it — is in the language they signed up in. */
         locale,
-        /* Reachable by email and reminded two hours before class until they say
-           otherwise. Push is always on — see lib/messaging/push.ts.
-
-           SMS follows the offers box: somebody who wants to hear about offers and
-           new class types has said they want to be contacted, and a text is the
-           one channel that reliably arrives. They can turn it off in one press,
-           which is why it is a reasonable default rather than a presumption. */
+        /* Reachable on every channel from the start — email, SMS and push all
+           on — because the studio would rather a new member hear about their
+           booking and their class than miss it, and each channel is one press to
+           turn off in the account. (SMS still only leaves the building once an
+           SMS provider is configured and the message type opts into it; this is
+           the stored preference, not a guarantee a text is sent.) */
         notifyEmail: true,
-        notifySms: Boolean(marketingOptIn),
+        notifySms: true,
         notifyPush: true,
         reminderMinutes: REMINDER_DEFAULT_MINUTES,
         /* Left null deliberately: the account exists and can do nothing until a

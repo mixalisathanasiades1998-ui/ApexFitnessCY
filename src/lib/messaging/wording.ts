@@ -635,6 +635,71 @@ export function promoWords(a: {
 }
 
 /**
+ * Sessions the desk added for free, told to the member.
+ *
+ * No price and no invoice, because nothing was paid: a comped or corrected
+ * balance is not a sale. Deliberately plainer than the opening-week gift, which
+ * is a welcome; this is a quieter "the studio has topped you up".
+ */
+export function grantedWords(a: { credits: number }): Bilingual {
+  const one = a.credits === 1;
+  return {
+    en: {
+      subject: one
+        ? "A session added to your account"
+        : `${a.credits} sessions added to your account`,
+      body:
+        `The studio has added ${sessionWords(a.credits)} to your account. ` +
+        `${one ? "It is" : "They are"} ready to use, so book any class from your timetable.`,
+      url: "/timetable",
+    },
+    el: {
+      subject: one
+        ? "Μια συνεδρία προστέθηκε στον λογαριασμό σου"
+        : `${a.credits} συνεδρίες προστέθηκαν στον λογαριασμό σου`,
+      body:
+        `Το στούντιο πρόσθεσε ${sessionWords(a.credits, "el")} στον λογαριασμό σου. ` +
+        `${one ? "Είναι έτοιμη" : "Είναι έτοιμες"} για χρήση, οπότε κλείσε όποιο μάθημα θέλεις από το πρόγραμμά σου.`,
+      url: "/timetable",
+    },
+  };
+}
+
+/**
+ * The studio's own copy of a free grant, for the operations mailbox.
+ *
+ * The counterpart to studioPaidWords for the till that takes no money: the desk
+ * gave sessions away, and the owner should see it in the same place they see
+ * every sale. A record to scan, so it is a line and a contact, not prose. No
+ * invoice, because a gift has none.
+ */
+export function studioGrantedWords(a: {
+  memberName: string;
+  memberEmail: string;
+  memberPhone: string | null;
+  credits: number;
+  staffName?: string | null;
+}): Bilingual {
+  const contact = [a.memberEmail, a.memberPhone].filter(Boolean).join(", ");
+  return {
+    en: {
+      subject: `Free sessions given: ${a.memberName}`,
+      body: [
+        `${a.memberName} — ${contact}`,
+        `${sessionWords(a.credits)} added free${a.staffName ? `, by ${a.staffName}` : ""}`,
+      ].join("\n"),
+    },
+    el: {
+      subject: `Δωρεάν συνεδρίες: ${a.memberName}`,
+      body: [
+        `${a.memberName} — ${contact}`,
+        `${sessionWords(a.credits, "el")} δωρεάν${a.staffName ? `, από ${a.staffName}` : ""}`,
+      ].join("\n"),
+    },
+  };
+}
+
+/**
  * The confirmation code, on its way to a mailbox.
  *
  * The code is in the subject line as well as the body, deliberately. It is the

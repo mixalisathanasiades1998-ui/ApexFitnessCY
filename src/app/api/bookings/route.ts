@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { bookClass, listMyBookings } from "@/lib/booking";
+import { bookClass, countMyBookings, listMyBookings } from "@/lib/booking";
 import { notVerified } from "@/lib/api-guard";
 import { currentUser } from "@/lib/auth";
 import { getAvailableCredits } from "@/lib/credits";
@@ -93,5 +93,9 @@ export async function POST(req: Request) {
     bookingId: result.bookingId,
     reminderAt,
     credits: await getAvailableCredits(user.id),
+    /* True only when this is the member's first ever booking, for the one-time
+       "top up your sessions" nudge on the timetable. Read after the booking is
+       written, so the row it created is counted. */
+    firstBooking: countMyBookings(user.id) === 1,
   });
 }

@@ -41,6 +41,8 @@ import {
   studioPaidWords,
   studioAppointmentWords,
   studioNewMemberWords,
+  grantedWords,
+  studioGrantedWords,
   say,
   verifySentWords,
   verifyWords,
@@ -470,6 +472,8 @@ async function tellStudioPaid(a: {
   invoiceNo: string | null;
   userId: string;
   staffName: string | null;
+  /** The invoice PDF, so the studio's copy carries the receipt too. */
+  attachments?: Attachment[];
 }) {
   try {
     const till = tillWords(a.provider);
@@ -493,7 +497,11 @@ async function tellStudioPaid(a: {
       reference: a.provider === "stripe" ? a.providerRef : null,
     });
 
-    const res = await emailTransport().send(STUDIO_OPS_EMAIL, forEmail(words));
+    const out = forEmail(words);
+    const res = await emailTransport().send(
+      STUDIO_OPS_EMAIL,
+      a.attachments?.length ? { ...out, attachments: a.attachments } : out,
+    );
     if (!res.ok) {
       console.error(
         `[pay] could not tell the studio about ${a.amountCents} from ${a.memberEmail}: ${res.error}`,
@@ -636,6 +644,10 @@ export async function notifyPurchased(
     invoiceNo: row.invoiceNo,
     userId: row.userId,
     staffName: opts?.staffName ?? null,
+    /* The same PDF that goes to the member, so the studio keeps its own copy of
+       every receipt in one mailbox. Undefined for a specimen — the studio does
+       not want an unnumbered draft any more than the member does. */
+    attachments,
   }).catch(() => {});
 
   const words = purchasedWords({
@@ -736,6 +748,74 @@ export async function notifyNewMember(userId: string) {
     console.error("[member] could not tell the studio about a new account", err);
     return false;
   }
+}
+
+/**
+ * The desk gave a member sessions for free — tell the member and the studio.
+ *
+ * The counterpart to notifyPurchased for the till that takes no money. A comped
+ * or corrected balance has no invoice, so nothing is attached and no price is
+ * quoted; the member simply learns their balance went up, and the studio's own
+ * mailbox gets the same record it gets for a sale.
+ *
+ * Never awaited and never allowed to throw outward: the sessions are already in
+ * the member's balance by the time this runs, exactly like notifyPurchased.
+ */
+export async function notifyGranted(
+  userId: string,
+  opts: { credits: number; staffName?: string | null },
+) {
+  const row = db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      notifyEmail: users.notifyEmail,
+      notifySms: users.notifySms,
+      locale: users.locale,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get();
+  if (!row) return 0;
+
+  /* The studio's own copy, to the operations mailbox. No invoice — a gift has
+     none. Fired and not awaited, like the paid version. */
+  void (async () => {
+    try {
+      const words = studioGrantedWords({
+        memberName: row.name,
+        memberEmail: row.email,
+        memberPhone: row.phone,
+        credits: opts.credits,
+        staffName: opts.staffName ?? null,
+      });
+      const res = await emailTransport().send(STUDIO_OPS_EMAIL, forEmail(words));
+      if (!res.ok) {
+        console.error(
+          `[grant] could not tell the studio about a free grant to ${row.email}: ${res.error}`,
+        );
+      }
+    } catch (err) {
+      console.error("[grant] could not tell the studio about a free grant", err);
+    }
+  })();
+
+  /* The member's own confirmation: in-app, on their phone, and by email. No
+     attachment, because there is no invoice for something that was not paid. */
+  return deliverPersonal(
+    {
+      ...row,
+      startsAt: new Date(),
+      classEn: "",
+      classEl: "",
+      classKind: "GROUP",
+      guestName: null,
+    },
+    grantedWords({ credits: opts.credits }),
+    { email: true, push: true, sms: false },
+  );
 }
 
 export async function notifyPromoGranted(

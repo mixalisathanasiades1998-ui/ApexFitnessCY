@@ -558,3 +558,21 @@ export async function listMyBookings(userId: string) {
       .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime()),
   };
 }
+
+/**
+ * How many bookings this member has ever made, cancelled ones included.
+ *
+ * For the one-time nudge after a member's first ever booking: a `1` here, read
+ * straight after a booking succeeds, means the row that booking created is the
+ * only one they hold, so it was their first. Cancelled rows count on purpose,
+ * because a member who booked once and cancelled has still booked before and is
+ * not new.
+ */
+export function countMyBookings(userId: string): number {
+  const row = db
+    .select({ n: sql<number>`count(*)` })
+    .from(bookings)
+    .where(eq(bookings.userId, userId))
+    .get();
+  return Number(row?.n ?? 0);
+}
