@@ -5,15 +5,12 @@ import { useCallback, useState } from "react";
 import { Section } from "@/components/ui/Section";
 import { BookingsPanel } from "@/components/admin/BookingsPanel";
 import { ClosurePanel } from "@/components/admin/ClosurePanel";
-import {
-  DeskBar,
-  DESK_TABS,
-  type DeskTab,
-} from "@/components/admin/DeskBar";
+import { DeskBar, DESK_TABS, type DeskTab } from "@/components/admin/DeskBar";
 import { MemberDesk } from "@/components/admin/MemberDesk";
 import { NoticePanel } from "@/components/admin/NoticePanel";
 import { PricingPanel } from "@/components/admin/PricingPanel";
 import { StatsRow } from "@/components/admin/StatsRow";
+import { LogisticsPanel } from "@/components/admin/LogisticsPanel";
 import { useI18n } from "@/i18n/LanguageProvider";
 
 /**
@@ -177,7 +174,9 @@ export function AdminBody({
             </span>
           </p>
           <h1 className="h-display text-[2.4rem] leading-tight sm:text-5xl">
-            {tab === "analytics" ? t.desk.tabs.analytics : fmtLongDate(new Date())}
+            {tab === "analytics" || tab === "logistics"
+              ? t.desk.tabs[tab]
+              : fmtLongDate(new Date())}
           </h1>
 
           {notice && (
@@ -203,6 +202,7 @@ export function AdminBody({
               both a distraction from the job in hand and a set of figures on
               display in a public room. */}
           {tab === "analytics" && stats && <StatsRow initial={stats} />}
+          {tab === "logistics" && <LogisticsPanel />}
         </div>
       </Section>
     </>

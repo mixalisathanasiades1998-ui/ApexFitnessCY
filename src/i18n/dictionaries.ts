@@ -406,6 +406,7 @@ export const en = {
       notices: "Notices",
       pricing: "Pricing",
       analytics: "Analytics",
+      logistics: "Logistics",
     },
     period: "Period",
     periodDay: "Today",
@@ -418,6 +419,13 @@ export const en = {
     lastMonth: "Last month",
     rangeAll: "All time",
     rangeBackwards: "The end of the period is before its start.",
+    /* the logistics export, for the accountant */
+    logisticsIntro:
+      "Download every sale in a period as a spreadsheet: date, member, pack, gross, net, VAT, invoice number and till. Pick one payment method to reconcile it on its own, or all of them together. The Stripe fee is not here; it lives in your Stripe dashboard and applies only to the online rows.",
+    logisticsMethod: "Payment method",
+    logisticsAll: "All methods",
+    logisticsOnline: "Online",
+    logisticsDownload: "Download CSV",
     /* the calendar */
     pickDay: "Choose a day",
     monthBefore: "The month before",
@@ -1662,6 +1670,7 @@ export const el: typeof en = {
       notices: "Ανακοινώσεις",
       pricing: "Τιμές",
       analytics: "Στατιστικά",
+      logistics: "Λογιστικά",
     },
     period: "Περίοδος",
     periodDay: "Σήμερα",
@@ -1673,6 +1682,13 @@ export const el: typeof en = {
     lastMonth: "Προηγούμενος μήνας",
     rangeAll: "Συνολικά",
     rangeBackwards: "Το τέλος της περιόδου είναι πριν από την αρχή της.",
+    /* the logistics export, for the accountant */
+    logisticsIntro:
+      "Κατεβάστε όλες τις πωλήσεις μιας περιόδου ως υπολογιστικό φύλλο: ημερομηνία, μέλος, πακέτο, μικτό, καθαρό, ΦΠΑ, αριθμό τιμολογίου και ταμείο. Επιλέξτε έναν τρόπο πληρωμής για ξεχωριστή συμφωνία, ή όλους μαζί. Η προμήθεια της Stripe δεν περιλαμβάνεται εδώ· βρίσκεται στον πίνακα της Stripe και αφορά μόνο τις διαδικτυακές πωλήσεις.",
+    logisticsMethod: "Τρόπος πληρωμής",
+    logisticsAll: "Όλοι οι τρόποι",
+    logisticsOnline: "Διαδικτυακά",
+    logisticsDownload: "Λήψη CSV",
     pickDay: "Επιλέξτε ημέρα",
     monthBefore: "Προηγούμενος μήνας",
     monthAfter: "Επόμενος μήνας",

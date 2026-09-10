@@ -15,6 +15,7 @@ export const DESK_TABS = [
   "notices",
   "pricing",
   "analytics",
+  "logistics",
 ] as const;
 
 export type DeskTab = (typeof DESK_TABS)[number];

@@ -20,10 +20,12 @@ import {
   classSessions,
   classTypes,
   creditBatches,
+  creditPackages,
   instructors,
   purchases,
   users,
 } from "@/db/schema";
+import { invoiceIssuer, vatSplit } from "./invoice";
 import { studioAddDays, studioStartOfDay } from "./time";
 
 export type StudioStats = {
@@ -79,6 +81,115 @@ export type StudioStats = {
 
 /** A period the desk asked for, as two day keys. Either end may be open. */
 export type StatsRange = { from?: string | null; to?: string | null };
+
+/** Which till a Logistics export is filtered to. `all` is every till. */
+export type LogisticsMethod = "all" | "online" | "cash" | "card_at_desk";
+
+/** One sold line for the accountant, everything on it computed, not stored. */
+export type LogisticsRow = {
+  paidAt: Date | null;
+  memberName: string;
+  memberEmail: string;
+  pack: string;
+  /** "online" | "cash" | "card_at_desk" — the till, not the provider slug. */
+  method: string;
+  grossCents: number;
+  netCents: number;
+  vatCents: number;
+  vatRatePercent: number;
+  currency: string;
+  invoiceNo: string | null;
+  credits: number;
+};
+
+/**
+ * Every real sale in a period, one row each, for the Logistics CSV.
+ *
+ * The studio's book of record for money taken: all three tills together, or one
+ * at a time, so the accountant can pull just the online sales to set against a
+ * Stripe fee report, or the cash to set against the till. Dated and sorted by
+ * `paidAt` — the day the money actually arrived, which is the date a set of
+ * books is kept by, not `createdAt` (the day the checkout opened) which the
+ * dashboard uses. Test accounts and unpaid rows are left out, and an adjustment
+ * writes no purchase so a comped session never appears — a gift is not takings.
+ *
+ * Net and VAT are computed from the gross and the current VAT rate rather than
+ * stored, so a rate that was wrong when a sale was taken is not baked into the
+ * export; the studio can regenerate it correctly once the rate is right.
+ */
+export function logisticsRows(opts: {
+  from?: string | null;
+  to?: string | null;
+  method?: LogisticsMethod | null;
+}): LogisticsRow[] {
+  const since = bound(opts.from);
+  const untilDay = bound(opts.to);
+  const until = untilDay ? studioAddDays(untilDay, 1) : null;
+  const within = (col: SQLiteColumn) => {
+    const parts = [
+      ...(since ? [gte(col, since)] : []),
+      ...(until ? [lt(col, until)] : []),
+    ];
+    return parts.length ? and(...parts) : undefined;
+  };
+
+  const DESK_METHODS = ["cash", "card_at_desk"];
+  const method = opts.method ?? "all";
+  const providerClause =
+    method === "online"
+      ? notInArray(purchases.provider, DESK_METHODS)
+      : method === "cash"
+        ? eq(purchases.provider, "cash")
+        : method === "card_at_desk"
+          ? eq(purchases.provider, "card_at_desk")
+          : undefined;
+
+  const rows = db
+    .select({
+      paidAt: purchases.paidAt,
+      grossCents: purchases.amountCents,
+      currency: purchases.currency,
+      provider: purchases.provider,
+      credits: purchases.credits,
+      invoiceNo: purchases.invoiceNo,
+      name: users.name,
+      email: users.email,
+      packEn: creditPackages.nameEn,
+    })
+    .from(purchases)
+    .innerJoin(users, eq(purchases.userId, users.id))
+    .leftJoin(creditPackages, eq(purchases.packageId, creditPackages.id))
+    .where(
+      and(
+        realMember(purchases.userId),
+        eq(purchases.status, "PAID"),
+        within(purchases.paidAt),
+        providerClause,
+      ),
+    )
+    .orderBy(asc(purchases.paidAt))
+    .all();
+
+  const issuer = invoiceIssuer();
+
+  return rows.map((r) => {
+    const split = vatSplit(r.grossCents, issuer.vatRatePercent);
+    return {
+      paidAt: r.paidAt,
+      memberName: r.name,
+      memberEmail: r.email,
+      pack: r.packEn ?? `${r.credits} sessions`,
+      method: DESK_METHODS.includes(r.provider) ? r.provider : "online",
+      grossCents: split.grossCents,
+      netCents: split.netCents,
+      vatCents: split.vatCents,
+      vatRatePercent: split.ratePercent,
+      currency: r.currency,
+      invoiceNo: r.invoiceNo,
+      credits: r.credits,
+    };
+  });
+}
 
 /**
  * The studio's dummy accounts, kept out of every figure on this screen.
