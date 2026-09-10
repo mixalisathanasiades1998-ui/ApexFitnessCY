@@ -926,6 +926,36 @@ export function studioAppointmentWords(a: {
 }
 
 /**
+ * The studio's own note that somebody has just joined.
+ *
+ * Emailed to the operations mailbox the moment a member proves their email, so
+ * the desk sees new sign-ups as they happen rather than only when the person
+ * first turns up for a class. A record to scan, so it is a line and a contact,
+ * not a paragraph.
+ */
+export function studioNewMemberWords(a: {
+  memberName: string;
+  memberEmail: string;
+  memberPhone: string | null;
+}): Bilingual {
+  const contact = [a.memberEmail, a.memberPhone].filter(Boolean).join(", ");
+  return {
+    en: {
+      subject: `New member: ${a.memberName}`,
+      body:
+        `${a.memberName} has just created an account and confirmed their email.\n` +
+        `${contact}`,
+    },
+    el: {
+      subject: `Νέο μέλος: ${a.memberName}`,
+      body:
+        `${a.memberName} μόλις δημιούργησε λογαριασμό και επιβεβαίωσε το email του.\n` +
+        `${contact}`,
+    },
+  };
+}
+
+/**
  * The member's confirmation that a cancelled appointment is cancelled.
  *
  * Says whether the session came back, like the class version, and nothing else.

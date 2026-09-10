@@ -40,6 +40,7 @@ import {
   tomorrowWords,
   studioPaidWords,
   studioAppointmentWords,
+  studioNewMemberWords,
   say,
   verifySentWords,
   verifyWords,
@@ -694,6 +695,49 @@ export async function notifyPurchased(
  * seconds of signing up, when nobody reads anything. It needs to survive in
  * their inbox.
  */
+/**
+ * Tell the studio a new member has joined.
+ *
+ * Emailed to the operations mailbox the moment an address is proved — the same
+ * shape as tellStudioPaid: a record the owner scans, not a notification on every
+ * staff phone, because a sign-up is not something anybody has to act on within
+ * the hour.
+ *
+ * Fired on verification and not on registration, so an address nobody proved
+ * never reaches the mailbox: registration alone would email the studio about
+ * every mistyped address and every account the housekeeping sweep deletes seven
+ * days later for never confirming. Never awaited and never allowed to throw
+ * outward — a member who typed the right code is verified whatever the mail
+ * server does.
+ */
+export async function notifyNewMember(userId: string) {
+  try {
+    const row = db
+      .select({ name: users.name, email: users.email, phone: users.phone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .get();
+    if (!row) return false;
+
+    const words = studioNewMemberWords({
+      memberName: row.name,
+      memberEmail: row.email,
+      memberPhone: row.phone,
+    });
+
+    const res = await emailTransport().send(STUDIO_OPS_EMAIL, forEmail(words));
+    if (!res.ok) {
+      console.error(
+        `[member] could not tell the studio about ${row.email}: ${res.error}`,
+      );
+    }
+    return res.ok;
+  } catch (err) {
+    console.error("[member] could not tell the studio about a new account", err);
+    return false;
+  }
+}
+
 export async function notifyPromoGranted(
   userId: string,
   promo: { credits: number; spendFrom: Date; spendUntil: Date; expiresAt?: Date },

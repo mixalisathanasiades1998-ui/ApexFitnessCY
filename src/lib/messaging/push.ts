@@ -166,6 +166,17 @@ export async function sendPush(
         title: msg.subject,
         body: msg.body.slice(0, 300),
         url: msg.url ?? "/account?tab=notifications",
+        /* A unique tag per notification, so each one stacks on the phone rather
+           than replacing the one before it. The service worker falls back to the
+           title as the tag when none is sent (see public/sw.js), and titles
+           repeat — "Payment received", "Booking confirmed", "Your class
+           tomorrow" — so two notices of the same kind shared a tag and the
+           second silently overwrote the first. A member paid twice and saw one
+           receipt notification. Uniqueness is per send: every message is its own
+           line in the tray. The cost is that nothing supersedes an earlier
+           notice any more (a reminder no longer updates in place), which for a
+           studio this size is the behaviour the owner actually wants. */
+        tag: crypto.randomUUID(),
       }),
       { TTL: 60 * 60 * 24 },
     );

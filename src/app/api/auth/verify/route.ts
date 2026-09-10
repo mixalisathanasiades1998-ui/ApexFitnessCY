@@ -5,7 +5,7 @@ import { creditBatches } from "@/db/schema";
 import { body, member } from "@/lib/api-guard";
 import { createSession } from "@/lib/auth";
 import { grantCredits } from "@/lib/credits";
-import { notifyPromoGranted } from "@/lib/messaging/events";
+import { notifyNewMember, notifyPromoGranted } from "@/lib/messaging/events";
 import { promoForJoin } from "@/lib/promo";
 import { challengeState, checkCode } from "@/lib/verify";
 
@@ -103,6 +103,13 @@ export async function POST(req: Request) {
      rather than after, so that a member who closes the tab the instant it
      succeeds still has it. */
   grantJoiningPromo(gate.user);
+
+  /* Tell the studio a real, verified account now exists. Fired and not awaited,
+     like the promo above: a member who typed the right code is verified whatever
+     the mail server does. This is the one place the unverified-to-verified
+     transition happens exactly once (ALREADY returns above), so the studio is
+     emailed once per member. */
+  void notifyNewMember(gate.user.id).catch(() => {});
 
   /**
    * A fresh cookie, now saying verified.

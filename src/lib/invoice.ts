@@ -80,8 +80,19 @@ export type InvoiceIssuer = {
  */
 const PLACEHOLDER = /test|example|sample|specimen|placeholder|xxx|123456789|000000|changeme|todo/i;
 
-/** A Cyprus VAT number: CY, eight digits, one checksum letter. */
-const CY_VAT = /^CY\d{8}[A-Z]$/i;
+/**
+ * A Cyprus VAT number: eight digits and a checksum letter, with the CY country
+ * prefix optional.
+ *
+ * The studio quotes it on its domestic invoice without the prefix (60395665S),
+ * which is ordinary Cyprus practice; the CY prefix is the intra-EU / VIES form
+ * (CY60395665S) a client would want for a cross-border reclaim. Either is
+ * accepted here, and whichever is configured in INVOICE_VAT_NUMBER is exactly
+ * what prints on the document — see invoice-pdf.ts. Only the shape is checked,
+ * not the checksum, because the specimen guard's job is to catch a placeholder,
+ * not to be a validator.
+ */
+const CY_VAT = /^(CY)?\d{8}[A-Z]$/i;
 
 export function invoiceIssuer(): InvoiceIssuer {
   const env = (k: string) => (process.env[k] ?? "").trim();
@@ -107,7 +118,7 @@ export function invoiceIssuer(): InvoiceIssuer {
   else if (PLACEHOLDER.test(vatNumber) || PLACEHOLDER.test(legalName)) {
     why = "the legal name or VAT number is still a placeholder";
   } else if (!CY_VAT.test(vatNumber)) {
-    why = `${vatNumber} is not the shape of a Cyprus VAT number (CY + 8 digits + a letter)`;
+    why = `${vatNumber} is not the shape of a Cyprus VAT number (8 digits and a letter, optionally CY-prefixed)`;
   } else if (!rateRaw) why = "INVOICE_VAT_RATE is not set";
 
   return {

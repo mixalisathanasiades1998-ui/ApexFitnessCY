@@ -20,6 +20,7 @@ import { hashPassword, isVerified } from "@/lib/auth";
 import { deviceCount } from "@/lib/messaging/push";
 import { toE164 } from "@/lib/messaging/sms";
 import { getCreditSummary, grantCredits, refundOneCredit } from "@/lib/credits";
+import { assignInvoiceNumber } from "@/lib/invoice-number";
 import { bookClass } from "@/lib/booking";
 import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
 import { cancelReminder, scheduleReminder } from "@/lib/reminders";
@@ -433,7 +434,29 @@ export async function sellSessions(args: {
      */
     /* The staff name is passed through so the studio's own copy can say who was
        serving. Nothing else needs it, and the purchase row does not carry it. */
-    if (sold) void notifyPurchased(sold, { staffName }).catch(() => {});
+    if (sold) {
+      /* Give the desk sale a number in the same gapless sequence as an online
+         payment, before the confirmation is built, so the member's email
+         carries a real VAT invoice PDF instead of nothing. It used to get no
+         number and no document on purpose — the assumption was a paper receipt
+         over the counter — but the studio would rather email the same proper
+         invoice for cash and card as for an online card.
+
+         assignInvoiceNumber is idempotent and only issues a number once the
+         INVOICE_* configuration is real: while it is still placeholder this
+         assigns nothing and the email attaches no specimen, exactly as the
+         online path behaves. One sale, one number, whichever till took the
+         money — no duplication between online, cash and card. */
+      try {
+        assignInvoiceNumber(sold);
+      } catch (err) {
+        /* A receipt that will not number must never undo a sale already paid in
+           cash. The sessions are granted, the member still gets their
+           confirmation, and the desk can produce the invoice afterwards. */
+        console.error(`[desk] could not number purchase ${sold}`, err);
+      }
+      void notifyPurchased(sold, { staffName }).catch(() => {});
+    }
 
     return {
       ok: true,
