@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -65,6 +65,9 @@ export function IntakeForm({
     initial?.answered ? Boolean(initial.condition) : null,
   );
   const [condition, setCondition] = useState(initial?.condition ?? "");
+  /* Focused only when the member taps "something to be careful of", never on
+     mount. See the button below. */
+  const conditionRef = useRef<HTMLTextAreaElement>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +192,16 @@ export function IntakeForm({
           <button
             type="button"
             aria-pressed={hasCondition === true}
-            onClick={() => setHasCondition(true)}
+            onClick={() => {
+              setHasCondition(true);
+              /* Focus the box only because the member just asked for it, so it
+                 is ready to type in. Never on page load: a member who had
+                 already saved a condition opens the profile with hasCondition
+                 already true, and a static `autoFocus` there grabbed the field
+                 and threw the phone keyboard up over the page. rAF because the
+                 textarea mounts on this same click. */
+              requestAnimationFrame(() => conditionRef.current?.focus());
+            }}
             className={chip(hasCondition === true)}
           >
             {w.conditionOther}
@@ -199,7 +211,7 @@ export function IntakeForm({
         {hasCondition && (
           <div className="mt-4">
             <textarea
-              autoFocus
+              ref={conditionRef}
               rows={4}
               maxLength={CONDITION_MAX_CHARS}
               value={condition}

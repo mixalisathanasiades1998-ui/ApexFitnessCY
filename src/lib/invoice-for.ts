@@ -41,7 +41,12 @@ export async function invoiceForPurchase(purchaseId: string) {
     .get();
 
   if (!row) return null;
-  if (row.status !== "PAID") return null;
+  /* An invoice exists for a sale that was made — which includes one later
+     refunded. The invoice was issued and numbered when the money came in, and a
+     member (or the studio) still needs to open that document afterwards; a
+     refund is handled separately and does not un-issue the invoice. Only a
+     purchase that never completed (PENDING, FAILED) has no invoice to draw. */
+  if (row.status !== "PAID" && row.status !== "REFUNDED") return null;
 
   const data: InvoiceData = {
     invoiceNo: row.invoiceNo,

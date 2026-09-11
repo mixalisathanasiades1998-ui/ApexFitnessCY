@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
@@ -130,6 +130,49 @@ export function AccountBody(props: Props) {
   const [tab, setTab] = useState<AccountTab>(
     isAccountTab(requested) ? requested : "profile",
   );
+
+  /* Ten rows to a page on the long lists, newest first (soonest first for the
+     upcoming classes). The page resets whenever the member changes tab, so
+     opening "Payments" never lands on page 3 of the classes they were reading. */
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    setPage(0);
+  }, [tab]);
+
+  const sortedUpcoming = useMemo(
+    () => [...props.upcoming].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    [props.upcoming],
+  );
+  const sortedPast = useMemo(
+    () => [...props.past].sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
+    [props.past],
+  );
+  const sortedLedger = useMemo(
+    () => [...props.ledger].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [props.ledger],
+  );
+  const sortedPurchases = useMemo(
+    () =>
+      [...props.purchases].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [props.purchases],
+  );
+
+  /** Slice one page out of a list, clamping the page if the list shrank. */
+  const pageOf = <T,>(arr: T[]) => {
+    const pages = Math.max(1, Math.ceil(arr.length / PAGE_SIZE));
+    const current = Math.min(page, pages - 1);
+    return {
+      rows: arr.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE),
+      pages,
+      current,
+    };
+  };
+
+  const upcomingPage = pageOf(sortedUpcoming);
+  const pastPage = pageOf(sortedPast);
+  const ledgerPage = pageOf(sortedLedger);
+  const purchasesPage = pageOf(sortedPurchases);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<BookingRow | null>(null);
 
@@ -560,7 +603,7 @@ export function AccountBody(props: Props) {
             three classes coming without opening anything. */}
         {tab === "upcoming" && (
           <Reveal delay={0.05} className="mt-12">
-            {props.upcoming.length === 0 ? (
+            {sortedUpcoming.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-mocha-200 px-6 py-12 text-center">
                 <p className="text-sm text-clay">{t.account.upcomingEmpty}</p>
                 <ButtonLink href="/timetable" size="sm" className="mt-6">
@@ -568,8 +611,9 @@ export function AccountBody(props: Props) {
                 </ButtonLink>
               </div>
             ) : (
+              <>
               <ul className="divide-y divide-mocha-200/70 border-y border-mocha-200/70">
-                {props.upcoming.map((b) => {
+                {upcomingPage.rows.map((b) => {
                   /* The same question the dialog asks, asked by the same
                      function. It was a second copy of the comparison here, which
                      is one rule in two places on one screen. */
@@ -636,6 +680,12 @@ export function AccountBody(props: Props) {
                   );
                 })}
               </ul>
+              <Pager
+                page={upcomingPage.current}
+                pages={upcomingPage.pages}
+                onPage={setPage}
+              />
+              </>
             )}
           </Reveal>
         )}
@@ -654,11 +704,12 @@ export function AccountBody(props: Props) {
         {/* past classes */}
         {tab === "classes" && (
           <Reveal delay={0.05} className="mt-12">
-            {props.past.length === 0 ? (
+            {sortedPast.length === 0 ? (
               <p className="text-sm text-clay">{t.account.historyEmpty}</p>
             ) : (
+              <>
               <ul className="space-y-4">
-                {props.past.map((b) => (
+                {pastPage.rows.map((b) => (
                   <li
                     key={b.id}
                     className="flex items-center justify-between gap-4 border-b border-mocha-200/60 pb-4 text-sm"
@@ -673,6 +724,12 @@ export function AccountBody(props: Props) {
                   </li>
                 ))}
               </ul>
+              <Pager
+                page={pastPage.current}
+                pages={pastPage.pages}
+                onPage={setPage}
+              />
+              </>
             )}
           </Reveal>
         )}
@@ -680,11 +737,12 @@ export function AccountBody(props: Props) {
         {/* session activity: every session added, spent or returned */}
         {tab === "activity" && (
           <Reveal delay={0.05} className="mt-12">
-            {props.ledger.length === 0 ? (
+            {sortedLedger.length === 0 ? (
               <p className="text-sm text-clay">{t.account.purchasesEmpty}</p>
             ) : (
+              <>
               <ul className="space-y-3">
-                {props.ledger.map((l) => (
+                {ledgerPage.rows.map((l) => (
                   <li
                     key={l.id}
                     className="flex items-center justify-between gap-4 text-sm"
@@ -709,6 +767,12 @@ export function AccountBody(props: Props) {
                   </li>
                 ))}
               </ul>
+              <Pager
+                page={ledgerPage.current}
+                pages={ledgerPage.pages}
+                onPage={setPage}
+              />
+              </>
             )}
           </Reveal>
         )}
@@ -716,15 +780,22 @@ export function AccountBody(props: Props) {
         {/* payment history */}
         {tab === "payments" && (
           <Reveal delay={0.05} className="mt-12">
-            {props.purchases.length === 0 ? (
+            {sortedPurchases.length === 0 ? (
               <p className="text-sm text-clay">{t.account.purchasesEmpty}</p>
             ) : (
               <>
                 <ul className="space-y-3">
-                  {props.purchases.map((p) => (
+                  {purchasesPage.rows.map((p) => (
                     <li
                       key={p.id}
-                      className="flex items-center justify-between gap-4 text-sm"
+                      className={cn(
+                        "flex items-center justify-between gap-4 text-sm",
+                        /* A refunded payment is set apart: a line above the row
+                           and the whole thing greyed back, so it reads as money
+                           that came back rather than money the studio kept. */
+                        p.status === "REFUNDED" &&
+                          "mt-2 border-t border-mocha-200 pt-4 opacity-60",
+                      )}
                     >
                       <span className="text-mocha-500">
                         {p.packageName
@@ -738,15 +809,12 @@ export function AccountBody(props: Props) {
                       </span>
                       <span className="flex items-center gap-3">
                         {/**
-                          * The paperwork, where somebody looks for it a month
-                          * later. Both are emailed when the payment goes
-                          * through, but an email is a thing you have to still
-                          * have.
-                          *
-                          * The invoice first, because it is the document that
-                          * matters: the studio's own, with the VAT breakdown on
-                          * it. The card provider's receipt is the lesser one and
-                          * only exists for card payments.
+                          * The invoice — the studio's own VAT document —
+                          * downloadable a month later when the email is long
+                          * gone. The card provider's hosted receipt used to sit
+                          * beside it, but it was removed: the studio issues its
+                          * own invoice and does not want members sent off to the
+                          * provider's site for a second, lesser document.
                           */}
                         {p.invoiceNo && (
                           <a
@@ -759,16 +827,6 @@ export function AccountBody(props: Props) {
                             {t.account.invoice}
                           </a>
                         )}
-                        {p.receiptUrl && (
-                          <a
-                            href={p.receiptUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] uppercase tracking-widest text-clay underline decoration-mocha-200 underline-offset-4 transition-colors hover:text-mocha-600"
-                          >
-                            {t.account.receipt}
-                          </a>
-                        )}
                         <span className="lining-nums tabular-nums text-mocha-600">
                           {fmtMoney(p.amountCents)}
                         </span>
@@ -777,6 +835,11 @@ export function AccountBody(props: Props) {
                     </li>
                   ))}
                 </ul>
+                <Pager
+                  page={purchasesPage.current}
+                  pages={purchasesPage.pages}
+                  onPage={setPage}
+                />
               </>
             )}
           </Reveal>
@@ -842,6 +905,51 @@ export function AccountBody(props: Props) {
         />
       )}
     </Section>
+  );
+}
+
+/**
+ * Previous / next for the paged lists, shown only when there is more than one
+ * page. Kept deliberately plain: two chevrons and "2 / 4", centred under the
+ * list, so it reads as "there is more" rather than as a control competing with
+ * the content above it.
+ */
+function Pager({
+  page,
+  pages,
+  onPage,
+}: {
+  page: number;
+  pages: number;
+  onPage: (p: number) => void;
+}) {
+  if (pages <= 1) return null;
+  const arrow =
+    "flex h-9 w-9 items-center justify-center rounded-full border border-mocha-200 text-mocha-500 transition-colors hover:border-mocha-400 hover:text-mocha-600 disabled:pointer-events-none disabled:opacity-30";
+  return (
+    <div className="mt-8 flex items-center justify-center gap-4">
+      <button
+        type="button"
+        aria-label="Previous"
+        disabled={page <= 0}
+        onClick={() => onPage(Math.max(0, page - 1))}
+        className={arrow}
+      >
+        &#8249;
+      </button>
+      <span className="text-[11px] uppercase tracking-widest text-clay lining-nums tabular-nums">
+        {page + 1} / {pages}
+      </span>
+      <button
+        type="button"
+        aria-label="Next"
+        disabled={page >= pages - 1}
+        onClick={() => onPage(Math.min(pages - 1, page + 1))}
+        className={arrow}
+      >
+        &#8250;
+      </button>
+    </div>
   );
 }
 
