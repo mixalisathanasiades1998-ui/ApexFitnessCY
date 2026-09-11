@@ -165,7 +165,7 @@ function draw(
 
   field(doc, left, 166, "Invoice number", data.invoiceNo ?? SPECIMEN_NO);
   field(doc, left + 170, 166, "Date of issue", dated);
-  field(doc, left + 340, 166, "Paid with", data.paidWith);
+  field(doc, left + 340, 166, "Paid Upon Issuance With", data.paidWith);
 
   /* ------------------------------------------------------------- the customer */
   field(doc, left, 218, "Billed to", data.customer.name);

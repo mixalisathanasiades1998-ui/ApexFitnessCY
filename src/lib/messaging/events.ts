@@ -28,6 +28,8 @@ import {
 import {
   bookedWords,
   cancelledWords,
+  contactAckWords,
+  contactStudioWords,
   forEmail,
   instructorChangedWords,
   leadWords,
@@ -747,6 +749,43 @@ export async function notifyNewMember(userId: string) {
   } catch (err) {
     console.error("[member] could not tell the studio about a new account", err);
     return false;
+  }
+}
+
+/**
+ * A message from the public contact form: to the studio, and back to the sender.
+ *
+ * Two emails, neither of them to a member — the person filling in the form has
+ * no account and no notification preferences, so this does not touch
+ * deliverPersonal. The studio gets the enquiry in its mailbox so it can reply;
+ * the sender gets an acknowledgement so the form does not feel like it vanished.
+ *
+ * Both sends are attempted whatever either does, and a failure is logged rather
+ * than thrown: the enquiry is already saved as a row by the route that calls
+ * this, so a mail server having a bad afternoon loses the courtesy copy, never
+ * the message itself.
+ */
+export async function notifyContact(msg: {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+}) {
+  const transport = emailTransport();
+  const results = await Promise.allSettled([
+    transport.send(STUDIO_OPS_EMAIL, forEmail(contactStudioWords(msg))),
+    transport.send(msg.email, forEmail(contactAckWords({ name: msg.name }))),
+  ]);
+  const [studio, ack] = results;
+  if (studio.status === "rejected") {
+    console.error("[contact] could not deliver the enquiry to the studio:", studio.reason);
+  } else if (!studio.value.ok) {
+    console.error("[contact] could not deliver the enquiry to the studio:", studio.value.error);
+  }
+  if (ack.status === "rejected") {
+    console.error(`[contact] could not send the acknowledgement to ${msg.email}:`, ack.reason);
+  } else if (!ack.value.ok) {
+    console.error(`[contact] could not send the acknowledgement to ${msg.email}:`, ack.value.error);
   }
 }
 

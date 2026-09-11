@@ -147,6 +147,15 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
    * for the person at the counter who is the only one who knows which it is.
    */
   const [removing, setRemoving] = useState<Attendee | null>(null);
+  /**
+   * The class the desk is about to call off, if any.
+   *
+   * A confirmation step because it is the one action here that touches everyone
+   * on the class at once: every booking refunded, every member told, the hour
+   * taken off the timetable. The dialog says how many that is before it happens,
+   * so cancelling a full class and cancelling an empty one do not look the same.
+   */
+  const [cancelling, setCancelling] = useState<SessionRow | null>(null);
 
   const load = useCallback(async (date: string) => {
     setSessions(null);
@@ -282,6 +291,40 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
           "{name}",
           a.name,
         ),
+      );
+      await load(day);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Call off a whole class, and put everyone's session back.
+   *
+   * For the day the studio opens late, closes early, or loses a reformer for the
+   * morning: the hour comes off the timetable so nobody can book it, every
+   * member booked in is refunded and told, and it is one press rather than
+   * removing each person by hand. The server does the refunding and the telling;
+   * this reloads the day afterwards, because the number it reports back is the
+   * number of members the server actually refunded.
+   */
+  async function cancelClass(s: SessionRow) {
+    setBusy(s.id);
+    try {
+      const res = await fetch("/api/admin/session/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: s.id }),
+      });
+      const data = (await res.json()) as { ok?: boolean; refunded?: number };
+      if (!res.ok) {
+        onNotice(t.common.somethingWrong);
+        return;
+      }
+      setCancelling(null);
+      const n = data.refunded ?? 0;
+      onNotice(
+        n > 0 ? d.classCancelled.replace("{n}", String(n)) : d.classCancelledEmpty,
       );
       await load(day);
     } finally {
@@ -805,6 +848,21 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                     <p className="text-[11px] uppercase tracking-widest text-clay lining-nums tabular-nums">
                       {live.length}/{s.capacity}
                     </p>
+                    {/* Off the timetable and everyone refunded. Ghost and set
+                        apart, because it is the one control on this row that
+                        acts on the whole class at once. Not offered on a class
+                        that has already run, which the server refuses anyway. */}
+                    {s.status !== "CANCELLED" &&
+                      new Date(s.startsAt).getTime() > Date.now() && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy === s.id}
+                          onClick={() => setCancelling(s)}
+                        >
+                          {d.cancelClass}
+                        </Button>
+                      )}
                   </div>
                 </div>
 
@@ -985,6 +1043,31 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
               variant: "outline",
               busy: busy === removing.bookingId,
               onClick: () => void remove(removing, false),
+            },
+          ]}
+        />
+      )}
+
+      {/* Call off a whole class. The body counts the people it affects, so the
+          desk sees the size of what it is about to do before it does it. */}
+      {cancelling && (
+        <ConfirmDialog
+          title={d.cancelClassTitle}
+          body={(() => {
+            const n = cancelling.attendees.filter(
+              (a) => a.status !== "CANCELLED",
+            ).length;
+            return n > 0
+              ? d.cancelClassBody.replace("{n}", String(n))
+              : d.cancelClassBodyEmpty;
+          })()}
+          cancelLabel={d.cancelClassKeep}
+          onClose={() => setCancelling(null)}
+          actions={[
+            {
+              label: d.cancelClassConfirm,
+              busy: busy === cancelling.id,
+              onClick: () => void cancelClass(cancelling),
             },
           ]}
         />

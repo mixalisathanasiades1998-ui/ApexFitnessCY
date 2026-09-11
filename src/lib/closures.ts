@@ -230,3 +230,122 @@ export function reopenDay(day: string) {
     return { day, reopened: true, classesRestored: restored.changes };
   });
 }
+
+export type CancelSessionResult =
+  | { ok: false; code: "NOT_FOUND" | "ALREADY_CANCELLED" | "PAST" }
+  | {
+      ok: true;
+      sessionId: string;
+      startsAt: Date;
+      /** How many members got a session back. */
+      refunded: number;
+      affected: {
+        bookingId: string;
+        userId: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        refunded: boolean;
+      }[];
+    };
+
+/**
+ * Call off a single class, and put its members' sessions back.
+ *
+ * The small sibling of `closeDay`: not the whole day shut for a public holiday,
+ * but one hour taken out of a working day — the studio opening late, closing
+ * early, or a reformer down for two hours. So it is a desk action rather than an
+ * owner one (an instructor calling in the fault is the ordinary case), and it
+ * names one session instead of a date.
+ *
+ * The rules are the day-closure's rules, applied to one slot. The class stops
+ * existing as far as the timetable is concerned, so nobody can book the hour the
+ * studio has just said is off. Every confirmed booking on it is cancelled and
+ * the session goes straight back to the member's balance, inside the usual
+ * cancellation window or not, because it is the studio that changed its mind and
+ * not the member. The affected list carries the booking ids so the caller can
+ * tell each member their class is off and their session is back.
+ *
+ * Refused for a class that has already started or finished: those are history,
+ * their members were there, and "refund the room" is not a thing that can be
+ * done to an hour that has happened.
+ */
+export function cancelSession(args: {
+  sessionId: string;
+  now?: Date;
+}): CancelSessionResult {
+  const { sessionId, now = new Date() } = args;
+
+  return db.transaction((): CancelSessionResult => {
+    const session = db
+      .select()
+      .from(classSessions)
+      .where(eq(classSessions.id, sessionId))
+      .get();
+
+    if (!session) return { ok: false, code: "NOT_FOUND" };
+    if (session.status === "CANCELLED") {
+      return { ok: false, code: "ALREADY_CANCELLED" };
+    }
+    /* An hour that has already begun cannot be un-run. The desk uses the
+       member-by-member removal for tidying up an attended class; this control is
+       only for a class that has not happened yet. */
+    if (session.startsAt.getTime() <= now.getTime()) {
+      return { ok: false, code: "PAST" };
+    }
+
+    const live = db
+      .select()
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.sessionId, sessionId),
+          eq(bookings.status, "CONFIRMED"),
+        ),
+      )
+      .all();
+
+    const affected: Extract<CancelSessionResult, { ok: true }>["affected"] = [];
+
+    for (const booking of live) {
+      refundOneCredit(booking.userId, booking.creditBatchId, {
+        bookingId: booking.id,
+        note: "Class cancelled by the studio",
+      });
+      db.update(bookings)
+        .set({ status: "CANCELLED", cancelledAt: now, creditRefunded: true })
+        .where(eq(bookings.id, booking.id))
+        .run();
+
+      const member = db
+        .select({ name: users.name, email: users.email, phone: users.phone })
+        .from(users)
+        .where(eq(users.id, booking.userId))
+        .get();
+
+      affected.push({
+        bookingId: booking.id,
+        userId: booking.userId,
+        name: member?.name ?? "",
+        email: member?.email ?? "",
+        phone: member?.phone ?? null,
+        refunded: true,
+      });
+    }
+
+    /* Kept as a row, not deleted, so the history of what was scheduled and who
+       had been in it survives — the same choice `closeDay` makes. */
+    db.update(classSessions)
+      .set({ status: "CANCELLED" })
+      .where(eq(classSessions.id, sessionId))
+      .run();
+
+    return {
+      ok: true,
+      sessionId,
+      startsAt: session.startsAt,
+      refunded: affected.length,
+      affected,
+    };
+  });
+}

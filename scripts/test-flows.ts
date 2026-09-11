@@ -2045,7 +2045,7 @@ async function main() {
         month: "2-digit",
         day: "2-digit",
       }).format(d);
-    check("the week starts Monday 7 September", key(P.PROMO.spendFrom) === "2026-09-07", key(P.PROMO.spendFrom));
+    check("the week starts Monday 14 September", key(P.PROMO.spendFrom) === "2026-09-14", key(P.PROMO.spendFrom));
     check("and ends Wednesday 30 September", key(P.PROMO.spendUntil) === "2026-09-30", key(P.PROMO.spendUntil));
     check("granting stops when October does", key(P.PROMO.grantUntil) === "2026-10-01", key(P.PROMO.grantUntil));
     /* The one that would go unnoticed: granting must never outlive the window
@@ -2071,7 +2071,7 @@ async function main() {
       to: P.PROMO.spendUntil,
       expires: P.PROMO.expiresAt,
     });
-    check("the message names both dates", /7 September/.test(words.en.body) && /30 September/.test(words.en.body), words.en.body);
+    check("the message names both dates", /14 September/.test(words.en.body) && /30 September/.test(words.en.body), words.en.body);
     /* The expiry date has to be in the words, or a member saves the session for
        a week that no longer accepts it. */
     check("and says when it expires", /expires on 30 September/.test(words.en.body), words.en.body);

@@ -1021,6 +1021,67 @@ export function studioNewMemberWords(a: {
 }
 
 /**
+ * An enquiry from the public contact form, handed to the studio's mailbox.
+ *
+ * Everything the desk needs to answer it is in the body, the sender's own
+ * address foremost, so a reply is a reply-to on the mail client with nothing to
+ * look up. Bilingual like the rest of the studio's own copies, because the two
+ * people who read this inbox do not necessarily read the same language.
+ */
+export function contactStudioWords(a: {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+}): Bilingual {
+  const reach = [a.email, a.phone].filter(Boolean).join(" · ");
+  return {
+    en: {
+      subject: `New enquiry from ${a.name}`,
+      body:
+        `${a.name} sent a message through the website.\n` +
+        `${reach}\n\n` +
+        `${a.message}`,
+    },
+    el: {
+      subject: `Νέο μήνυμα από ${a.name}`,
+      body:
+        `${a.name} έστειλε μήνυμα μέσα από την ιστοσελίδα.\n` +
+        `${reach}\n\n` +
+        `${a.message}`,
+    },
+  };
+}
+
+/**
+ * The visitor's own copy: yes, it arrived, and here is when to expect an answer.
+ *
+ * Sent to whoever filled the form in, whether or not they are a member, so it
+ * cannot lean on anything an account would carry. Bilingual, because the form
+ * does not ask which language they read and a Cyprus studio should answer in
+ * both. The 24 to 48 hours is the studio's own promise, said plainly so nobody
+ * is left wondering whether the form worked at all.
+ */
+export function contactAckWords(a: { name: string }): Bilingual {
+  return {
+    en: {
+      subject: "We have your message",
+      body:
+        `Thank you for reaching out to APEX pilates, ${a.name}.\n\n` +
+        `We have received your message. The studio will review it and reply ` +
+        `as soon as possible, usually within 24 to 48 hours.`,
+    },
+    el: {
+      subject: "Λάβαμε το μήνυμά σας",
+      body:
+        `Ευχαριστούμε που επικοινωνήσατε με το APEX pilates, ${a.name}.\n\n` +
+        `Λάβαμε το μήνυμά σας. Το στούντιο θα το εξετάσει και θα σας απαντήσει ` +
+        `το συντομότερο δυνατό, συνήθως εντός 24 έως 48 ωρών.`,
+    },
+  };
+}
+
+/**
  * The member's confirmation that a cancelled appointment is cancelled.
  *
  * Says whether the session came back, like the class version, and nothing else.

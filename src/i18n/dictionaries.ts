@@ -533,6 +533,16 @@ export const en = {
       "They are told either way. Refunding puts the session back on their balance; keeping it does not.",
     rosterRemoved: "{name} removed, session refunded",
     rosterRemovedKept: "{name} removed, session kept",
+    cancelClass: "Cancel class",
+    cancelClassTitle: "Cancel this class?",
+    cancelClassBody:
+      "The {n} members booked will get their session back and be told the class is off. The hour comes off the timetable so nobody can book it.",
+    cancelClassBodyEmpty:
+      "Nobody is booked. The hour comes off the timetable so nobody can book it.",
+    cancelClassConfirm: "Cancel the class",
+    cancelClassKeep: "Keep it",
+    classCancelled: "Class cancelled. {n} members refunded.",
+    classCancelledEmpty: "Class cancelled.",
     channels: "Reachable by",
     chEmail: "Email",
     chSms: "SMS",
@@ -1788,6 +1798,16 @@ export const el: typeof en = {
       "Ενημερώνεται και στις δύο περιπτώσεις. Με επιστροφή η συνεδρία γυρίζει στο υπόλοιπό του/της, χωρίς επιστροφή όχι.",
     rosterRemoved: "{name}: αφαιρέθηκε, η συνεδρία επιστράφηκε",
     rosterRemovedKept: "{name}: αφαιρέθηκε, η συνεδρία κρατήθηκε",
+    cancelClass: "Ακύρωση μαθήματος",
+    cancelClassTitle: "Ακύρωση αυτού του μαθήματος;",
+    cancelClassBody:
+      "Τα {n} μέλη που έχουν κράτηση θα πάρουν πίσω τη συνεδρία τους και θα ενημερωθούν ότι το μάθημα ακυρώθηκε. Η ώρα φεύγει από το πρόγραμμα, ώστε να μην μπορεί να την κλείσει κανείς.",
+    cancelClassBodyEmpty:
+      "Δεν έχει κράτηση κανείς. Η ώρα φεύγει από το πρόγραμμα, ώστε να μην μπορεί να την κλείσει κανείς.",
+    cancelClassConfirm: "Ακύρωση του μαθήματος",
+    cancelClassKeep: "Να μείνει",
+    classCancelled: "Το μάθημα ακυρώθηκε. Επιστροφή σε {n} μέλη.",
+    classCancelledEmpty: "Το μάθημα ακυρώθηκε.",
     channels: "Επικοινωνία μέσω",
     chEmail: "Email",
     chSms: "SMS",
