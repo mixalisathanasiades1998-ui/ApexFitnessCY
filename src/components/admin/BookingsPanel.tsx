@@ -332,6 +332,34 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
     }
   }
 
+  /**
+   * Undo a cancellation: put the class back on the timetable.
+   *
+   * The counterpart to cancelClass, and deliberately not a mirror image of it.
+   * Cancelling refunds and tells everybody; reopening does neither, because the
+   * members were already refunded and told, and quietly re-booking somebody into
+   * a class they were told was off would be worse than asking them to book it
+   * again. So the hour comes back empty and bookable. No confirmation step: it
+   * takes nobody's money and is itself undone by cancelling again.
+   */
+  async function reopenClass(s: SessionRow) {
+    setBusy(s.id);
+    try {
+      const res = await fetch(
+        `/api/admin/session/cancel?sessionId=${encodeURIComponent(s.id)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        onNotice(t.common.somethingWrong);
+        return;
+      }
+      onNotice(d.classReopened);
+      await load(day);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const booked = (sessions ?? []).reduce(
     (n, s) => n + s.attendees.filter((a) => a.status !== "CANCELLED").length,
     0,
@@ -861,6 +889,23 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                           onClick={() => setCancelling(s)}
                         >
                           {d.cancelClass}
+                        </Button>
+                      )}
+                    {/* Undo a cancellation: the hour goes back on the timetable,
+                        empty. The people who were refunded are not put back in
+                        (they were told it was off), so it comes back bookable
+                        rather than pretending nothing happened. Offered only
+                        while the class is still ahead, since reopening one that
+                        has already passed puts nothing bookable anywhere. */}
+                    {s.status === "CANCELLED" &&
+                      new Date(s.startsAt).getTime() > Date.now() && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy === s.id}
+                          onClick={() => void reopenClass(s)}
+                        >
+                          {d.reopenClass}
                         </Button>
                       )}
                   </div>

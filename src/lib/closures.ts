@@ -349,3 +349,42 @@ export function cancelSession(args: {
     };
   });
 }
+
+export type RestoreSessionResult =
+  | { ok: false; code: "NOT_FOUND" | "NOT_CANCELLED" }
+  | { ok: true; sessionId: string };
+
+/**
+ * Put a single cancelled class back on the timetable.
+ *
+ * The undo for `cancelSession`, and the same shape as `reopenDay`: the class
+ * comes back empty. The members whose sessions were refunded keep them and book
+ * again if they still want the slot, exactly as when a whole day is reopened —
+ * silently reinstating a booking somebody has been told is cancelled would be
+ * the worse mistake. Refused for a class that is not actually cancelled, so a
+ * double-click cannot turn into a confusing no-op that looks like it did
+ * something.
+ */
+export function restoreSession(args: {
+  sessionId: string;
+}): RestoreSessionResult {
+  return db.transaction((): RestoreSessionResult => {
+    const session = db
+      .select()
+      .from(classSessions)
+      .where(eq(classSessions.id, args.sessionId))
+      .get();
+
+    if (!session) return { ok: false, code: "NOT_FOUND" };
+    if (session.status !== "CANCELLED") {
+      return { ok: false, code: "NOT_CANCELLED" };
+    }
+
+    db.update(classSessions)
+      .set({ status: "SCHEDULED" })
+      .where(eq(classSessions.id, args.sessionId))
+      .run();
+
+    return { ok: true, sessionId: args.sessionId };
+  });
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { body, desk } from "@/lib/api-guard";
-import { cancelSession } from "@/lib/closures";
+import { cancelSession, restoreSession } from "@/lib/closures";
 import { notifyCancelled } from "@/lib/messaging/events";
 
 /**
@@ -43,4 +43,30 @@ export async function POST(req: Request) {
     sessionId: result.sessionId,
     refunded: result.refunded,
   });
+}
+
+/**
+ * Undo a cancellation: put the class back on the timetable.
+ *
+ * A DELETE on the cancellation rather than on the class — the class is not being
+ * removed, its "off" state is. Same `desk()` reach as the cancel above, because
+ * whoever can take an hour off can put it back. The members who were refunded
+ * are not re-booked (see restoreSession), so there is nobody to tell: the hour
+ * simply becomes bookable again.
+ */
+export async function DELETE(req: Request) {
+  const gate = await desk();
+  if ("res" in gate) return gate.res;
+
+  const sessionId = new URL(req.url).searchParams.get("sessionId");
+  if (!sessionId) {
+    return NextResponse.json({ error: "BAD_REQUEST" }, { status: 400 });
+  }
+
+  const result = restoreSession({ sessionId });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.code }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, sessionId: result.sessionId });
 }
