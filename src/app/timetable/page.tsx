@@ -131,6 +131,23 @@ export default async function TimetablePage({
   return (
     <TimetableIntro>
       <ScheduleClient
+        /**
+         * Remount when the window moves, and only then.
+         *
+         * Picking a date outside the strip, or pressing the "next 30 days"
+         * arrow, is a soft navigation to `/timetable?date=...`: the server
+         * re-renders this page with a fresh `days` window and its `sessions`,
+         * but React keeps the same client instance in place and reconciles it.
+         * The strip chips update because they read `days` straight from props —
+         * but the slot list reads `sessions`, which the client holds in state
+         * seeded once on mount, so it kept showing the old window's classes (or
+         * nothing) until a hard refresh remounted the component. Keying on the
+         * window's first day makes a window move a genuine remount, so the
+         * client always re-seeds from the server data for the days it is
+         * showing. Within a window — booking, cancelling, stepping a day — the
+         * key is unchanged and all transient state is preserved as before.
+         */
+        key={days[0]}
         sessions={sessions}
         types={types}
         signedIn={Boolean(session)}
