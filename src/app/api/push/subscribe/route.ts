@@ -59,6 +59,6 @@ export async function DELETE(req: Request) {
   if (!endpoint) {
     return NextResponse.json({ error: "BAD_REQUEST" }, { status: 400 });
   }
-  dropSubscription(endpoint);
+  dropSubscription(endpoint, gate.user.id);
   return NextResponse.json({ ok: true, devices: deviceCount(gate.user.id) });
 }

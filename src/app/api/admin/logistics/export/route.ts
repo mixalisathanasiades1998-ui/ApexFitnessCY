@@ -125,9 +125,17 @@ function buildCsv(rows: LogisticsRow[]): string {
   return lines.join("\r\n");
 }
 
-/** A cell, quoted only when it has to be. */
+/** A cell, quoted only when it has to be — and never a formula. */
 function cell(v: string): string {
-  return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  /* Neutralise spreadsheet formula injection. A cell that begins with =, +, -,
+     @ (or a tab / carriage return) is run as a formula by Excel and LibreOffice,
+     so a member who named themselves "=HYPERLINK(...)" would have it execute in
+     the accountant's spreadsheet when they open the export. A leading apostrophe
+     forces the whole cell to be read as text. */
+  const guarded = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return /[",\n\r]/.test(guarded)
+    ? `"${guarded.replace(/"/g, '""')}"`
+    : guarded;
 }
 
 /** Cents to a plain decimal, no currency symbol — the Currency column says it. */

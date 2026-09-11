@@ -22,6 +22,17 @@ import { loginSchema } from "@/lib/validation";
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+/**
+ * A real bcrypt hash of nothing anyone knows, compared against when the email
+ * does not exist so the wrong-email and wrong-password paths take the same time.
+ * Without it, a missing account returns before bcrypt runs and a present one
+ * after, and that timing difference tells an attacker which addresses are
+ * registered even though the error message is identical. Cost 11, matching the
+ * real hashes.
+ */
+const DUMMY_HASH =
+  "$2a$11$WeqdDG3sK0qrNTPUCqcoHOzZJpJIICJjaQ8ID2SrC5XCpz3sU/fSC";
+
 export async function POST(req: Request) {
   const ip = clientIp(req);
   const gate = peek("login", ip, LOGIN_LIMIT);
@@ -36,7 +47,14 @@ export async function POST(req: Request) {
   const user = await db.query.users.findFirst({
     where: eq(users.email, parsed.data.email),
   });
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  /* Always spend the bcrypt time, against the real hash or the dummy one, so the
+     response cannot be timed to tell a registered address from an unknown one.
+     The `!user` check below is what actually refuses the unknown account. */
+  const ok = await verifyPassword(
+    parsed.data.password,
+    user?.passwordHash ?? DUMMY_HASH,
+  );
+  if (!user || !ok) {
     /* A wrong answer spends one from the budget; a right one never does. */
     hit("login", ip, LOGIN_LIMIT, LOGIN_WINDOW_MS);
     return NextResponse.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });

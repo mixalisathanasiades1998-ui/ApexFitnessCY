@@ -119,11 +119,26 @@ export function saveSubscription(args: {
     .get();
 }
 
-export function dropSubscription(endpoint: string) {
+/**
+ * Remove a device's subscription.
+ *
+ * `userId` scopes the delete to the caller's own devices when a member is
+ * unsubscribing, so one member cannot drop another's subscription by its
+ * endpoint. It is left off only for the internal cleanup path (a push service
+ * reporting a dead endpoint), which is not acting for any particular member.
+ */
+export function dropSubscription(endpoint: string, userId?: string) {
   return (
     db
       .delete(pushSubscriptions)
-      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .where(
+        userId
+          ? and(
+              eq(pushSubscriptions.endpoint, endpoint),
+              eq(pushSubscriptions.userId, userId),
+            )
+          : eq(pushSubscriptions.endpoint, endpoint),
+      )
       .run().changes > 0
   );
 }

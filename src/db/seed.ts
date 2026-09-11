@@ -406,6 +406,21 @@ async function main() {
     .trim()
     .toLowerCase();
 
+  /* A default password must never reach a live database. In production the seed
+     credentials have to come from the environment — as the first-boot guard and
+     go-live already require — rather than falling back to owner@… / ownerdev123,
+     which is a working ADMIN login written in a public repository. Refuse the
+     seed rather than create it. */
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!process.env.SEED_OWNER_PASSWORD || !process.env.SEED_RECEPTION_PASSWORD)
+  ) {
+    throw new Error(
+      "Refusing to seed default owner/reception passwords in production. " +
+        "Set SEED_OWNER_PASSWORD and SEED_RECEPTION_PASSWORD first.",
+    );
+  }
+
   const owner = upsertUser({
     email: ownerEmail,
     name: "Studio Owner",

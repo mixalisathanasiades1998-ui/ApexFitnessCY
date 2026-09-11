@@ -25,7 +25,15 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
    * A `next` in the URL still wins, because that is somebody who was interrupted
    * on their way somewhere specific and should be put back.
    */
-  const next = params.get("next") || "/timetable";
+  /* Only a local path is ever honoured. A `next` of https://evil.example would
+     otherwise send a member straight to an attacker's page the instant they sign
+     in — the classic post-login open redirect. Protocol-relative (//host) is
+     rejected too, since the browser reads it as an absolute URL. */
+  const rawNext = params.get("next");
+  const next =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+      ? rawNext
+      : "/timetable";
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -26,9 +26,27 @@ export const testProvider: PaymentProvider = {
   id: "test",
   label: "Test mode",
 
-  configured: () =>
-    process.env.ALLOW_TEST_PAYMENTS === "true" ||
-    process.env.NODE_ENV !== "production",
+  /**
+   * The one combination that must never happen is this free adapter taking a
+   * member's press of Pay on a site that also holds a live Stripe key — a real
+   * shop handing out sessions for nothing. `NODE_ENV` is the usual guard, but it
+   * is a value the hosting panel sets and a value a hosting panel can get wrong,
+   * so it is not the thing to stake real money on. A live secret key
+   * (`sk_live_...`) present in the environment is unambiguous: it only exists on
+   * the real thing. So whatever else is set — `ALLOW_TEST_PAYMENTS=true` left on
+   * by accident, `NODE_ENV` not exactly "production" — the test adapter refuses
+   * the moment a live key is in the room. In development there is no live key and
+   * nothing below changes.
+   */
+  configured: () => {
+    if (process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_live_")) {
+      return false;
+    }
+    return (
+      process.env.ALLOW_TEST_PAYMENTS === "true" ||
+      process.env.NODE_ENV !== "production"
+    );
+  },
 
   async start(_req: PaymentRequest): Promise<StartedPayment> {
     return { mode: "test", provider: "test" };
