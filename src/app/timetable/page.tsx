@@ -100,6 +100,9 @@ export default async function TimetablePage({
           ? isPersonalBookable(s.startsAt, now)
           : isBookable(s.startsAt, now),
       type: s.classType.slug,
+      /* This class's own level, so one Thursday can read Beginners while the
+         rest of the same class type stays All levels. */
+      level: s.level,
       instructor: s.instructor?.name ?? null,
       myBookingId: s.myBookingId ?? null,
     }));

@@ -352,6 +352,18 @@ export const classTemplates = sqliteTable(
     startMinutes: integer("start_minutes").notNull(),
     durationMin: integer("duration_min").notNull().default(50),
     capacity: integer("capacity").notNull().default(8),
+    /**
+     * The level this recurring slot is aimed at, and the durable home for it.
+     *
+     * ALL | BEGINNER | INTERMEDIATE | ADVANCED, or null which reads as ALL. It
+     * lives on the template rather than the class type because every group class
+     * shares one type (timetable-repair moves them all onto it), so a level on
+     * the type would be the level of the whole timetable at once. Sessions
+     * generated from this template inherit this value; the desk can override a
+     * single class on the session itself. It is a label shown to members, not a
+     * booking rule — nobody is refused a class by their level.
+     */
+    level: text("level"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
   },
   (t) => [index("class_templates_day_idx").on(t.dayOfWeek)],
@@ -370,6 +382,14 @@ export const classSessions = sqliteTable(
     startsAt: integer("starts_at", { mode: "timestamp" }).notNull(),
     endsAt: integer("ends_at", { mode: "timestamp" }).notNull(),
     capacity: integer("capacity").notNull().default(8),
+    /**
+     * This one class's level, copied from its template when generated.
+     *
+     * Carried on the session so the desk can change a single class without
+     * touching the recurring slot, and so a class reads its own level with no
+     * join. Null reads as ALL. See class_templates.level for the why.
+     */
+    level: text("level"),
     /** SCHEDULED | CANCELLED */
     status: text("status").notNull().default("SCHEDULED"),
     note: text("note"),

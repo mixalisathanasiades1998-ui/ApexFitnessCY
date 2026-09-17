@@ -243,7 +243,7 @@ export const en = {
     hero: {
       eyebrow: "The studio",
       title: "A room built for attention.",
-      body: "Low light, warm materials, no mirrors to perform for. Five reformers, one instructor, fifty minutes that belong entirely to how you move.",
+      body: "Low light and warm materials. Five reformers, one instructor, fifty minutes that belong entirely to how you move.",
     },
     sections: [
       {
@@ -252,15 +252,15 @@ export const en = {
       },
       {
         t: "Technogym throughout",
-        d: "Reformers, small equipment and the gym floor next door are all Technogym. Consistent resistance, serviced to manufacturer standard, and beautiful to use.",
+        d: "Reformers and small equipment are all Technogym. Consistent resistance, serviced to manufacturer standard, and beautiful to use.",
       },
       {
         t: "Progression on record",
         d: "We log what you worked on so the next class starts where the last one finished. Progress you can feel in weeks, not months.",
       },
       {
-        t: "Recovery and warm-down",
-        d: "Every session closes with mobility and breath work, so you leave taller and calmer rather than wrecked.",
+        t: "Recovery and cool-down",
+        d: "Every session closes with stretching and breath work, so you leave taller and calmer rather than wrecked.",
       },
       {
         t: "The room to yourself",
@@ -545,6 +545,20 @@ export const en = {
     classCancelledEmpty: "Class cancelled.",
     reopenClass: "Reopen class",
     classReopened: "Class reopened. Anyone who was booked needs to book again.",
+    levelLabel: "Class level",
+    classLevels: {
+      ALL: "All levels",
+      BEGINNER: "Beginners",
+      INTERMEDIATE: "Intermediate",
+      ADVANCED: "Advanced",
+    },
+    setLevelTitle: "Set this class to {level}?",
+    setLevelBody:
+      "Apply it to every upcoming {slot} class, or change just this one class?",
+    setLevelUpcoming: "Apply to all upcoming",
+    setLevelOne: "Just this class",
+    levelChanged: "Class set to {level}.",
+    levelChangedUpcoming: "{level}: applied to {n} upcoming classes.",
     channels: "Reachable by",
     chEmail: "Email",
     chSms: "SMS",
@@ -1527,7 +1541,7 @@ export const el: typeof en = {
     hero: {
       eyebrow: "Το στούντιο",
       title: "Ένας χώρος φτιαγμένος για προσοχή.",
-      body: "Απαλός φωτισμός, ζεστά υλικά, χωρίς καθρέφτες για επίδειξη. Πέντε reformers, ένας εκπαιδευτής, πενήντα λεπτά που ανήκουν αποκλειστικά στο πώς κινείσαι.",
+      body: "Απαλός φωτισμός και ζεστά υλικά. Πέντε reformers, ένας εκπαιδευτής, πενήντα λεπτά που ανήκουν αποκλειστικά στο πώς κινείσαι.",
     },
     sections: [
       {
@@ -1536,7 +1550,7 @@ export const el: typeof en = {
       },
       {
         t: "Technogym σε όλα",
-        d: "Reformers, μικρός εξοπλισμός και ο χώρος του γυμναστηρίου δίπλα είναι όλα Technogym. Σταθερή αντίσταση, συντήρηση κατά τα πρότυπα του κατασκευαστή, και άψογη αίσθηση.",
+        d: "Reformers και μικρός εξοπλισμός είναι όλα Technogym. Σταθερή αντίσταση, συντήρηση κατά τα πρότυπα του κατασκευαστή, και άψογη αίσθηση.",
       },
       {
         t: "Καταγεγραμμένη εξέλιξη",
@@ -1544,7 +1558,7 @@ export const el: typeof en = {
       },
       {
         t: "Αποκατάσταση και χαλάρωση",
-        d: "Κάθε μάθημα κλείνει με κινητικότητα και αναπνοή, οπότε φεύγεις πιο ψηλός και πιο ήρεμος αντί για διαλυμένος.",
+        d: "Κάθε μάθημα κλείνει με διατάσεις και αναπνοή, οπότε φεύγεις πιο ψηλός και πιο ήρεμος αντί για διαλυμένος.",
       },
       {
         t: "Ο χώρος δικός σου",
@@ -1812,6 +1826,20 @@ export const el: typeof en = {
     classCancelledEmpty: "Το μάθημα ακυρώθηκε.",
     reopenClass: "Επαναφορά μαθήματος",
     classReopened: "Το μάθημα επαναφέρθηκε. Όποιος είχε κράτηση πρέπει να κλείσει ξανά.",
+    levelLabel: "Επίπεδο μαθήματος",
+    classLevels: {
+      ALL: "Όλα τα επίπεδα",
+      BEGINNER: "Αρχάριοι",
+      INTERMEDIATE: "Μεσαίο",
+      ADVANCED: "Προχωρημένοι",
+    },
+    setLevelTitle: "Ορισμός αυτού του μαθήματος σε {level};",
+    setLevelBody:
+      "Εφαρμογή σε κάθε επόμενο μάθημα {slot}, ή αλλαγή μόνο αυτού του μαθήματος;",
+    setLevelUpcoming: "Σε όλα τα επόμενα",
+    setLevelOne: "Μόνο αυτό το μάθημα",
+    levelChanged: "Το μάθημα ορίστηκε σε {level}.",
+    levelChangedUpcoming: "{level}: εφαρμόστηκε σε {n} επόμενα μαθήματα.",
     channels: "Επικοινωνία μέσω",
     chEmail: "Email",
     chSms: "SMS",

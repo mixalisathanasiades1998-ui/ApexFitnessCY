@@ -44,6 +44,8 @@ export type ScheduleSession = {
   bookable: boolean;
   /** key into the `types` map */
   type: string;
+  /** This class's level: ALL | BEGINNER | INTERMEDIATE | ADVANCED. */
+  level: string;
   instructor: string | null;
   myBookingId: string | null;
 };
@@ -1134,10 +1136,8 @@ export function ScheduleClient({
                         ) : (
                           <span className="uppercase tracking-widest">
                             {el
-                              ? (LEVEL[types[picked.type].level]?.el ??
-                                types[picked.type].level)
-                              : (LEVEL[types[picked.type].level]?.en ??
-                                types[picked.type].level)}
+                              ? (LEVEL[picked.level]?.el ?? picked.level)
+                              : (LEVEL[picked.level]?.en ?? picked.level)}
                           </span>
                         )}
                         {picked.instructor && (

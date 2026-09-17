@@ -53,10 +53,14 @@ type SessionRow = {
   className: { en: string; el: string };
   /** GROUP or PERSONAL. */
   kind: string;
+  /** ALL | BEGINNER | INTERMEDIATE | ADVANCED. */
+  level: string;
   instructor: string | null;
   instructorId: string | null;
   attendees: Attendee[];
 };
+
+const CLASS_LEVELS = ["ALL", "BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
 
 /** One name the desk may put on a class. */
 type Teacher = { id: string; name: string };
@@ -156,6 +160,17 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
    * so cancelling a full class and cancelling an empty one do not look the same.
    */
   const [cancelling, setCancelling] = useState<SessionRow | null>(null);
+  /**
+   * The class whose level the desk is changing, and the level they picked.
+   *
+   * Held until they answer the one-class-or-the-whole-slot question, because the
+   * difference is a decision only they can make: a single Thursday that needs
+   * fixing, or "from now on this hour is Beginners".
+   */
+  const [levelling, setLevelling] = useState<{
+    session: SessionRow;
+    level: string;
+  } | null>(null);
 
   const load = useCallback(async (date: string) => {
     setSessions(null);
@@ -358,6 +373,54 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
     } finally {
       setBusy(null);
     }
+  }
+
+  /**
+   * Set a class's level, one class or the whole slot.
+   *
+   * The server does the work and reports how many classes it touched; this
+   * reloads the day so the picker reflects it. A label change, so nobody is
+   * told and nothing is refunded.
+   */
+  async function applyLevel(
+    s: SessionRow,
+    level: string,
+    applyToUpcoming: boolean,
+  ) {
+    setBusy(s.id);
+    try {
+      const res = await fetch("/api/admin/session/level", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: s.id, level, applyToUpcoming }),
+      });
+      const data = (await res.json()) as { ok?: boolean; upcoming?: number };
+      if (!res.ok) {
+        onNotice(t.common.somethingWrong);
+        return;
+      }
+      setLevelling(null);
+      const name = d.classLevels[level as keyof typeof d.classLevels] ?? level;
+      onNotice(
+        applyToUpcoming
+          ? d.levelChangedUpcoming
+              .replace("{level}", name)
+              .replace("{n}", String(data.upcoming ?? 0))
+          : d.levelChanged.replace("{level}", name),
+      );
+      await load(day);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** "Thursday 10:00", for the level dialog. */
+  function slotLabel(iso: string) {
+    const dt = new Date(iso);
+    const weekday = new Intl.DateTimeFormat(el ? "el-GR" : "en-GB", {
+      weekday: "long",
+    }).format(dt);
+    return `${weekday} ${fmtTime(iso)}`;
   }
 
   const booked = (sessions ?? []).reduce(
@@ -873,6 +936,27 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                         current={s.instructorId}
                       />
                     )}
+                    {/* The class's level. Group classes only — an appointment
+                        has no level. Changing it opens the one-class-or-whole-
+                        slot question rather than saving straight away. */}
+                    {s.status !== "CANCELLED" && s.kind !== "PERSONAL" && (
+                      <select
+                        aria-label={d.levelLabel}
+                        value={s.level}
+                        disabled={busy === s.id}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v !== s.level) setLevelling({ session: s, level: v });
+                        }}
+                        className="rounded-full border border-mocha-200 bg-white px-3 py-1.5 text-[11px] uppercase tracking-widest text-mocha-600"
+                      >
+                        {CLASS_LEVELS.map((lv) => (
+                          <option key={lv} value={lv}>
+                            {d.classLevels[lv]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <p className="text-[11px] uppercase tracking-widest text-clay lining-nums tabular-nums">
                       {live.length}/{s.capacity}
                     </p>
@@ -1113,6 +1197,39 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
               label: d.cancelClassConfirm,
               busy: busy === cancelling.id,
               onClick: () => void cancelClass(cancelling),
+            },
+          ]}
+        />
+      )}
+
+      {/* One class, or the whole recurring slot from today on. Neither is a
+          default worth guessing — the desk is either fixing one date or changing
+          the timetable. */}
+      {levelling && (
+        <ConfirmDialog
+          title={d.setLevelTitle.replace(
+            "{level}",
+            d.classLevels[levelling.level as keyof typeof d.classLevels] ??
+              levelling.level,
+          )}
+          body={d.setLevelBody.replace(
+            "{slot}",
+            slotLabel(levelling.session.startsAt),
+          )}
+          cancelLabel={t.common.back}
+          onClose={() => setLevelling(null)}
+          actions={[
+            {
+              label: d.setLevelUpcoming,
+              busy: busy === levelling.session.id,
+              onClick: () => void applyLevel(levelling.session, levelling.level, true),
+            },
+            {
+              label: d.setLevelOne,
+              variant: "outline",
+              busy: busy === levelling.session.id,
+              onClick: () =>
+                void applyLevel(levelling.session, levelling.level, false),
             },
           ]}
         />

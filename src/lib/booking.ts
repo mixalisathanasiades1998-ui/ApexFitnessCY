@@ -16,6 +16,7 @@ import {
   spendBlockReason,
   spendOneCredit,
 } from "./credits";
+import { classLevel, type ClassLevel } from "./class-level";
 import {
   isPersonalBookable,
   isPersonalCancellable,
@@ -404,6 +405,8 @@ export type SessionView = {
   booked: number;
   spotsLeft: number;
   note: string | null;
+  /** This class's level: ALL | BEGINNER | INTERMEDIATE | ADVANCED. */
+  level: ClassLevel;
   classType: {
     slug: string;
     nameEn: string;
@@ -486,6 +489,7 @@ export async function listSessions(opts: {
     booked: Number(booked ?? 0),
     spotsLeft: Math.max(0, s.capacity - Number(booked ?? 0)),
     note: s.note,
+    level: classLevel(s.level),
     classType: {
       slug: ct.slug,
       nameEn: ct.nameEn,

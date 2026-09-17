@@ -92,6 +92,10 @@ export function generateSessions(
             startsAt,
             endsAt,
             capacity: tpl.capacity,
+            /* Inherit the slot's level, so a class the rota generates next month
+               already carries the level the desk set on the slot. A one-off
+               change to a single class overrides this on the session. */
+            level: tpl.level,
           })
           .onConflictDoNothing()
           .returning({ id: classSessions.id })

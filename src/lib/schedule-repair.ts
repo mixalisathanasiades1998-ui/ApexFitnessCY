@@ -1,5 +1,6 @@
 import { sqlite } from "@/db";
 import { PERSONAL_DURATION_MINUTES } from "./personal";
+import { LEVEL_RULES } from "./rota";
 import { STUDIO } from "./studio";
 import { studioStartOfDay } from "./time";
 import { repairTimetableOnce } from "./timetable-repair";
@@ -40,6 +41,60 @@ export function repairScheduleOnce() {
      capacities before that would only have to be done again. */
   repairTimetableOnce();
   repairSchedule();
+  /* Levels last: the slots and their future classes exist by now, so the initial
+     level for each configured slot can be written onto them. */
+  applyLevelRules();
+}
+
+/**
+ * Write the studio's initial class levels, once, onto a live database.
+ *
+ * The level of a class is the desk's to change and lives in the database, so
+ * this only ever *initialises* a slot that no one has set yet: it writes a
+ * template's level and stamps its coming classes only while the template's level
+ * is still absent. The moment the desk sets that slot to anything — including
+ * back to All levels — the guard below stops matching and this never touches it
+ * again. Applied from each rule's own date, so the current week can be left as
+ * it is while next week changes.
+ *
+ * Only the slot's own future classes are stamped, and only where the class has
+ * no level of its own yet, so a one-off change the desk already made to a single
+ * date survives. Pure updates, nothing deleted, no booking touched.
+ */
+export function applyLevelRules(now = new Date()) {
+  let changed = 0;
+  for (const rule of LEVEL_RULES) {
+    const startMinutes = rule.hour * 60;
+    /* Only a slot nobody has set yet. `level is null` is the whole guard: once
+       the desk has chosen a level for this slot, this rule is done forever. */
+    const tpl = sqlite
+      .prepare(
+        `select t.id from class_templates t
+           join class_types ct on ct.id = t.class_type_id
+          where t.day_of_week = ? and t.start_minutes = ?
+            and t.active = 1 and ct.kind = 'GROUP' and t.level is null
+          limit 1`,
+      )
+      .get(rule.dayOfWeek, startMinutes) as { id: string } | undefined;
+    if (!tpl) continue;
+
+    sqlite
+      .prepare(`update class_templates set level = ? where id = ?`)
+      .run(rule.level, tpl.id);
+
+    /* From the rule's date, in the studio's calendar, so a mid-week change does
+       not rewrite classes that have already run this week. */
+    const from = Math.floor(
+      studioStartOfDay(new Date(`${rule.from}T12:00:00Z`)).getTime() / 1000,
+    );
+    changed += sqlite
+      .prepare(
+        `update class_sessions set level = ?
+          where template_id = ? and starts_at >= ? and level is null`,
+      )
+      .run(rule.level, tpl.id, from).changes;
+  }
+  return changed;
 }
 
 /** Exposed for the seed and for tests; returns how many rows it touched. */

@@ -67,6 +67,32 @@ export const WEEKLY_SCHEDULE: Record<number, readonly Slot[]> = {
   6: [],
 };
 
+/**
+ * Class levels the studio asked for, applied once to a live database.
+ *
+ * The level of a class lives in the database and is the desk's to change, so
+ * this is not an ongoing source of truth like the rota above — it is the
+ * *initial* value, applied by `applyLevelRules` on the first boot after the
+ * feature ships and never again once the desk has touched that slot. Each rule
+ * names a slot by weekday and hour, the level it should start at, and the date
+ * from which it applies, so a change can skip the current week: "Thursday 10:00
+ * is Beginners from the 21st" leaves this week's Thursday as it was.
+ */
+export type LevelRule = {
+  /** 0 = Sunday … 6 = Saturday. */
+  dayOfWeek: number;
+  /** The hour the class starts, 24h. */
+  hour: number;
+  /** ALL | BEGINNER | INTERMEDIATE | ADVANCED. */
+  level: "ALL" | "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  /** First date it applies, YYYY-MM-DD in the studio's calendar. */
+  from: string;
+};
+
+export const LEVEL_RULES: readonly LevelRule[] = [
+  { dayOfWeek: 4, hour: 10, level: "BEGINNER", from: "2026-09-21" },
+];
+
 /** Which hours run a group class on a given day of the week, Sunday being 0. */
 export function classHoursOn(dayOfWeek: number): number[] {
   return (WEEKLY_SCHEDULE[dayOfWeek] ?? []).map((s) => s.hour);

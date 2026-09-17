@@ -25,6 +25,7 @@ import {
   purchases,
   users,
 } from "@/db/schema";
+import { classLevel } from "./class-level";
 import { invoiceIssuer, vatSplit } from "./invoice";
 import { studioAddDays, studioStartOfDay } from "./time";
 
@@ -513,6 +514,9 @@ export async function daySessions(day = new Date()) {
        same list as the 18:00 class looks like a class with four empty places
        until somebody notices the capacity is one. */
     kind: ct.kind,
+    /* The level this class is aimed at, for the desk's level control. The
+       session carries its own, falling back to All levels. */
+    level: classLevel(s.level),
     instructor: inst?.name ?? null,
     /* The id as well as the name, so the desk's picker knows which of its
        options is the one already chosen. */

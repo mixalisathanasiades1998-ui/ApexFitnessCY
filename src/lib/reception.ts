@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, gte } from "drizzle-orm";
 import {
   CONDITION_MAX_CHARS,
   STAFF_NOTES_MAX_CHARS,
@@ -9,6 +9,7 @@ import { db } from "@/db";
 import {
   bookings,
   classSessions,
+  classTemplates,
   classTypes,
   creditBatches,
   creditLedger,
@@ -16,6 +17,8 @@ import {
   purchases,
   users,
 } from "@/db/schema";
+import { isClassLevel, type ClassLevel } from "@/lib/class-level";
+import { studioStartOfDay } from "@/lib/time";
 import { hashPassword, isVerified } from "@/lib/auth";
 import { deviceCount } from "@/lib/messaging/push";
 import { toE164 } from "@/lib/messaging/sms";
@@ -1164,4 +1167,74 @@ export async function assignInstructor(args: {
     previous: before?.name ?? null,
     told,
   };
+}
+
+export type SetLevelResult =
+  | { ok: false; code: "SESSION_NOT_FOUND" | "BAD_LEVEL" }
+  | { ok: true; level: ClassLevel; upcoming: number };
+
+/**
+ * Set a class's level, either on the one class or on the recurring slot.
+ *
+ * A label, not a rule: this changes what members are told a class is aimed at,
+ * and refuses nobody a booking. Two shapes, which is the whole point of asking:
+ *
+ *   - one class only — the desk is fixing a single date. The level is written on
+ *     the session, which overrides whatever the slot says for that class alone.
+ *
+ *   - every upcoming class of this slot — the desk is changing the timetable. The
+ *     level is written on the *template*, so classes the rota generates next
+ *     month already carry it, and onto every already-generated class of the slot
+ *     from the start of today onward. Classes that have already run are history
+ *     and left alone, so "from now on Thursday 10:00 is Beginners" does not
+ *     rewrite last Thursday.
+ *
+ * Pure updates: a template row and some session rows. Nothing is deleted, no
+ * booking is touched, and a level nobody recognises is refused before any write.
+ */
+export function setClassLevel(args: {
+  sessionId: string;
+  level: string;
+  applyToUpcoming: boolean;
+  now?: Date;
+}): SetLevelResult {
+  const now = args.now ?? new Date();
+  if (!isClassLevel(args.level)) return { ok: false, code: "BAD_LEVEL" };
+  const level = args.level;
+
+  const session = db
+    .select()
+    .from(classSessions)
+    .where(eq(classSessions.id, args.sessionId))
+    .get();
+  if (!session) return { ok: false, code: "SESSION_NOT_FOUND" };
+
+  /* Just this class — or a one-off class with no slot behind it. */
+  if (!args.applyToUpcoming || !session.templateId) {
+    db.update(classSessions)
+      .set({ level })
+      .where(eq(classSessions.id, args.sessionId))
+      .run();
+    return { ok: true, level, upcoming: 1 };
+  }
+
+  const templateId = session.templateId;
+  const cutoff = studioStartOfDay(now);
+  return db.transaction((): SetLevelResult => {
+    db.update(classTemplates)
+      .set({ level })
+      .where(eq(classTemplates.id, templateId))
+      .run();
+    const res = db
+      .update(classSessions)
+      .set({ level })
+      .where(
+        and(
+          eq(classSessions.templateId, templateId),
+          gte(classSessions.startsAt, cutoff),
+        ),
+      )
+      .run();
+    return { ok: true, level, upcoming: res.changes };
+  });
 }

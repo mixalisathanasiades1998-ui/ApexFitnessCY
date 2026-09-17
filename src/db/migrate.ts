@@ -70,6 +70,10 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "seats", ddl: "integer default 1 not null" },
   ],
   class_types: [{ name: "kind", ddl: "text default 'GROUP' not null" }],
+  /* The class level, added after launch. Nullable, reads as ALL when absent, so
+     every existing class stays "All levels" until the desk says otherwise. */
+  class_templates: [{ name: "level", ddl: "text" }],
+  class_sessions: [{ name: "level", ddl: "text" }],
   bookings: [{ name: "guest_name", ddl: "text" }],
   notices: [
     { name: "channels", ddl: "text default '' not null" },
