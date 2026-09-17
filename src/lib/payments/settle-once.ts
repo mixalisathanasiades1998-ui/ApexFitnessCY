@@ -26,7 +26,13 @@ export async function settleForMember(
     .get();
 
   if (!purchase || purchase.userId !== userId) return { status: "NOT_FOUND" };
-  if (purchase.status !== "PENDING") return { status: purchase.status };
+  /* Already settled either way — nothing to check. A PENDING *or* FAILED
+     purchase is still worth asking the provider about: a card that failed once
+     and then succeeded on retry leaves the row FAILED, and the provider now
+     says PAID. See the note in fulfil.ts. */
+  if (purchase.status === "PAID" || purchase.status === "REFUNDED") {
+    return { status: purchase.status };
+  }
 
   let settlement;
   try {

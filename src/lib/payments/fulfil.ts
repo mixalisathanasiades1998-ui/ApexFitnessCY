@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { creditBatches, purchases } from "@/db/schema";
 import { grantCredits } from "@/lib/credits";
@@ -77,9 +77,19 @@ export async function fulfilPurchase(args: {
 
   db.transaction(() => {
     /* The guard, and the whole reason this is safe to call twice: the update
-       only matches a row that is *still* PENDING, and RETURNING tells us
+       only claims a row that has not been paid yet, and RETURNING tells us
        whether this call is the one that claimed it. A second caller matches
-       nothing and grants nothing. */
+       nothing and grants nothing.
+     *
+     * PENDING *or* FAILED, and the FAILED is the important half. A card that
+     * fails once and then succeeds on retry — a wrong number, or the bank's
+     * 3-D Secure step — produces a `payment_intent.payment_failed` that marks
+     * the purchase FAILED, and then a `payment_intent.succeeded` a second
+     * later. `succeeded` is the truth: the money was taken, so the sessions are
+     * owed, whatever an earlier attempt did. Without FAILED here that member
+     * paid and got nothing. It stays safe to call twice because PAID is
+     * excluded, so the first success still claims it and any later caller
+     * grants nothing. */
     const claimed = db
       .update(purchases)
       .set({
@@ -89,7 +99,10 @@ export async function fulfilPurchase(args: {
         amountCents: amountCents ?? purchase.amountCents,
       })
       .where(
-        and(eq(purchases.id, purchase.id), eq(purchases.status, "PENDING")),
+        and(
+          eq(purchases.id, purchase.id),
+          inArray(purchases.status, ["PENDING", "FAILED"]),
+        ),
       )
       .returning({ id: purchases.id })
       .all();
