@@ -18,7 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import { isClassLevel, type ClassLevel } from "@/lib/class-level";
-import { studioStartOfDay } from "@/lib/time";
+import { studioDateKey, studioEndOfDay, studioStartOfDay } from "@/lib/time";
 import { hashPassword, isVerified } from "@/lib/auth";
 import { deviceCount } from "@/lib/messaging/push";
 import { toE164 } from "@/lib/messaging/sms";
@@ -518,6 +518,166 @@ export async function sellSessions(args: {
   return {
     ok: true,
     credits: -taking,
+    balance: (await getCreditSummary(userId)).available,
+  };
+}
+
+/* ------------------------------------------------ extend a pack's expiry */
+
+export type ExtendExpiryResult =
+  | { ok: true; extended: number; balance: number }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "BAD_DATE"
+        | "NOTHING_TO_EXTEND"
+        | "NOT_LATER"
+        | "TOO_FAR";
+    };
+
+/**
+ * Push a member's pack expiry out, from the desk.
+ *
+ * The desk sometimes has to give a member more time: they were away, they were
+ * ill, the studio closed for a week, or it is simply goodwill. Before this the
+ * only lever was granting free sessions, which is a different thing — the member
+ * did not need more sessions, they needed more days on the ones they had.
+ *
+ * What it does, and just as important what it will not do:
+ *
+ *   - Extend only. The new date must be *later* than the pack's current expiry.
+ *     A date on or before it is refused rather than applied, so nobody can shave
+ *     days off validity a member has already paid for by fat-fingering a date.
+ *
+ *   - The class-usability window moves with the expiry, but only when it was
+ *     tracking it in the first place. A normal pack has `usableTo` equal to its
+ *     expiry, and both move together, so the extra days are days the member can
+ *     actually book classes in. A pack with a *narrower* window than its expiry
+ *     is a promotional one (the opening-week offer), and widening that window
+ *     would hand out dates the offer never included — so its window is left
+ *     exactly where it is.
+ *
+ *   - A sanity ceiling: two years past today. Not a policy, a guard against a
+ *     typo like 2206 turning a pack effectively immortal.
+ *
+ * Either one pack (`batchId`) or every live pack the member holds (`all`). Each
+ * change is written to the ledger as a zero-delta line — no sessions are added
+ * or removed, so the balance must not move — carrying who did it and the old and
+ * new dates, so the history explains itself later.
+ */
+export async function extendExpiry(args: {
+  userId: string;
+  /** One pack. Ignored when `all` is set. */
+  batchId?: string;
+  /** Every live pack this member holds. */
+  all?: boolean;
+  /** The target expiry, as a calendar date; rounded up to end of day Larnaca. */
+  newExpiry: Date;
+  staffId: string;
+  staffName: string;
+  note?: string;
+}): Promise<ExtendExpiryResult> {
+  const { userId, batchId, all, newExpiry, staffId, staffName, note } = args;
+
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return { ok: false, code: "NOT_FOUND" };
+
+  if (!(newExpiry instanceof Date) || Number.isNaN(newExpiry.getTime())) {
+    return { ok: false, code: "BAD_DATE" };
+  }
+
+  const now = new Date();
+  /* The date the desk means: the whole of that day in Larnaca, exactly as a
+     pack bought that day would expire, so an extended pack and a fresh one that
+     share a date share a minute too. */
+  const target = studioEndOfDay(newExpiry);
+
+  /* A typo, not a policy. Two years is far past any real pack. */
+  const ceiling = studioEndOfDay(
+    new Date(now.getTime() + 2 * 365 * 24 * 60 * 60 * 1000),
+  );
+  if (target.getTime() > ceiling.getTime()) {
+    return { ok: false, code: "TOO_FAR" };
+  }
+
+  /* The live packs that carry an expiry. A pack with no expiry never dies, so
+     there is nothing to extend; a pack already lapsed is not shown to the desk
+     and is not reached here. Selected fresh inside the call rather than trusted
+     from the caller — this is the function that moves the dates. */
+  const live = db
+    .select()
+    .from(creditBatches)
+    .where(
+      and(
+        eq(creditBatches.userId, userId),
+        gt(creditBatches.creditsRemaining, 0),
+        gt(creditBatches.expiresAt, now),
+      ),
+    )
+    .all();
+
+  const targets = all
+    ? live
+    : live.filter((b) => b.id === batchId);
+
+  if (targets.length === 0) return { ok: false, code: "NOTHING_TO_EXTEND" };
+
+  /* Extend only. Every chosen pack must actually be moving forward; if not one
+     of them is, the desk is told rather than shown a silent no-op.
+   *
+   * Compared at second precision, not millisecond. The column stores whole
+     seconds, but `studioEndOfDay` hands back x:59:59.999, so a naive comparison
+     would read the same end-of-day as 999ms *later* than the stored value and
+     "extend" a pack to the day it already ends on — a redundant write and a
+     phantom audit line on every repeat click. Flooring both to seconds makes
+     re-extending to the same day the no-op it should be, while still allowing a
+     genuine same-day nudge on a legacy pack whose expiry is not at end of day. */
+  const targetSec = Math.floor(target.getTime() / 1000);
+  const movable = targets.filter(
+    (b) =>
+      b.expiresAt !== null &&
+      targetSec > Math.floor(b.expiresAt.getTime() / 1000),
+  );
+  if (movable.length === 0) return { ok: false, code: "NOT_LATER" };
+
+  const who = note?.trim() ? `${note.trim()}, ${staffName}` : staffName;
+
+  db.transaction(() => {
+    for (const b of movable) {
+      const from = b.expiresAt ? studioDateKey(b.expiresAt) : "none";
+      /* Move the window with the expiry only when it was following it. A promo
+         window (narrower than the expiry) is left untouched. */
+      const windowFollowsExpiry =
+        b.usableTo !== null &&
+        b.expiresAt !== null &&
+        b.usableTo.getTime() === b.expiresAt.getTime();
+
+      db.update(creditBatches)
+        .set({
+          expiresAt: target,
+          ...(windowFollowsExpiry ? { usableTo: target } : {}),
+        })
+        .where(eq(creditBatches.id, b.id))
+        .run();
+
+      db.insert(creditLedger)
+        .values({
+          userId,
+          /* No session added or taken; only the clock moved. The balance must
+             not shift, so the delta is zero and the note carries the meaning. */
+          delta: 0,
+          reason: "ADMIN_EXTEND",
+          note: `Expiry ${from} to ${studioDateKey(target)}, ${who}`,
+          batchId: b.id,
+        })
+        .run();
+    }
+  });
+
+  return {
+    ok: true,
+    extended: movable.length,
     balance: (await getCreditSummary(userId)).available,
   };
 }

@@ -223,7 +223,7 @@ export const en = {
         },
         {
           q: "Do sessions expire?",
-          a: "Each pack carries a validity window, shown on the pack before you buy, and your account always shows the exact expiry date of every session you hold. They last until the end of that day, not until the hour you bought them.\n\nThe window covers the class as well as the booking: a 30-day pack books classes in those 30 days, not classes in three months' time. That is what makes 30 days mean 30 days of training rather than 30 days of shopping.",
+          a: "Each pack carries a validity window, shown on the pack before you buy, and your account always shows the exact expiry date of every session you hold. They last until the end of that day, not until the hour you bought them.\n\nThe window covers the class as well as the booking: a 30-day pack books classes in those 30 days, not classes in three months' time. That is what makes 30 days mean 30 days of training rather than 30 days of shopping.\n\nBuying your next pack early never shortens it: while a pack is still running, the new one starts counting from the day after the current one ends, and its sessions are available to book straight away.",
         },
         {
           q: "What is the cancellation policy?",
@@ -505,6 +505,21 @@ export const en = {
     methodAdjust: "Adjustment, no payment",
     sellNote: "Note for the ledger",
     sellDo: "Record it",
+    packsTitle: "Packs and expiry",
+    packsHelp:
+      "Push a pack's expiry out when a member was away or ill, or as goodwill. It only ever moves the date later, never earlier, and adds no sessions. Every change is written to the ledger.",
+    packsExpires: "expires",
+    packsNever: "does not expire",
+    packsLeft: "{n} left",
+    packsExtendTo: "New expiry",
+    packsExtend: "Extend",
+    packsExtendAll: "Extend all packs to this date",
+    packsExtendAllDo: "Extend all",
+    packsExtended: "{name}: {n} pack(s) extended",
+    errExtendNotLater: "That date is not later than the current expiry.",
+    errExtendNothing: "No live pack to extend.",
+    errExtendTooFar: "That date is too far ahead.",
+    errExtendBadDate: "That is not a valid date.",
     contact: "Contact details",
     contactHelp:
       "The member cannot change these themselves. Their email is also how they sign in.",
@@ -1521,7 +1536,7 @@ export const el: typeof en = {
         },
         {
           q: "Λήγουν οι συνεδρίες;",
-          a: "Κάθε πακέτο έχει διάρκεια ισχύος, που φαίνεται πριν την αγορά, και ο λογαριασμός σου δείχνει πάντα την ακριβή ημερομηνία λήξης για κάθε συνεδρία που έχεις. Ισχύουν μέχρι το τέλος εκείνης της ημέρας, όχι μέχρι την ώρα που τις αγόρασες.\n\nΗ διάρκεια καλύπτει και το μάθημα, όχι μόνο την κράτηση: ένα πακέτο 30 ημερών κλείνει μαθήματα μέσα σε αυτές τις 30 ημέρες, όχι μαθήματα σε τρεις μήνες. Αυτό κάνει τις 30 ημέρες να σημαίνουν 30 ημέρες προπόνησης και όχι 30 ημέρες αγορών.",
+          a: "Κάθε πακέτο έχει διάρκεια ισχύος, που φαίνεται πριν την αγορά, και ο λογαριασμός σου δείχνει πάντα την ακριβή ημερομηνία λήξης για κάθε συνεδρία που έχεις. Ισχύουν μέχρι το τέλος εκείνης της ημέρας, όχι μέχρι την ώρα που τις αγόρασες.\n\nΗ διάρκεια καλύπτει και το μάθημα, όχι μόνο την κράτηση: ένα πακέτο 30 ημερών κλείνει μαθήματα μέσα σε αυτές τις 30 ημέρες, όχι μαθήματα σε τρεις μήνες. Αυτό κάνει τις 30 ημέρες να σημαίνουν 30 ημέρες προπόνησης και όχι 30 ημέρες αγορών.\n\nΗ αγορά του επόμενου πακέτου νωρίς δεν το μειώνει ποτέ: όσο ένα πακέτο είναι σε ισχύ, το νέο αρχίζει να μετράει από την επόμενη μέρα μετά τη λήξη του τρέχοντος, και οι συνεδρίες του είναι διαθέσιμες για κράτηση αμέσως.",
         },
         {
           q: "Ποια είναι η πολιτική ακυρώσεων;",
@@ -1790,6 +1805,21 @@ export const el: typeof en = {
     methodAdjust: "Διόρθωση, χωρίς πληρωμή",
     sellNote: "Σημείωση",
     sellDo: "Καταγραφή",
+    packsTitle: "Πακέτα και λήξη",
+    packsHelp:
+      "Παράτεινε τη λήξη ενός πακέτου όταν το μέλος έλειπε ή ήταν άρρωστο, ή ως καλή θέληση. Μετακινεί την ημερομηνία μόνο πιο μπροστά, ποτέ πιο πίσω, και δεν προσθέτει συνεδρίες. Κάθε αλλαγή καταγράφεται.",
+    packsExpires: "λήγει",
+    packsNever: "δεν λήγει",
+    packsLeft: "{n} απομένουν",
+    packsExtendTo: "Νέα λήξη",
+    packsExtend: "Παράταση",
+    packsExtendAll: "Παράταση όλων των πακέτων σε αυτή την ημερομηνία",
+    packsExtendAllDo: "Παράταση όλων",
+    packsExtended: "{name}: παρατάθηκαν {n} πακέτο(α)",
+    errExtendNotLater: "Η ημερομηνία δεν είναι μεταγενέστερη της τρέχουσας λήξης.",
+    errExtendNothing: "Δεν υπάρχει ενεργό πακέτο για παράταση.",
+    errExtendTooFar: "Η ημερομηνία είναι πολύ μακριά.",
+    errExtendBadDate: "Μη έγκυρη ημερομηνία.",
     contact: "Στοιχεία επικοινωνίας",
     contactHelp:
       "Το μέλος δεν μπορεί να τα αλλάξει μόνο του. Το email είναι και ο τρόπος σύνδεσης.",

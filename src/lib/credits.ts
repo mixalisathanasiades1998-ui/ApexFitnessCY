@@ -590,14 +590,71 @@ export function grantCredits(args: {
    * true, and hands the member the rest of their last day. An explicit
    * `expiresAt` is left alone: the promo passes a real date and means it.
    */
-  const expiresAt =
-    args.expiresAt !== undefined
-      ? args.expiresAt
-      : validityDays && validityDays > 0
-        ? studioEndOfDay(
-            new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000),
-          )
-        : null;
+  /**
+   * A new pack starts the day after the current one ends, not the day it is
+   * bought.
+   *
+   * The bug this fixes: validity used to count from the moment of purchase, even
+   * when a pack was already running. A member on a 30-day, 4-session pack (one
+   * class a week) who buys next month's pack a week early lost that week — the
+   * second pack's clock started immediately and ran out while the first was
+   * still being used, so its last sessions fell past its own expiry and could
+   * not be booked. Three weeks of a four-week pack, wasted, every renewal.
+   *
+   * So when this is a PURCHASE with a validity and no explicit expiry, we look
+   * at the member's own live paid packs of the *same kind* and, if one is still
+   * running, count the new pack's days from the day after the latest one ends
+   * rather than from today. The member can buy early and every session is
+   * usable at once.
+   *
+   * The anchor is the latest expiry among their live paid packs, whatever is
+   * left on them — a pack with every session already booked is still their
+   * current pack until it ends. Only same-kind PURCHASE packs chain: class with
+   * class, personal or duet with their own. A desk goodwill grant (GRANT) or a
+   * promo never moves a pack and is never an anchor, and an expired pack is
+   * ignored — so after a gap a new pack counts from today exactly as before.
+   *
+   * `Date.now()` is the one clock, so a test can move it.
+   */
+  const nowMs = Date.now();
+  let chainAnchor: Date | null = null;
+  let expiresAt: Date | null;
+  if (args.expiresAt !== undefined) {
+    /* An explicit expiry is a date the caller means — the joining promo passes
+       one. Never chained, never moved. */
+    expiresAt = args.expiresAt;
+  } else if (validityDays && validityDays > 0) {
+    let anchorMs = nowMs;
+    if (source === "PURCHASE") {
+      /* Live paid packs of this same kind. The date test excludes an expired
+         pack, and a NULL expiry fails it too, so only a genuinely running pack
+         can move the anchor. `creditsRemaining` is deliberately not filtered. */
+      const live = db
+        .select({ e: creditBatches.expiresAt })
+        .from(creditBatches)
+        .where(
+          and(
+            eq(creditBatches.userId, userId),
+            eq(creditBatches.source, "PURCHASE"),
+            eq(creditBatches.kind, args.kind ?? "CLASS"),
+            gt(creditBatches.expiresAt, new Date(nowMs)),
+          ),
+        )
+        .all();
+      for (const row of live) {
+        if (row.e && row.e.getTime() > anchorMs) anchorMs = row.e.getTime();
+      }
+      if (anchorMs > nowMs) chainAnchor = new Date(anchorMs);
+    }
+    /* Rounded up to the end of the last day in Larnaca, exactly as an
+       unchained pack is, so the date on the member's account is true to the
+       minute and two members who bought together share an expiry. */
+    expiresAt = studioEndOfDay(
+      new Date(anchorMs + validityDays * 24 * 60 * 60 * 1000),
+    );
+  } else {
+    expiresAt = null;
+  }
 
   /**
    * And the class has to fall inside the window too, not just the booking.
@@ -637,12 +694,22 @@ export function grantCredits(args: {
     .returning()
     .get();
 
+  /* When the pack was queued behind a running one, say so on the ledger line so
+     the desk can see why the expiry is what it is rather than a month from
+     today. */
+  const finalNote =
+    chainAnchor && expiresAt
+      ? `${note ? `${note} — ` : ""}Starts after the current pack (${studioDateKey(
+          chainAnchor,
+        )}), sessions expire ${studioDateKey(expiresAt)}`
+      : note;
+
   db.insert(creditLedger)
     .values({
       userId,
       delta: credits,
       reason,
-      note,
+      note: finalNote,
       batchId: batch.id,
       purchaseId,
     })

@@ -12,6 +12,17 @@ What is finished, what is placeholder, and what to decide next.
   signed httpOnly cookie.
 - **Credit packs** — five packs seeded, including the €200 / 10-class pack.
   Card payment through Stripe Checkout; credits granted by webhook only.
+- **Pack expiry chains onto a running pack** — when a member buys a pack of the
+  same kind while one is still live, the new pack's validity counts from the day
+  *after* the current one ends, not from the day of purchase, and all its
+  sessions are usable immediately. So renewing early never wastes the overlap.
+  Only same-kind purchases chain (class with class, personal/duet with their
+  own); a desk grant or a promo never moves a pack and is never an anchor; and
+  after a gap (no live pack) a new pack counts from purchase day as before. The
+  anchor is the latest expiry among live paid packs regardless of sessions left.
+  Lives in `grantCredits` (`src/lib/credits.ts`); the queued expiry is written
+  onto the ledger line so the desk can see why. Covered by
+  `npm run test:pack-expiry`.
 - **Booking** — live timetable, 14 days ahead, real-time capacity, book for one
   credit, cancel with automatic refund inside 12 hours of the class.
 - **Member dashboard** — credit balance with exact expiry dates, upcoming
@@ -19,6 +30,18 @@ What is finished, what is placeholder, and what to decide next.
 - **Studio admin** — today's classes with the roster, attendance marking,
   member list with credits/classes/spend, manual credit grants and deductions,
   and schedule generation from the weekly templates.
+- **Extend a pack's expiry from the desk** — on a member's card, a "Packs and
+  expiry" panel lists their live packs; the desk can push one pack's expiry to a
+  new date (date picker plus +7 / +30 buttons) or extend all live packs at once.
+  Open to instructors (STAFF) and owners (ADMIN), the same gate as selling. It
+  is extend-only (never shortens paid validity), adds no sessions (balance is
+  unchanged), moves the class-usability window with the expiry on normal packs
+  while leaving a promo window alone, and caps at two years to catch a typo.
+  Every change is a zero-delta audit line on the ledger (who, old to new date).
+  Backend `extendExpiry` (`src/lib/reception.ts`), route
+  `/api/admin/session/extend`, covered by `npm run test:extend-expiry`. Note:
+  only *live* packs are extendable for now; reviving an already-expired pack is a
+  possible follow-up.
 - **Tests** — 21 business-rule checks and 44 HTTP checks, all passing;
   TypeScript clean; production build clean.
 

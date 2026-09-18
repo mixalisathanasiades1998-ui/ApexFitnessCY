@@ -65,6 +65,16 @@ type Detail = {
   notes: string | null;
   intakeAt: string | null;
   upcoming: { id: string; startsAt: string; className: string }[];
+  /** Live packs the member holds. Dates arrive as ISO strings over JSON. */
+  batches: {
+    id: string;
+    creditsRemaining: number;
+    creditsTotal: number;
+    expiresAt: string | null;
+    source: string;
+    kind: string;
+    usableTo: string | null;
+  }[];
   payments: {
     id: string;
     credits: number;
@@ -81,6 +91,25 @@ type Detail = {
     createdAt: string;
   }[];
 };
+
+/**
+ * A pack's expiry as a date-input value, "YYYY-MM-DD".
+ *
+ * The stored expiry is the end of the day in Larnaca, whose UTC instant still
+ * falls on that same calendar day, so the first ten characters of the ISO string
+ * are the right date without pulling a timezone library into the browser.
+ */
+function toDateInput(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
+/** Add whole days to a "YYYY-MM-DD" value, staying in UTC so no day is skipped
+ *  or repeated across a daylight-saving change. */
+function addDaysStr(dateStr: string, n: number): string {
+  const base = dateStr || new Date().toISOString().slice(0, 10);
+  const ms = new Date(`${base}T00:00:00Z`).getTime() + n * 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
 export function MemberDesk({
   onNotice,
@@ -120,6 +149,12 @@ export function MemberDesk({
   const [sellKind, setSellKind] = useState<"CLASS" | "PERSONAL" | "DUET">(
     "CLASS",
   );
+
+  /* Extend-expiry form. Per-pack target dates keyed by batch id, plus one date
+     for "extend all". Empty until the desk touches a field, at which point the
+     input falls back to the pack's own current expiry. */
+  const [extendDates, setExtendDates] = useState<Record<string, string>>({});
+  const [extendAllDate, setExtendAllDate] = useState("");
 
   /* Contact form */
   const [email, setEmail] = useState("");
@@ -238,6 +273,10 @@ export function MemberDesk({
           ALREADY_ERASED: d.eraseAlready,
           DESK_ACCOUNT: d.eraseDeskAccount,
           CONFIRM_MISMATCH: d.eraseMismatch,
+          NOT_LATER: d.errExtendNotLater,
+          NOTHING_TO_EXTEND: d.errExtendNothing,
+          TOO_FAR: d.errExtendTooFar,
+          BAD_DATE: d.errExtendBadDate,
         };
         const code = String(data.error ?? "");
         onNotice(known[code] ?? code ?? t.common.somethingWrong);
@@ -560,6 +599,171 @@ export function MemberDesk({
             >
               {busy === "sell" ? t.common.loading : d.sellDo}
             </Button>
+          </Panel>
+
+          {/* packs and expiry */}
+          <Panel title={d.packsTitle} help={d.packsHelp} mark="packs">
+            {member.batches.length === 0 ? (
+              <p className="text-[13px] text-clay">{d.balance}: 0</p>
+            ) : (
+              <ul className="space-y-4">
+                {member.batches.map((b) => {
+                  const kindLabel =
+                    b.kind === "PERSONAL"
+                      ? d.sellKindPersonal
+                      : b.kind === "DUET"
+                        ? d.sellKindDuet
+                        : d.sellKindClass;
+                  const canExtend = Boolean(b.expiresAt);
+                  const value = extendDates[b.id] ?? toDateInput(b.expiresAt);
+                  return (
+                    <li
+                      key={b.id}
+                      className="rounded-2xl border border-mocha-200 px-4 py-3"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <span className="text-[13px] text-mocha-700">
+                          <span className="uppercase tracking-widest text-[11px] text-clay">
+                            {kindLabel}
+                          </span>
+                          {"  "}
+                          <span className="lining-nums tabular-nums">
+                            {d.packsLeft.replace("{n}", String(b.creditsRemaining))}
+                          </span>
+                        </span>
+                        <span className="text-[12px] text-clay">
+                          {canExtend
+                            ? `${d.packsExpires} ${fmtShortDate(b.expiresAt!)}`
+                            : d.packsNever}
+                        </span>
+                      </div>
+
+                      {canExtend && (
+                        <div className="mt-3 flex flex-wrap items-end gap-2">
+                          <Field label={d.packsExtendTo}>
+                            <input
+                              type="date"
+                              value={value}
+                              min={toDateInput(b.expiresAt)}
+                              onChange={(e) =>
+                                setExtendDates((s) => ({
+                                  ...s,
+                                  [b.id]: e.target.value,
+                                }))
+                              }
+                              className="input lining-nums tabular-nums"
+                            />
+                          </Field>
+                          {([7, 30] as const).map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() =>
+                                setExtendDates((s) => ({
+                                  ...s,
+                                  [b.id]: addDaysStr(
+                                    s[b.id] ?? toDateInput(b.expiresAt),
+                                    n,
+                                  ),
+                                }))
+                              }
+                              className="rounded-full border border-mocha-300 px-3 py-2 text-[11px] uppercase tracking-widest text-mocha-500 transition-colors hover:border-mocha-500"
+                            >
+                              +{n}
+                            </button>
+                          ))}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy === `extend:${b.id}` || !value}
+                            onClick={async () => {
+                              const res = await post(
+                                "/api/admin/session/extend",
+                                {
+                                  userId: member.id,
+                                  batchId: b.id,
+                                  newExpiry: value,
+                                },
+                                `extend:${b.id}`,
+                              );
+                              if (res) {
+                                onNotice(
+                                  d.packsExtended
+                                    .replace("{name}", member.name)
+                                    .replace(
+                                      "{n}",
+                                      String(res.extended as number),
+                                    ),
+                                );
+                              }
+                            }}
+                          >
+                            {busy === `extend:${b.id}`
+                              ? t.common.loading
+                              : d.packsExtend}
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {member.batches.filter((b) => b.expiresAt).length >= 2 && (
+              <div className="mt-5 border-t border-mocha-200 pt-4">
+                <Field label={d.packsExtendAll}>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <input
+                      type="date"
+                      value={extendAllDate}
+                      onChange={(e) => setExtendAllDate(e.target.value)}
+                      className="input lining-nums tabular-nums"
+                    />
+                    {([7, 30] as const).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() =>
+                          setExtendAllDate((v) => addDaysStr(v, n))
+                        }
+                        className="rounded-full border border-mocha-300 px-3 py-2 text-[11px] uppercase tracking-widest text-mocha-500 transition-colors hover:border-mocha-500"
+                      >
+                        +{n}
+                      </button>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === "extend:all" || !extendAllDate}
+                      onClick={async () => {
+                        const res = await post(
+                          "/api/admin/session/extend",
+                          {
+                            userId: member.id,
+                            all: true,
+                            newExpiry: extendAllDate,
+                          },
+                          "extend:all",
+                        );
+                        if (res) {
+                          onNotice(
+                            d.packsExtended
+                              .replace("{name}", member.name)
+                              .replace("{n}", String(res.extended as number)),
+                          );
+                          setExtendAllDate("");
+                        }
+                      }}
+                    >
+                      {busy === "extend:all"
+                        ? t.common.loading
+                        : d.packsExtendAllDo}
+                    </Button>
+                  </div>
+                </Field>
+              </div>
+            )}
           </Panel>
 
           {/* their classes */}
