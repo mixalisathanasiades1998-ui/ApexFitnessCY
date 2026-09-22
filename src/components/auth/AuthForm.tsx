@@ -374,6 +374,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               {isLogin ? t.auth.signUp : t.auth.signIn}
             </Link>
           </p>
+
+          {/* Only on the sign-in form: somebody registering has no password to
+              have forgotten yet. */}
+          {isLogin && (
+            <p className="mt-3 text-center text-[12px] text-mocha-500">
+              <Link href="/forgot" className="link-underline text-mocha-600">
+                {t.auth.forgotLink}
+              </Link>
+            </p>
+          )}
         </form>
       </div>
 

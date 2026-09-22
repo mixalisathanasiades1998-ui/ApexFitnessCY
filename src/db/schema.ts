@@ -229,6 +229,38 @@ export const emailVerifications = sqliteTable(
 );
 
 /**
+ * A pending password reset: a link emailed to somebody who cannot sign in.
+ *
+ * Unlike email verification, which is a six-digit code typed in the window the
+ * member is already in, a reset is a link — the person is locked out and may be
+ * reading their mail on a different device entirely, so the credential travels
+ * to them and carries its own identity. The token is never stored; only its
+ * HMAC is, keyed with AUTH_SECRET, so the database on its own is not a list of
+ * live reset links. One row per user (the newest request replaces the last),
+ * single-use via `usedAt`, and short-lived. See lib/password-reset.ts.
+ */
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** HMAC of the token, keyed with AUTH_SECRET. Never the token. */
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    /** Set the moment the link is spent, so it cannot be used twice. */
+    usedAt: integer("used_at", { mode: "timestamp" }),
+    /** Links sent inside the current window, for the hourly send limit. */
+    sends: integer("sends").notNull().default(1),
+    windowStartedAt: integer("window_started_at", { mode: "timestamp" }).notNull(),
+    sentAt: integer("sent_at", { mode: "timestamp" }).notNull(),
+    createdAt: now().notNull(),
+  },
+  (t) => [uniqueIndex("password_resets_user_idx").on(t.userId)],
+);
+
+/**
  * Profile photographs, kept out of the users row and out of the filesystem.
  *
  * A separate table because a blob on `users` would be read on every session

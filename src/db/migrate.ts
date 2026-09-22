@@ -202,12 +202,31 @@ const TABLES: { name: string; ddl: string }[] = [
             created_at integer not null
           )`,
   },
+  {
+    name: "password_resets",
+    ddl: `create table password_resets (
+            id text primary key not null,
+            user_id text not null
+              references users(id) on delete cascade,
+            token_hash text not null,
+            expires_at integer not null,
+            used_at integer,
+            sends integer default 1 not null,
+            window_started_at integer not null,
+            sent_at integer not null,
+            created_at integer not null
+          )`,
+  },
 ];
 
 const INDEXES: { name: string; ddl: string }[] = [
   {
     name: "email_verifications_user_idx",
     ddl: "create unique index email_verifications_user_idx on email_verifications (user_id)",
+  },
+  {
+    name: "password_resets_user_idx",
+    ddl: "create unique index password_resets_user_idx on password_resets (user_id)",
   },
   {
     /* One invoice number, once. The sequence is handed out by reading the

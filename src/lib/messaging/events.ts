@@ -46,6 +46,7 @@ import {
   grantedWords,
   studioGrantedWords,
   say,
+  resetWords,
   verifySentWords,
   verifyWords,
   whenWords,
@@ -1004,6 +1005,25 @@ export async function sendVerificationCode(
   }
 
   return res;
+}
+
+/**
+ * The reset link, emailed and nothing else.
+ *
+ * Email only, and deliberately so, for the same reasons as the verification
+ * code: it ignores `notifyEmail` because a link asked for by somebody locked out
+ * is not marketing they can have turned off, and it writes nothing into the
+ * member's account, because a working reset link filed in an inbox the account
+ * owns is a credential sitting next to the door it opens. There is no push and
+ * no SMS: the person cannot sign in, so the account's notification settings are
+ * beside the point, and the address is the one channel we are trying to prove.
+ */
+export async function sendPasswordReset(
+  to: string,
+  link: string,
+  minutes: number,
+) {
+  return emailTransport().send(to, forEmail(resetWords({ link, minutes })));
 }
 
 /**

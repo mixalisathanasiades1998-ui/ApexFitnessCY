@@ -40,6 +40,7 @@
     "test:personal": "tsx scripts/test-personal.ts",
     "test:pack-expiry": "tsx scripts/test-pack-expiry.ts",
     "test:extend-expiry": "tsx scripts/test-extend-expiry.ts",
+    "test:password-reset": "tsx scripts/test-password-reset.ts",
     "test:account": "tsx scripts/test-account.ts",
     "manual": "node scripts/manual.mjs",
     "social": "tsx scripts/social.ts",

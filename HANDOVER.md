@@ -10,6 +10,17 @@ What is finished, what is placeholder, and what to decide next.
   language).
 - **Accounts** — register, sign in, sign out. Passwords hashed, sessions in a
   signed httpOnly cookie.
+- **Forgot password** — a "Forgot your password?" link on the sign-in page leads
+  to `/forgot`, where the member enters their email and is emailed a one-time
+  link to `/reset?token=...`. The reset page takes a new password plus a confirm
+  box, each with a show/hide eye. The link is a 32-byte token stored only as an
+  HMAC (keyed with AUTH_SECRET), lives 60 minutes, and is single-use. The request
+  side never reveals whether an address is registered and is rate-limited per IP;
+  requests to one address are capped hourly. New table `password_resets` (created
+  additively by `ensureSchema` on boot). Lives in `src/lib/password-reset.ts`,
+  routes `/api/auth/reset/request` and `/api/auth/reset`; covered by
+  `npm run test:password-reset`. Needs a working email provider configured
+  (same transport as the verification code and receipts).
 - **Credit packs** — five packs seeded, including the €200 / 10-class pack.
   Card payment through Stripe Checkout; credits granted by webhook only.
 - **Pack expiry chains onto a running pack** — when a member buys a pack of the

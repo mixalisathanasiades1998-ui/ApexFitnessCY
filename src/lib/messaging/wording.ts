@@ -754,6 +754,41 @@ export function verifySentWords(a: { minutes: number }): Bilingual {
   };
 }
 
+/**
+ * The reset link, emailed.
+ *
+ * The whole absolute link goes in the body: unlike a verification code, this is
+ * meant to be clicked, and the person reading it cannot sign in to reach the
+ * page any other way. It says plainly that ignoring the mail leaves the password
+ * untouched, because the one alarming thing a reset email can be is one you did
+ * not ask for.
+ */
+export function resetWords(a: { link: string; minutes: number }): Bilingual {
+  return {
+    en: {
+      subject: "Reset your APEX pilates password",
+      body:
+        `Somebody asked to reset the password on the APEX pilates account for ` +
+        `this email address. If it was you, open this link to choose a new ` +
+        `password:\n\n${a.link}\n\n` +
+        `The link works for ${a.minutes} minutes and can be used once.\n\n` +
+        `If it was not you, ignore this email. Your password stays exactly as ` +
+        `it is, and nothing changes.`,
+    },
+    el: {
+      subject: "Επαναφορά του κωδικού σας στο APEX pilates",
+      body:
+        `Κάποιος ζήτησε επαναφορά του κωδικού για τον λογαριασμό APEX pilates ` +
+        `με αυτή τη διεύθυνση email. Αν ήσασταν εσείς, ανοίξτε αυτόν τον ` +
+        `σύνδεσμο για να επιλέξετε νέο κωδικό:\n\n${a.link}\n\n` +
+        `Ο σύνδεσμος ισχύει για ${a.minutes} λεπτά και χρησιμοποιείται μία ` +
+        `φορά.\n\n` +
+        `Αν δεν ήσασταν εσείς, αγνοήστε αυτό το email. Ο κωδικός σας μένει ` +
+        `ακριβώς όπως είναι και δεν αλλάζει τίποτε.`,
+    },
+  };
+}
+
 export function verifyWords(a: { code: string; minutes: number }): Bilingual {
   return {
     en: {
