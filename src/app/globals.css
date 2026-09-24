@@ -148,6 +148,10 @@
     -webkit-mask-image: url("/brand/facebook.svg");
     mask-image: url("/brand/facebook.svg");
   }
+  .social-icon-tiktok {
+    -webkit-mask-image: url("/brand/tiktok.svg");
+    mask-image: url("/brand/tiktok.svg");
+  }
 
   /* ---- slow drift on hero imagery ---- */
   .kenburns {

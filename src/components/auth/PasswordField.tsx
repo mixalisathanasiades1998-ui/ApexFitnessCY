@@ -1,37 +1,46 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/i18n/LanguageProvider";
 
 /**
  * A password box with an eye to reveal what was typed.
  *
  * A hidden password is the safe default — somebody may be at the studio counter
- * with people behind them — but typing a new one you cannot see, twice, and
- * getting told they do not match is a small misery the eye removes. Off by
- * default, theirs to turn on.
+ * with people behind them — but typing a new one you cannot see, and confirming
+ * it, only to be told the two do not match is a small misery the eye removes.
+ * Off by default, theirs to turn on, and each field has its own toggle.
  *
- * Controlled: the reset form has to compare two of these, so the value lives in
- * the parent and this only draws it.
+ * Works both ways. Pass `value`/`onChange` and it is controlled, for a form
+ * that has to compare two boxes (the reset page, the password tab). Leave them
+ * off and it is a plain named field the surrounding form reads from FormData
+ * (sign in, register). The toggle's words come from the dictionary, so no caller
+ * has to pass them.
  */
 export function PasswordField({
   id,
+  name,
   label,
+  autoComplete = "new-password",
+  minLength,
+  hint,
   value,
   onChange,
-  autoComplete = "new-password",
-  show,
-  hide,
 }: {
   id: string;
+  name?: string;
   label: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoComplete?: string;
-  /** Accessible labels for the toggle, in the reader's language. */
-  show: string;
-  hide: string;
+  autoComplete?: "current-password" | "new-password";
+  minLength?: number;
+  hint?: string;
+  value?: string;
+  onChange?: (v: string) => void;
 }) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
+  const controlled = value !== undefined;
+  const toggleLabel = visible ? t.auth.hidePassword : t.auth.showPassword;
+
   return (
     <div>
       <label className="label" htmlFor={id}>
@@ -40,18 +49,21 @@ export function PasswordField({
       <div className="relative">
         <input
           id={id}
-          name={id}
+          name={name ?? id}
           type={visible ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
+          minLength={minLength}
           required
           className="input pr-12"
+          {...(controlled
+            ? { value, onChange: (e) => onChange?.(e.target.value) }
+            : {})}
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? hide : show}
+          aria-label={toggleLabel}
+          title={toggleLabel}
           aria-pressed={visible}
           className="absolute inset-y-0 right-0 flex items-center px-4 text-clay transition-colors hover:text-mocha-600"
         >
@@ -91,6 +103,7 @@ export function PasswordField({
           )}
         </button>
       </div>
+      {hint && <p className="mt-2 text-[11px] text-clay">{hint}</p>}
     </div>
   );
 }

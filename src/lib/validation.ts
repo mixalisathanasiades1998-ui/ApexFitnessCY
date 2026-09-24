@@ -143,6 +143,8 @@ export const checkoutSchema = z
   .object({
     packageId: z.string().min(1).optional(),
     packSlug: z.string().min(1).optional(),
+    /** An optional discount code, checked and priced on the server. */
+    code: z.string().trim().min(1).max(40).optional(),
   })
   .refine((v) => Boolean(v.packageId || v.packSlug), {
     message: "packageId or packSlug is required",

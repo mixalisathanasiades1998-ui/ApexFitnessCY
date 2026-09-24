@@ -14,6 +14,7 @@ export const DESK_TABS = [
   "timetable",
   "notices",
   "pricing",
+  "team",
   "analytics",
   "logistics",
 ] as const;

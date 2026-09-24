@@ -35,6 +35,8 @@ export const STUDIO = {
   instagram: "https://www.instagram.com/pilatesbyapex/",
   instagramHandle: "@pilatesbyapex",
   facebook: "https://www.facebook.com/profile.php?id=61593707540014",
+  tiktok: "https://www.tiktok.com/@apexpilates",
+  tiktokHandle: "@apexpilates",
   /** Paste the studio's Google Maps embed URL to switch the contact map on */
   mapsEmbedUrl: "",
   /* The plain query form of the studio's Maps pin. The link copied out of the

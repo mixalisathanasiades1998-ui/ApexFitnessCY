@@ -80,45 +80,46 @@ export function reconcileRoster(): Map<string, string> {
 
   sqlite.transaction(() => {
     const findByName = sqlite.prepare(
-      "select id, bio_en, bio_el from instructors where name = ? limit 1",
+      "select id, edited_at from instructors where name = ? limit 1",
     );
     const insert = sqlite.prepare(
       `insert into instructors (id, name, bio_en, bio_el, photo_url, active, sort_order)
        values (?, ?, ?, ?, ?, 1, ?)`,
     );
-    /* Bios are written every time, not only when blank: the roster is where
-       they are edited, so a change here has to reach a database that already
-       has the old text. There is no desk screen that edits a bio, so there is
-       nothing of the studio's own to preserve by leaving it alone. */
+    /* The roster refreshes bio and photo only on a row the desk has not touched.
+       Once the Team tab edits an instructor it stamps edited_at, and from then
+       on this leaves that row's words and picture exactly as the studio set
+       them. See lib/team.ts. */
     const update = sqlite.prepare(
       `update instructors
-          set photo_url = ?, sort_order = ?, active = 1, bio_en = ?, bio_el = ?
-        where id = ?`,
+          set photo_url = ?, sort_order = ?, bio_en = ?, bio_el = ?
+        where id = ? and edited_at is null`,
     );
 
     for (const m of INSTRUCTOR_ROSTER) {
-      const row = findByName.get(m.name) as { id: string } | undefined;
-      if (row) {
-        update.run(m.photoUrl, m.sortOrder, m.bioEn, m.bioEl, row.id);
-        map.set(m.name, row.id);
-      } else {
+      const row = findByName.get(m.name) as
+        | { id: string; edited_at: number | null }
+        | undefined;
+      if (!row) {
+        /* A roster name missing from the table is inserted; anyone already
+           there is left in place. */
         const id = crypto.randomUUID();
         insert.run(id, m.name, m.bioEn, m.bioEl, m.photoUrl, m.sortOrder);
-        map.set(m.name, id);
+      } else if (row.edited_at == null) {
+        update.run(m.photoUrl, m.sortOrder, m.bioEn, m.bioEl, row.id);
       }
     }
 
-    /* Everyone not on the roster is switched off. Placeholders from an earlier
-       seed, an instructor who has left — both stop appearing without their
-       past classes losing the name attached to them. */
-    const names = INSTRUCTOR_ROSTER.map((m) => m.name);
-    const placeholders = names.map(() => "?").join(", ");
-    sqlite
-      .prepare(
-        `update instructors set active = 0
-          where active = 1 and name not in (${placeholders})`,
-      )
-      .run(...names);
+    /* Nobody is ever deactivated here. Hiding an instructor is the Team tab's
+       job now, so a name leaving the code roster does not remove them from the
+       page — the desk decides that. */
+
+    /* The map every caller wants: name → id for every active instructor, the
+       desk's own additions included, so a schedule name always resolves. */
+    const active = sqlite
+      .prepare("select id, name from instructors where active = 1")
+      .all() as { id: string; name: string }[];
+    for (const r of active) map.set(r.name, r.id);
   })();
 
   return map;

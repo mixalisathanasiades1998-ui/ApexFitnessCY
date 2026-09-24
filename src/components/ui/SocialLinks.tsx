@@ -32,6 +32,12 @@ export const SOCIAL_ACCOUNTS: Account[] = [
     handle: STUDIO.instagramHandle,
     icon: "social-icon-facebook",
   },
+  {
+    href: STUDIO.tiktok,
+    label: "TikTok",
+    handle: STUDIO.tiktokHandle,
+    icon: "social-icon-tiktok",
+  },
 ];
 
 export function SocialLinks({

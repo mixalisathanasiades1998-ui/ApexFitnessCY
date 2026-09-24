@@ -73,8 +73,70 @@ export function CheckoutBody({
   const [error, setError] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
 
+  /* What is actually being charged, which a discount code can move. Starts at
+     the pack's live price and follows the server's answer. */
+  const [amountCents, setAmountCents] = useState(pack.priceCents);
+  const [promo, setPromo] = useState<{
+    code: string;
+    discountCents: number;
+  } | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
   const name = el ? pack.nameEl : pack.nameEn;
-  const amountLabel = fmtMoney(pack.priceCents);
+  const amountLabel = fmtMoney(amountCents);
+
+  /**
+   * Open a payment for this pack, optionally with a code.
+   *
+   * Applying or clearing a code opens a fresh payment — a new PENDING purchase
+   * at the new amount — and the previous one is simply abandoned, exactly as it
+   * would be if the member reloaded the page. Returns whether it opened, so the
+   * code box can tell an invalid code from a provider problem.
+   */
+  const open = useCallback(
+    async (code?: string): Promise<boolean> => {
+      setError(null);
+      setCodeError(null);
+      try {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            packSlug: pack.slug,
+            ...(code ? { code } : {}),
+          }),
+        });
+        const data = (await res.json()) as Record<string, unknown> & {
+          error?: string;
+          amountCents?: number;
+          promo?: { code: string; discountCents: number } | null;
+        };
+
+        if (data.error) {
+          if (code && data.error === "PROMO_INVALID") {
+            setCodeError(c.codeInvalid);
+            return false;
+          }
+          setError(
+            data.error === "PAYMENTS_NOT_CONFIGURED"
+              ? c.errNotConfigured
+              : c.errProvider,
+          );
+          return false;
+        }
+        setStarted(data as unknown as Started);
+        if (typeof data.amountCents === "number") setAmountCents(data.amountCents);
+        setPromo(data.promo ?? null);
+        return true;
+      } catch {
+        setError(c.errProvider);
+        return false;
+      }
+    },
+    [pack.slug, c.errNotConfigured, c.errProvider, c.codeInvalid],
+  );
 
   /* One payment per visit to this page. The guard matters in development, where
      effects run twice and would otherwise open two payments for one member. */
@@ -83,32 +145,28 @@ export function CheckoutBody({
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
+    void open();
+  }, [open]);
 
-    (async () => {
-      try {
-        const res = await fetch("/api/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ packSlug: pack.slug }),
-        });
-        const data = (await res.json()) as Record<string, unknown> & {
-          error?: string;
-        };
+  async function applyCode() {
+    if (!codeInput.trim() || applying) return;
+    setApplying(true);
+    try {
+      await open(codeInput.trim());
+    } finally {
+      setApplying(false);
+    }
+  }
 
-        if (data.error) {
-          setError(
-            data.error === "PAYMENTS_NOT_CONFIGURED"
-              ? c.errNotConfigured
-              : c.errProvider,
-          );
-          return;
-        }
-        setStarted(data as unknown as Started);
-      } catch {
-        setError(c.errProvider);
-      }
-    })();
-  }, [pack.slug, c.errNotConfigured, c.errProvider]);
+  async function removeCode() {
+    setCodeInput("");
+    setApplying(true);
+    try {
+      await open();
+    } finally {
+      setApplying(false);
+    }
+  }
 
   /* Ask our own server to confirm with the provider, then move on. The page we
      land on refreshes the layout, which is what updates the count in the
@@ -188,13 +246,71 @@ export function CheckoutBody({
                   {c.total}
                 </span>
                 <span className="text-right">
-                  <span className="block font-display text-4xl lining-nums tabular-nums text-mocha-600">
+                  {promo && (
+                    <span className="mr-2 align-middle text-[15px] text-clay line-through lining-nums tabular-nums">
+                      {fmtMoney(pack.priceCents)}
+                    </span>
+                  )}
+                  <span className="align-middle font-display text-4xl lining-nums tabular-nums text-mocha-600">
                     {amountLabel}
                   </span>
                   <span className="mt-1 block text-[11px] text-clay">
                     {c.vat}
                   </span>
                 </span>
+              </div>
+
+              {/* Discount code. Applying it re-opens the payment at the new
+                  amount; the chip shows what came off. */}
+              <div className="mt-6 border-t border-mocha-200/70 pt-6">
+                {promo ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-gold/15 px-3 py-1.5 text-[11px] uppercase tracking-widest text-[#8a6f1a]">
+                      <span className="font-mono">{promo.code}</span>
+                      <span>-{fmtMoney(promo.discountCents)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void removeCode()}
+                      disabled={applying}
+                      className="link-underline text-[11px] uppercase tracking-widest text-clay"
+                    >
+                      {c.codeRemove}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="label" htmlFor="promo-code">
+                      {c.codeLabel}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="promo-code"
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void applyCode();
+                          }
+                        }}
+                        className="input uppercase"
+                        autoComplete="off"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={applying || !codeInput.trim()}
+                        onClick={() => void applyCode()}
+                      >
+                        {applying ? t.common.loading : c.codeApply}
+                      </Button>
+                    </div>
+                    {codeError && (
+                      <p className="mt-2 text-[12px] text-red-700">{codeError}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="mt-8 flex items-center justify-between gap-4">
@@ -247,6 +363,7 @@ export function CheckoutBody({
 
                 {started?.mode === "fields" && (
                   <StripeFields
+                    key={started.clientSecret}
                     publicKey={started.publicKey}
                     clientSecret={started.clientSecret}
                     returnUrl={`${window.location.origin}/checkout/success?p=${started.purchaseId}`}

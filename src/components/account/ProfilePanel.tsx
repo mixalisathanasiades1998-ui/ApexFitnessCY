@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { PushEnroller } from "@/components/account/PushEnroller";
 import { UserAvatar } from "@/components/account/UserAvatar";
 import { IntakeForm } from "@/components/auth/IntakeForm";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { useI18n } from "@/i18n/LanguageProvider";
 import type { PilatesExperience, PilatesLevel } from "@/lib/intake";
 import {
@@ -77,7 +78,7 @@ export function ProfilePanel({
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const [pw, setPw] = useState({ current: "", next: "" });
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwBusy, setPwBusy] = useState(false);
   const [pwNotice, setPwNotice] = useState<{
     kind: "ok" | "error";
@@ -219,6 +220,10 @@ export function ProfilePanel({
       setPwNotice({ kind: "error", text: message("PASSWORD_SHORT") });
       return;
     }
+    if (pw.next !== pw.confirm) {
+      setPwNotice({ kind: "error", text: t.auth.errMismatch });
+      return;
+    }
     setPwBusy(true);
     setPwNotice(null);
     try {
@@ -232,7 +237,7 @@ export function ProfilePanel({
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (data.ok) {
-        setPw({ current: "", next: "" });
+        setPw({ current: "", next: "", confirm: "" });
         setPwNotice({ kind: "ok", text: p.passwordChanged });
       } else {
         setPwNotice({ kind: "error", text: message(data.error ?? "") });
@@ -639,41 +644,37 @@ export function ProfilePanel({
       {section === "password" && (
         <section className="card p-7 md:p-8 lg:col-span-2">
           <h3 className="eyebrow">{p.passwordTitle}</h3>
-          <form
-            onSubmit={changePassword}
-            noValidate
-            className="mt-6 grid items-end gap-5 sm:grid-cols-[1fr_1fr_auto]"
-          >
-            <div>
-              <label className="label" htmlFor="pf-pw-current">
-                {p.passwordCurrent}
-              </label>
-              <input
+          <form onSubmit={changePassword} noValidate className="mt-6">
+            <div className="grid items-start gap-5 sm:grid-cols-3">
+              <PasswordField
                 id="pf-pw-current"
-                type="password"
+                label={p.passwordCurrent}
                 autoComplete="current-password"
-                className="input"
                 value={pw.current}
-                onChange={(e) =>
-                  setPw({ ...pw, current: e.currentTarget.value })
-                }
+                onChange={(v) => setPw({ ...pw, current: v })}
               />
-            </div>
-            <div>
-              <label className="label" htmlFor="pf-pw-new">
-                {p.passwordNew}
-              </label>
-              <input
+              <PasswordField
                 id="pf-pw-new"
-                type="password"
+                label={p.passwordNew}
                 autoComplete="new-password"
                 minLength={PASSWORD_MIN}
-                className="input"
                 value={pw.next}
-                onChange={(e) => setPw({ ...pw, next: e.currentTarget.value })}
+                onChange={(v) => setPw({ ...pw, next: v })}
+              />
+              <PasswordField
+                id="pf-pw-confirm"
+                label={t.auth.confirmPassword}
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN}
+                value={pw.confirm}
+                onChange={(v) => setPw({ ...pw, confirm: v })}
               />
             </div>
-            <Button type="submit" disabled={pwBusy || !pw.current || !pw.next}>
+            <Button
+              type="submit"
+              className="mt-5"
+              disabled={pwBusy || !pw.current || !pw.next || !pw.confirm}
+            >
               {pwBusy ? t.common.loading : p.passwordSubmit}
             </Button>
           </form>

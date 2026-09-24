@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { creditBatches, purchases } from "@/db/schema";
 import { grantCredits } from "@/lib/credits";
 import { getPackageById } from "@/lib/catalogue";
+import { consumePromo } from "@/lib/promo-codes";
 import { notifyPurchased } from "@/lib/messaging/events";
 import { activeProvider } from "./active";
 import { assignInvoiceNumber } from "@/lib/invoice-number";
@@ -139,6 +140,13 @@ export async function fulfilPurchase(args: {
       kind: pkg?.kind === "PERSONAL" || pkg?.kind === "DUET" ? pkg.kind : "CLASS",
       perDayLimit: pkg?.perDayLimit ?? null,
     });
+
+    /* Count the discount code, once, here — inside the same claim that grants
+       the sessions, so a "first fifty" cap is spent by a completed payment and
+       never by an abandoned one. The claim above runs at most once per purchase,
+       which is what makes this exactly-once too. */
+    if (purchase.promoCode) consumePromo(purchase.promoCode);
+
     granted = true;
   });
 

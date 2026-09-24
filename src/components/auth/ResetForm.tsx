@@ -124,17 +124,15 @@ export function ResetForm({
               label={a.resetNew}
               value={password}
               onChange={setPassword}
-              show={a.showPassword}
-              hide={a.hidePassword}
+              minLength={8}
+              hint={a.passwordHint}
             />
-            <p className="text-[11px] text-clay">{a.passwordHint}</p>
             <PasswordField
               id="confirm"
               label={a.resetConfirm}
               value={confirm}
               onChange={setConfirm}
-              show={a.showPassword}
-              hide={a.hidePassword}
+              minLength={8}
             />
 
             {error && (

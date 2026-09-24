@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { LegalModal } from "@/components/auth/LegalModal";
+import { PasswordField } from "@/components/auth/PasswordField";
 import { Button } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -105,6 +106,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       }
       if (String(form.get("password") ?? "").length < 8) {
         return stop(t.auth.errPassword);
+      }
+      if (form.get("password") !== form.get("passwordConfirm")) {
+        return stop(t.auth.errMismatch);
       }
       if (form.get("serviceOptIn") !== "on") {
         return stop(t.auth.errServiceConsent);
@@ -243,25 +247,27 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               </div>
             )}
 
-            <div>
-              <label className="label" htmlFor="password">
-                {t.common.password}
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                minLength={isLogin ? undefined : 8}
-                autoComplete={isLogin ? "current-password" : "new-password"}
-                required
-                className="input"
+            <PasswordField
+              id="password"
+              name="password"
+              label={t.common.password}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              minLength={isLogin ? undefined : 8}
+              hint={isLogin ? undefined : t.auth.passwordHint}
+            />
+
+            {/* A second box on the way in, not on the way back. Confirming the
+                password catches the typo that would otherwise lock somebody out
+                of a brand-new account they cannot yet sign in to. */}
+            {!isLogin && (
+              <PasswordField
+                id="passwordConfirm"
+                name="passwordConfirm"
+                label={t.auth.confirmPasswordRegister}
+                autoComplete="new-password"
+                minLength={8}
               />
-              {!isLogin && (
-                <p className="mt-2 text-[11px] text-clay">
-                  {t.auth.passwordHint}
-                </p>
-              )}
-            </div>
+            )}
 
             {!isLogin && (
               <div className="space-y-4 border-t border-mocha-200/70 pt-5">

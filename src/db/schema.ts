@@ -290,6 +290,12 @@ export const instructors = sqliteTable("instructors", {
   photoUrl: text("photo_url"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * Set when the desk edits this instructor from the Team tab. Once set, the
+   * roster sync (lib/roster.ts) leaves the row's bio and photo alone: the studio
+   * now owns it. Null on every instructor the roster still governs.
+   */
+  editedAt: integer("edited_at", { mode: "timestamp" }),
 });
 
 /* --------------------------------------------------------------- Catalogue */
@@ -363,8 +369,60 @@ export const creditPackages = sqliteTable(
     seats: integer("seats").notNull().default(1),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
+    /**
+     * When the desk last edited this pack, and its price specifically.
+     *
+     * `packs.ts` is the opening price list and fills an empty database, but once
+     * the owner edits a pack from the desk that row belongs to the desk: the
+     * boot sync skips a row with `editedAt` set, and keeps the database price
+     * over the code price when `priceEditedAt` is set. Both null on every pack
+     * the studio has never touched, which is why the sync still governs them.
+     */
+    priceEditedAt: integer("price_edited_at", { mode: "timestamp" }),
+    editedAt: integer("edited_at", { mode: "timestamp" }),
+    /**
+     * The heading this pack sits under on the pricing page, frozen at the moment
+     * the desk edits it. Until then it is read from `packs.ts` by slug, so an
+     * un-edited pack keeps following the code. See catalogue.getPackages.
+     */
+    packGroup: text("pack_group"),
   },
   (t) => [uniqueIndex("credit_packages_slug_idx").on(t.slug)],
+);
+
+/**
+ * A discount code a member can type at checkout.
+ *
+ * Kept apart from `pricing_rules` (the shopfront offer that shows a struck-through
+ * price to everyone) on purpose: a code is entered by one member and applies to
+ * one purchase, is counted so a "first fifty" cap means something, and can be
+ * scoped to a single pack or to the whole list. The token is stored as typed,
+ * uppercased; there is nothing secret about a promo code.
+ */
+export const promoCodes = sqliteTable(
+  "promo_codes",
+  {
+    id: id(),
+    code: text("code").notNull(),
+    /** PERCENT | FLAT */
+    kind: text("kind").notNull(),
+    /** Percent (1..90) or cents off, by kind. */
+    value: integer("value").notNull(),
+    /** One pack, or null for the whole list. Falls back to the list if the pack
+     *  it named is later deleted. */
+    packageId: text("package_id").references(() => creditPackages.id, {
+      onDelete: "set null",
+    }),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    validFrom: integer("valid_from", { mode: "timestamp" }),
+    validUntil: integer("valid_until", { mode: "timestamp" }),
+    /** Null means no cap on how many times it can be used. */
+    maxUses: integer("max_uses"),
+    uses: integer("uses").notNull().default(0),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: now().notNull(),
+  },
+  (t) => [uniqueIndex("promo_codes_code_idx").on(t.code)],
 );
 
 /* ---------------------------------------------------------------- Schedule */
@@ -531,6 +589,15 @@ export const purchases = sqliteTable(
     invoiceNo: text("invoice_no"),
     invoiceYear: integer("invoice_year"),
     invoiceSeq: integer("invoice_seq"),
+    /**
+     * The promo code used on this purchase, and what it took off, if any.
+     *
+     * Stored on the row rather than recomputed, for the same reason the invoice
+     * number is: it is a record of what happened at the till, and the code or its
+     * value could change afterwards. Null on a purchase bought at full price.
+     */
+    promoCode: text("promo_code"),
+    promoDiscountCents: integer("promo_discount_cents"),
     createdAt: now().notNull(),
     paidAt: integer("paid_at", { mode: "timestamp" }),
   },
@@ -952,3 +1019,4 @@ export type PricingRule = typeof pricingRules.$inferSelect;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NoticeDelivery = typeof noticeDeliveries.$inferSelect;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
+export type PromoCode = typeof promoCodes.$inferSelect;

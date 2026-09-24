@@ -9,6 +9,7 @@ import { DeskBar, DESK_TABS, type DeskTab } from "@/components/admin/DeskBar";
 import { MemberDesk } from "@/components/admin/MemberDesk";
 import { NoticePanel } from "@/components/admin/NoticePanel";
 import { PricingPanel } from "@/components/admin/PricingPanel";
+import { TeamPanel } from "@/components/admin/TeamPanel";
 import { StatsRow } from "@/components/admin/StatsRow";
 import { LogisticsPanel } from "@/components/admin/LogisticsPanel";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -174,7 +175,7 @@ export function AdminBody({
             </span>
           </p>
           <h1 className="h-display text-[2.4rem] leading-tight sm:text-5xl">
-            {tab === "analytics" || tab === "logistics"
+            {tab === "analytics" || tab === "logistics" || tab === "team"
               ? t.desk.tabs[tab]
               : fmtLongDate(new Date())}
           </h1>
@@ -196,6 +197,7 @@ export function AdminBody({
           {tab === "pricing" && (
             <PricingPanel packs={packs} onNotice={setNotice} />
           )}
+          {tab === "team" && <TeamPanel onNotice={setNotice} />}
           {/* The numbers are a tab of their own, not a banner over the others.
               They are read deliberately — at the end of a month, or when the
               owner asks — and a permanent row of takings above every screen is

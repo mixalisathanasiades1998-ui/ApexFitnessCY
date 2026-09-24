@@ -76,6 +76,8 @@ export function repairCatalogue(): CatalogueSync {
       per_day_limit: number | null;
       seats: number;
       active: number;
+      edited_at: number | null;
+      price_edited_at: number | null;
     }
   >(
     (
@@ -83,7 +85,7 @@ export function repairCatalogue(): CatalogueSync {
         .prepare(
           `select id, slug, name_en, name_el, credits, price_cents,
                   validity_days, badge, sort_order, kind, per_day_limit,
-                  seats, active
+                  seats, active, edited_at, price_edited_at
              from credit_packages`,
         )
         .all() as ({ slug: string } & Record<string, never>)[]
@@ -124,13 +126,22 @@ export function repairCatalogue(): CatalogueSync {
       out.added++;
       continue;
     }
+    /* The desk owns this row once it has touched it. A pack the owner has edited
+       is left exactly as they left it — name, price, validity, whether it is on
+       sale — and the code price list no longer speaks for it. */
+    if (row.edited_at != null) continue;
+    /* A price the desk has set is kept even on a row it has not otherwise
+       claimed. In practice editing always stamps edited_at too, so this is
+       belt-and-braces; it means a desk price can never be silently reverted to
+       the code price by a boot. */
+    const price = row.price_edited_at != null ? row.price_cents : p.priceCents;
     /* Only write when something actually differs, so a healthy boot performs no
        writes at all and the counts mean what they say. */
     const same =
       row.name_en === p.nameEn &&
       row.name_el === p.nameEl &&
       row.credits === p.credits &&
-      row.price_cents === p.priceCents &&
+      row.price_cents === price &&
       row.validity_days === p.validityDays &&
       (row.badge ?? null) === (p.badge ?? null) &&
       row.sort_order === p.sortOrder &&
@@ -143,7 +154,7 @@ export function repairCatalogue(): CatalogueSync {
       p.nameEn,
       p.nameEl,
       p.credits,
-      p.priceCents,
+      price,
       p.validityDays,
       p.badge,
       p.sortOrder,
@@ -156,11 +167,15 @@ export function repairCatalogue(): CatalogueSync {
   }
 
   const slugs = [...OFFERED_PACK_SLUGS];
+  /* Withdraw only rows the desk has never edited. A desk-made pack (slug
+     "desk-…") is not on the code list and must not be deactivated for it, and an
+     edited code pack the owner chose to keep on sale stays on sale. */
   out.withdrawn = sqlite
     .prepare(
       `update credit_packages
           set active = 0
         where active = 1
+          and edited_at is null
           and slug not in (${slugs.map(() => "?").join(", ")})`,
     )
     .run(...slugs).changes;

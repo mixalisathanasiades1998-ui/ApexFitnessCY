@@ -46,14 +46,24 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "pilates_since", ddl: "text" },
     { name: "health_condition", ddl: "text" },
   ],
-  instructors: [{ name: "photo_url", ddl: "text" }],
+  instructors: [
+    { name: "photo_url", ddl: "text" },
+    /* Set when the desk edits an instructor from the Team tab; the roster sync
+       then leaves that row's bio and photo alone. See lib/team.ts. */
+    { name: "edited_at", ddl: "integer" },
+  ],
   purchases: [
     { name: "provider_ref", ddl: "text" },
     { name: "receipt_url", ddl: "text" },
     { name: "invoice_no", ddl: "text" },
     { name: "invoice_year", ddl: "integer" },
     { name: "invoice_seq", ddl: "integer" },
+    { name: "promo_code", ddl: "text" },
+    { name: "promo_discount_cents", ddl: "integer" },
   ],
+  /* The desk owns a pack once it edits it: edited_at freezes the boot sync off
+     the row, price_edited_at keeps the desk price over the code price, and
+     pack_group freezes the pricing-page heading. All null until first edit. */
   /* The spend window — which class dates a batch may be paid towards, which is
      a different question from when the batch expires. See lib/promo.ts. */
   credit_batches: [
@@ -68,6 +78,12 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "kind", ddl: "text default 'CLASS' not null" },
     { name: "per_day_limit", ddl: "integer" },
     { name: "seats", ddl: "integer default 1 not null" },
+    /* The desk owns a pack once it edits it: edited_at freezes the boot sync off
+       the row, price_edited_at keeps the desk price over the code price, and
+       pack_group freezes the pricing-page heading. All null until first edit. */
+    { name: "price_edited_at", ddl: "integer" },
+    { name: "edited_at", ddl: "integer" },
+    { name: "pack_group", ddl: "text" },
   ],
   class_types: [{ name: "kind", ddl: "text default 'GROUP' not null" }],
   /* The class level, added after launch. Nullable, reads as ALL when absent, so
@@ -203,6 +219,23 @@ const TABLES: { name: string; ddl: string }[] = [
           )`,
   },
   {
+    name: "promo_codes",
+    ddl: `create table promo_codes (
+            id text primary key not null,
+            code text not null,
+            kind text not null,
+            value integer not null,
+            package_id text references credit_packages(id) on delete set null,
+            active integer default 1 not null,
+            valid_from integer,
+            valid_until integer,
+            max_uses integer,
+            uses integer default 0 not null,
+            created_by text references users(id),
+            created_at integer not null
+          )`,
+  },
+  {
     name: "password_resets",
     ddl: `create table password_resets (
             id text primary key not null,
@@ -227,6 +260,10 @@ const INDEXES: { name: string; ddl: string }[] = [
   {
     name: "password_resets_user_idx",
     ddl: "create unique index password_resets_user_idx on password_resets (user_id)",
+  },
+  {
+    name: "promo_codes_code_idx",
+    ddl: "create unique index promo_codes_code_idx on promo_codes (code)",
   },
   {
     /* One invoice number, once. The sequence is handed out by reading the

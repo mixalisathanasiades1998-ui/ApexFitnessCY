@@ -147,7 +147,10 @@ export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
                     <div className="flex flex-1 flex-col p-7">
                       <h3 className="h-display text-2xl">{m.name}</h3>
                       <p className="mt-3 text-sm leading-relaxed text-mocha-500">
-                        {el ? m.bioEl : m.bioEn}
+                        {/* Greek bio when the site is in Greek and it is not
+                            empty; otherwise the English one, so a desk-added
+                            instructor with only an English bio still reads. */}
+                        {el && m.bioEl.trim() ? m.bioEl : m.bioEn}
                       </p>
                       {/* Sits in the bottom corner, pushed down by mt-auto so
                           it lands on the same line across the row however long

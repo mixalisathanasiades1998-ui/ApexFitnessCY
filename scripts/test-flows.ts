@@ -592,7 +592,11 @@ async function main() {
     );
     check(
       "packs on sale match the offered list",
-      onSale.every((slug) => OFFERED_PACK_SLUGS.has(slug)),
+      /* A desk-created pack (slug "desk-…") is a legitimate on-sale pack that is
+         not on the code list, so it is allowed alongside the offered slugs. */
+      onSale.every(
+        (slug) => OFFERED_PACK_SLUGS.has(slug) || slug.startsWith("desk-"),
+      ),
       onSale,
     );
 

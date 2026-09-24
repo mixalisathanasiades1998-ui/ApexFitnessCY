@@ -964,6 +964,148 @@ const gen = await req("/api/admin/generate", {
 });
 check("admin can generate schedule", gen.json?.ok === true, gen.json);
 
+/* ------------------------------------------------------------------ 11b */
+console.log("\n11b. Pricing: packs, promo codes, team (owner)");
+const stamp = String(Date.now()).slice(-6);
+
+const packsList = await req("/api/admin/packs");
+check(
+  "owner can list packs",
+  packsList.status === 200 && Array.isArray(packsList.json?.packs),
+  packsList.status,
+);
+
+const madePack = await req("/api/admin/packs", {
+  method: "POST",
+  body: {
+    nameEn: `HTTP Pack ${stamp}`,
+    nameEl: "",
+    group: "month",
+    credits: 5,
+    validityDays: 60,
+    priceCents: 12000,
+  },
+});
+check(
+  "owner can create a pack",
+  madePack.json?.ok === true && Boolean(madePack.json?.id),
+  madePack.json,
+);
+const newPackId = madePack.json?.id;
+
+const editedPack = await req("/api/admin/packs", {
+  method: "PATCH",
+  body: { id: newPackId, priceCents: 11000 },
+});
+check("owner can edit a pack", editedPack.json?.ok === true, editedPack.json);
+
+const offPack = await req("/api/admin/packs", {
+  method: "PATCH",
+  body: { id: newPackId, active: false },
+});
+check(
+  "owner can take a pack off sale",
+  offPack.json?.ok === true &&
+    (offPack.json?.packs ?? []).find((p) => p.id === newPackId)?.active ===
+      false,
+  offPack.json,
+);
+
+const delNew = await req("/api/admin/packs", {
+  method: "DELETE",
+  body: { id: newPackId },
+});
+check("owner can delete an unsold pack", delNew.json?.ok === true, delNew.json);
+
+/* A pack a member has bought cannot be deleted. month-2 is the pack section 6
+   bought and settled, so it now has a purchase pointing at it. */
+const soldPack = (packsList.json?.packs ?? []).find((p) => p.slug === "month-2");
+const delSold = await req("/api/admin/packs", {
+  method: "DELETE",
+  body: { id: soldPack?.id },
+});
+check(
+  "deleting a sold pack is refused with SOLD",
+  delSold.status === 409 && delSold.json?.error === "SOLD",
+  { status: delSold.status, json: delSold.json },
+);
+
+const madePromo = await req("/api/admin/promo", {
+  method: "POST",
+  body: { code: `HTTP${stamp}`, kind: "PERCENT", value: 10 },
+});
+check("owner can create a promo code", madePromo.json?.ok === true, madePromo.json);
+
+const madeCoach = await req("/api/admin/team", {
+  method: "POST",
+  body: { name: `HTTP Coach ${stamp}`, bioEn: "A test bio." },
+});
+check("owner can add a team member", madeCoach.json?.ok === true, madeCoach.json);
+const coachId = (madeCoach.json?.team ?? []).find(
+  (m) => m.name === `HTTP Coach ${stamp}`,
+)?.id;
+const hidCoach = await req("/api/admin/team", {
+  method: "PATCH",
+  body: { id: coachId, active: false },
+});
+check("owner can hide a team member", hidCoach.json?.ok === true, hidCoach.json);
+
+/* ------------------------------------------------------------------ 11c */
+console.log("\n11c. A promo code reduces the checkout amount");
+await req("/api/auth/login", {
+  method: "POST",
+  body: { email: "member@example.com", password: "member123" },
+});
+const plainCheckout = await req("/api/checkout", {
+  method: "POST",
+  body: { packSlug: "month-1" },
+});
+const codedCheckout = await req("/api/checkout", {
+  method: "POST",
+  body: { packSlug: "month-1", code: `HTTP${stamp}` },
+});
+if (
+  typeof plainCheckout.json?.amountCents === "number" &&
+  typeof codedCheckout.json?.amountCents === "number"
+) {
+  check(
+    "a promo code reduces the amount charged",
+    codedCheckout.json.amountCents < plainCheckout.json.amountCents,
+    { plain: plainCheckout.json?.amountCents, coded: codedCheckout.json?.amountCents },
+  );
+} else {
+  console.log(
+    "  · payment provider unavailable here, skipping the promo checkout amount",
+  );
+}
+
+/* ------------------------------------------------------------------ 11d */
+console.log("\n11d. Reception is refused the owner-only routes");
+await req("/api/auth/login", {
+  method: "POST",
+  body: { email: "reception@apexpilates.cy", password: "receptiondev123" },
+});
+await req("/api/admin/unlock", {
+  method: "POST",
+  body: { password: "receptiondev123" },
+});
+const rPacks = await req("/api/admin/packs");
+check("reception is refused /api/admin/packs", rPacks.status === 403, rPacks.status);
+const rPromo = await req("/api/admin/promo");
+check("reception is refused /api/admin/promo", rPromo.status === 403, rPromo.status);
+const rTeam = await req("/api/admin/team");
+check("reception is refused /api/admin/team", rTeam.status === 403, rTeam.status);
+
+/* Back to the owner, unlocked, so the rest of the suite runs as before. */
+await req("/api/auth/login", {
+  method: "POST",
+  body: { email: "owner@apexpilates.cy", password: "ownerdev123" },
+});
+await req("/api/admin/unlock", {
+  method: "POST",
+  body: { password: "ownerdev123" },
+});
+
 console.log("\n12. Contact form");
 const contact = await req("/api/contact", {
   method: "POST",

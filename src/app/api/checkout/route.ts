@@ -6,6 +6,7 @@ import { purchases } from "@/db/schema";
 import { currentUser } from "@/lib/auth";
 import { getPackageById, getPackageBySlug } from "@/lib/catalogue";
 import { activeProvider } from "@/lib/payments";
+import { checkPromo, discountFor } from "@/lib/promo-codes";
 import { siteUrl } from "@/lib/stripe";
 import { checkoutSchema } from "@/lib/validation";
 
@@ -43,6 +44,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "PACKAGE_NOT_FOUND" }, { status: 404 });
   }
 
+  /* The pack's live price is where a code starts from — a code stacks on top of
+     whatever shopfront offer is already running, and both are decided on the
+     server so the amount charged is the amount shown. */
+  const listCents = pkg.priceCents;
+  let amountCents = listCents;
+  let promoCode: string | null = null;
+  let promoDiscountCents: number | null = null;
+
+  if (parsed.data.code) {
+    const check = checkPromo(parsed.data.code, pkg.id);
+    if (!check.ok) {
+      return NextResponse.json({ error: "PROMO_INVALID" }, { status: 400 });
+    }
+    const { off, charge } = discountFor(check.code, listCents);
+    if (off <= 0) {
+      /* A real code that happens to save nothing on this pack — the floor is
+         already met — is not a discount to record. */
+      return NextResponse.json({ error: "PROMO_INVALID" }, { status: 400 });
+    }
+    amountCents = charge;
+    promoCode = check.code;
+    promoDiscountCents = off;
+  }
+
   let provider;
   try {
     provider = activeProvider();
@@ -60,10 +85,12 @@ export async function POST(req: Request) {
       userId: user.id,
       packageId: pkg.id,
       credits: pkg.credits,
-      amountCents: pkg.priceCents,
+      amountCents,
       currency: "eur",
       status: "PENDING",
       provider: provider.id,
+      promoCode,
+      promoDiscountCents,
     })
     .returning()
     .get();
@@ -77,7 +104,7 @@ export async function POST(req: Request) {
       packName: pkg.nameEn,
       credits: pkg.credits,
       validityDays: pkg.validityDays,
-      amountCents: pkg.priceCents,
+      amountCents,
       currency: "eur",
       /* Both come back to our own pages, and both carry the purchase id so the
          result can be checked with the provider rather than trusted. */
@@ -95,7 +122,15 @@ export async function POST(req: Request) {
         .run();
     }
 
-    return NextResponse.json({ purchaseId: purchase.id, ...started });
+    return NextResponse.json({
+      purchaseId: purchase.id,
+      amountCents,
+      listCents,
+      promo: promoCode
+        ? { code: promoCode, discountCents: promoDiscountCents }
+        : null,
+      ...started,
+    });
   } catch (err) {
     console.error("[pay] could not open a payment", err);
     db.update(purchases)
