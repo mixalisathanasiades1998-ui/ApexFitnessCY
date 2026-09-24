@@ -130,8 +130,7 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
       });
       const data = (await res.json()) as { team?: Member[]; error?: string };
       if (!res.ok) {
-        if (res.status === 409) onNotice(d.teamInUse);
-        else onNotice(forbidden(res.status) ? d.packForbidden : d.teamBad);
+        onNotice(forbidden(res.status) ? d.packForbidden : d.teamBad);
         return;
       }
       setTeam(data.team ?? []);

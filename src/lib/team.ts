@@ -165,16 +165,19 @@ export function updateTeamMember(id: string, patch: TeamPatch): TeamResult {
 }
 
 /**
- * Remove an instructor, unless a class carries their name.
+ * Remove an instructor for good, clearing their name off any classes first.
  *
- * Hiding is the everyday tool; this is for clearing out a mistake or a
- * placeholder that never taught. An instructor a template or a session points at
- * is never deleted — a past class must keep the name of whoever ran it — and the
- * desk is told to hide them instead. Their photo cascades away with the row.
+ * Hiding is still the everyday tool and the way to *keep* someone's name on the
+ * classes they taught. Delete is the other choice, made deliberately at the
+ * desk: the instructor is detached from every template and session that pointed
+ * at them — those classes keep everything else and simply show no teacher name,
+ * which the timetable, the roster and the booking pages already handle — and then
+ * the row and its photo are removed. Done in one transaction so a class is never
+ * left pointing at an instructor who is gone.
  */
 export function deleteTeamMember(
   id: string,
-): { ok: true } | { ok: false; code: "IN_USE" | "NOT_FOUND" } {
+): { ok: true } | { ok: false; code: "NOT_FOUND" } {
   const row = db
     .select({ id: instructors.id })
     .from(instructors)
@@ -182,19 +185,18 @@ export function deleteTeamMember(
     .get();
   if (!row) return { ok: false, code: "NOT_FOUND" };
 
-  const teaches =
-    db
-      .select({ id: classTemplates.id })
-      .from(classTemplates)
+  db.transaction(() => {
+    db.update(classTemplates)
+      .set({ instructorId: null })
       .where(eq(classTemplates.instructorId, id))
-      .get() ||
-    db
-      .select({ id: classSessions.id })
-      .from(classSessions)
+      .run();
+    db.update(classSessions)
+      .set({ instructorId: null })
       .where(eq(classSessions.instructorId, id))
-      .get();
-  if (teaches) return { ok: false, code: "IN_USE" };
-
-  db.delete(instructors).where(eq(instructors.id, id)).run();
+      .run();
+    /* The photo row cascades on the instructor's foreign key, but delete it
+       explicitly too so it goes even where foreign keys are not enforced. */
+    db.delete(instructors).where(eq(instructors.id, id)).run();
+  });
   return { ok: true };
 }

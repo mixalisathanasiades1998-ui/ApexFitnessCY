@@ -84,12 +84,7 @@ export async function DELETE(req: Request) {
 
   const result = deleteTeamMember(d.id);
   if (!result.ok) {
-    /* An instructor a class points at cannot be deleted — 409, so the panel can
-       say "hide them instead". */
-    return NextResponse.json(
-      { error: result.code },
-      { status: result.code === "IN_USE" ? 409 : 404 },
-    );
+    return NextResponse.json({ error: result.code }, { status: 404 });
   }
   return NextResponse.json({ ok: true, team: listTeam() });
 }
