@@ -311,7 +311,12 @@ export function PricingPanel({
         body: JSON.stringify({
           code: promo.code,
           kind: promo.kind,
-          value: Number(promo.value.replace(",", ".")),
+          /* Percent goes as typed; euros go as cents, the same as the offers
+             form above — so "Euro off 10" is €10, not 10 cents. */
+          value:
+            promo.kind === "PERCENT"
+              ? Math.round(Number(promo.value.replace(",", ".")))
+              : Math.round(Number(promo.value.replace(",", ".")) * 100),
           packageId: promo.packageId || null,
           validFrom: promo.validFrom || null,
           validUntil: promo.validUntil || null,

@@ -219,6 +219,17 @@ const TABLES: { name: string; ddl: string }[] = [
           )`,
   },
   {
+    name: "instructor_photos",
+    ddl: `create table instructor_photos (
+            instructor_id text primary key not null
+              references instructors(id) on delete cascade,
+            content_type text not null,
+            bytes integer not null,
+            data text not null,
+            updated_at integer not null
+          )`,
+  },
+  {
     name: "promo_codes",
     ddl: `create table promo_codes (
             id text primary key not null,

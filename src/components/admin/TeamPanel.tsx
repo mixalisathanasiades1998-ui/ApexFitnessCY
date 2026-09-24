@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Monogram } from "@/components/ui/Monogram";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { cn } from "@/lib/utils";
 
 /**
  * The studio's team, from the desk.
@@ -44,6 +45,8 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/team");
@@ -112,6 +115,62 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
     }
   }
 
+  async function remove(m: Member) {
+    /* Two presses, no browser dialog — the first arms, a blur disarms. */
+    if (armedDelete !== m.id) {
+      setArmedDelete(m.id);
+      return;
+    }
+    setBusy(m.id);
+    try {
+      const res = await fetch("/api/admin/team", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id }),
+      });
+      const data = (await res.json()) as { team?: Member[]; error?: string };
+      if (!res.ok) {
+        if (res.status === 409) onNotice(d.teamInUse);
+        else onNotice(forbidden(res.status) ? d.packForbidden : d.teamBad);
+        return;
+      }
+      setTeam(data.team ?? []);
+      onNotice(d.teamDeleted);
+      router.refresh();
+    } finally {
+      setArmedDelete(null);
+      setBusy(null);
+    }
+  }
+
+  /* Upload a portrait for the instructor being edited. Needs a saved instructor
+     to attach to, so it is only offered once the row exists. */
+  async function uploadPhoto(file: File) {
+    if (!editing || editing === "new") return;
+    setUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("instructorId", editing);
+      fd.append("photo", file);
+      const res = await fetch("/api/admin/team/photo", {
+        method: "POST",
+        body: fd,
+      });
+      const data = (await res.json()) as { photoUrl?: string; error?: string };
+      if (!res.ok || !data.photoUrl) {
+        setError(forbidden(res.status) ? d.packForbidden : d.teamPhotoBad);
+        return;
+      }
+      setForm((f) => ({ ...f, photoUrl: data.photoUrl! }));
+      await load();
+      onNotice(d.teamSaved);
+      router.refresh();
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function openEdit(m: Member) {
     setEditing(m.id);
     setError(null);
@@ -172,6 +231,30 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
                 <span className="mt-1 block text-[11px] text-clay">
                   {d.teamPhotoHelp}
                 </span>
+                {/* Upload a photo instead of typing a path. Only once the
+                    instructor exists, since the file attaches to their row. */}
+                {editing !== "new" ? (
+                  <span className="mt-3 block">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void uploadPhoto(f);
+                        e.target.value = "";
+                      }}
+                      className="block w-full text-[12px] text-mocha-500 file:mr-3 file:rounded-full file:border file:border-mocha-300 file:bg-white file:px-4 file:py-2 file:text-[11px] file:uppercase file:tracking-widest file:text-mocha-600 hover:file:border-mocha-500"
+                    />
+                    <span className="mt-1 block text-[11px] text-clay">
+                      {uploading ? t.common.loading : d.teamUploadHelp}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="mt-2 block text-[11px] text-clay">
+                    {d.teamUploadFirst}
+                  </span>
+                )}
               </label>
               <label className="block">
                 <span className="label">{d.teamBioEn}</span>
@@ -261,6 +344,22 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
                 >
                   {m.active ? d.teamHide : d.teamRestore}
                 </Button>
+                <button
+                  type="button"
+                  disabled={busy === m.id}
+                  onClick={() => void remove(m)}
+                  onBlur={() =>
+                    setArmedDelete((a) => (a === m.id ? null : a))
+                  }
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-[11px] uppercase tracking-widest transition-colors",
+                    armedDelete === m.id
+                      ? "bg-red-600 text-white"
+                      : "text-clay hover:text-red-700",
+                  )}
+                >
+                  {armedDelete === m.id ? d.teamDeleteConfirm : d.teamDelete}
+                </button>
               </span>
             </li>
           ))}

@@ -868,6 +868,14 @@ export const en = {
     teamAdded: "Instructor added.",
     teamNameTaken: "An instructor with that name already exists.",
     teamBad: "Please check the details.",
+    teamDelete: "Delete",
+    teamDeleteConfirm: "Press again to delete",
+    teamDeleted: "Instructor deleted.",
+    teamInUse:
+      "This instructor teaches classes, so they cannot be deleted. Hide them instead.",
+    teamUploadHelp: "Or upload a photo (JPG, PNG or WebP, up to 256 KB).",
+    teamUploadFirst: "Save the instructor first, then you can upload a photo.",
+    teamPhotoBad: "That photo could not be uploaded. Try a smaller JPG or PNG.",
     /* Reception booking a member in over the telephone. */
     deskBookCta: "Book a member in",
     deskBookTitle: "Book a member into this class",
@@ -2258,6 +2266,14 @@ export const el: typeof en = {
     teamAdded: "Ο εκπαιδευτής προστέθηκε.",
     teamNameTaken: "Υπάρχει ήδη εκπαιδευτής με αυτό το όνομα.",
     teamBad: "Έλεγξε τα στοιχεία.",
+    teamDelete: "Διαγραφή",
+    teamDeleteConfirm: "Πάτησε ξανά για διαγραφή",
+    teamDeleted: "Ο εκπαιδευτής διαγράφηκε.",
+    teamInUse:
+      "Αυτός ο εκπαιδευτής διδάσκει μαθήματα, οπότε δεν διαγράφεται. Κρύψε τον αντ' αυτού.",
+    teamUploadHelp: "Ή ανέβασε φωτογραφία (JPG, PNG ή WebP, έως 256 KB).",
+    teamUploadFirst: "Αποθήκευσε πρώτα τον εκπαιδευτή και μετά ανέβασε φωτογραφία.",
+    teamPhotoBad: "Η φωτογραφία δεν ανέβηκε. Δοκίμασε μικρότερο JPG ή PNG.",
     deskBookCta: "Κράτηση για μέλος",
     deskBookTitle: "Κράτηση μέλους σε αυτό το μάθημα",
     deskBookWhy:

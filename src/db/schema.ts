@@ -298,6 +298,27 @@ export const instructors = sqliteTable("instructors", {
   editedAt: integer("edited_at", { mode: "timestamp" }),
 });
 
+/**
+ * An instructor portrait uploaded from the desk, stored in the database the same
+ * way member avatars are.
+ *
+ * Kept out of the `instructors` row so it is not read on every listing, and in
+ * the database rather than on disk because the hosting has no persistent public
+ * folder. Unlike a member avatar this one is public — it is shown on the studio
+ * page to anyone — so its serving route needs no sign-in.
+ */
+export const instructorPhotos = sqliteTable("instructor_photos", {
+  instructorId: text("instructor_id")
+    .primaryKey()
+    .references(() => instructors.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  bytes: integer("bytes").notNull(),
+  data: text("data").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 /* --------------------------------------------------------------- Catalogue */
 
 export const classTypes = sqliteTable(
@@ -1020,3 +1041,4 @@ export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NoticeDelivery = typeof noticeDeliveries.$inferSelect;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type PromoCode = typeof promoCodes.$inferSelect;
+export type InstructorPhoto = typeof instructorPhotos.$inferSelect;

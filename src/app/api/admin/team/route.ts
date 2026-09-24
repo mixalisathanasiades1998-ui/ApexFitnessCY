@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { body, owner } from "@/lib/api-guard";
-import { addTeamMember, listTeam, updateTeamMember } from "@/lib/team";
+import {
+  addTeamMember,
+  deleteTeamMember,
+  listTeam,
+  updateTeamMember,
+} from "@/lib/team";
 
 /**
  * The studio's team, edited from the desk. Owner only.
@@ -65,6 +70,25 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       { error: result.code },
       { status: result.code === "NOT_FOUND" ? 404 : 400 },
+    );
+  }
+  return NextResponse.json({ ok: true, team: listTeam() });
+}
+
+export async function DELETE(req: Request) {
+  const gate = await owner();
+  if ("res" in gate) return gate.res;
+
+  const d = await body<{ id?: string }>(req);
+  if (!d?.id) return NextResponse.json({ error: "BAD_REQUEST" }, { status: 400 });
+
+  const result = deleteTeamMember(d.id);
+  if (!result.ok) {
+    /* An instructor a class points at cannot be deleted — 409, so the panel can
+       say "hide them instead". */
+    return NextResponse.json(
+      { error: result.code },
+      { status: result.code === "IN_USE" ? 409 : 404 },
     );
   }
   return NextResponse.json({ ok: true, team: listTeam() });

@@ -1,6 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { instructors } from "@/db/schema";
+import { classSessions, classTemplates, instructors } from "@/db/schema";
 import { INSTRUCTOR_PHOTOS } from "./packs";
 
 /**
@@ -162,4 +162,39 @@ export function updateTeamMember(id: string, patch: TeamPatch): TeamResult {
   return fresh
     ? { ok: true, member: view(fresh) }
     : { ok: false, code: "NOT_FOUND" };
+}
+
+/**
+ * Remove an instructor, unless a class carries their name.
+ *
+ * Hiding is the everyday tool; this is for clearing out a mistake or a
+ * placeholder that never taught. An instructor a template or a session points at
+ * is never deleted — a past class must keep the name of whoever ran it — and the
+ * desk is told to hide them instead. Their photo cascades away with the row.
+ */
+export function deleteTeamMember(
+  id: string,
+): { ok: true } | { ok: false; code: "IN_USE" | "NOT_FOUND" } {
+  const row = db
+    .select({ id: instructors.id })
+    .from(instructors)
+    .where(eq(instructors.id, id))
+    .get();
+  if (!row) return { ok: false, code: "NOT_FOUND" };
+
+  const teaches =
+    db
+      .select({ id: classTemplates.id })
+      .from(classTemplates)
+      .where(eq(classTemplates.instructorId, id))
+      .get() ||
+    db
+      .select({ id: classSessions.id })
+      .from(classSessions)
+      .where(eq(classSessions.instructorId, id))
+      .get();
+  if (teaches) return { ok: false, code: "IN_USE" };
+
+  db.delete(instructors).where(eq(instructors.id, id)).run();
+  return { ok: true };
 }

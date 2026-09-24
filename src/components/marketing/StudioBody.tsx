@@ -136,6 +136,11 @@ export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
                           fill
                           sizes="(min-width: 1024px) 24vw, (min-width: 640px) 45vw, 90vw"
                           quality={84}
+                          /* An uploaded portrait is served from an API route
+                             rather than a static file; let it through the image
+                             pipeline unoptimised, while the shipped /team/*.jpg
+                             portraits keep their optimisation. */
+                          unoptimized={m.photoUrl.startsWith("/api/")}
                           className="object-cover object-[50%_28%] transition-transform duration-[1400ms] ease-out hover:scale-[1.04]"
                         />
                       </div>
