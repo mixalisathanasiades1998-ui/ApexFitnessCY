@@ -1,4 +1,5 @@
 import { sqlite } from "@/db";
+import { enforceClosures } from "./closures";
 import { PERSONAL_DURATION_MINUTES } from "./personal";
 import { LEVEL_RULES } from "./rota";
 import { STUDIO } from "./studio";
@@ -44,6 +45,20 @@ export function repairScheduleOnce() {
   /* Levels last: the slots and their future classes exist by now, so the initial
      level for each configured slot can be written onto them. */
   applyLevelRules();
+  /* And finally, make the closed days empty. The generator skips them, but a day
+     closed under the old behaviour may still be carrying classes; this clears
+     them and refunds anyone who booked one. Never allowed to take the page down
+     with it — a stale class on a closed day is a smaller problem than a 500. */
+  try {
+    const swept = enforceClosures();
+    if (swept.classesCancelled || swept.bookingsRefunded) {
+      console.log(
+        `[closures] swept ${swept.classesCancelled} class(es) off closed days, refunded ${swept.bookingsRefunded} booking(s)`,
+      );
+    }
+  } catch (err) {
+    console.error("[closures] could not enforce closures", err);
+  }
 }
 
 /**

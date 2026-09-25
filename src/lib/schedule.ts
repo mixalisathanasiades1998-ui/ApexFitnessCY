@@ -1,7 +1,12 @@
 import { and, eq, gte } from "drizzle-orm";
 import { openingSummary } from "./rota";
 import { db } from "@/db";
-import { bookings, classSessions, classTemplates } from "@/db/schema";
+import {
+  bookings,
+  classSessions,
+  classTemplates,
+  studioClosures,
+} from "@/db/schema";
 import { TIMETABLE_WEEKS } from "./horizon";
 import {
   studioAddDays,
@@ -60,11 +65,22 @@ export function generateSessions(
   let created = 0;
   let skipped = 0;
 
+  /* Days the studio has marked closed. A closure is often set well before the
+     timetable has generated that far ahead, so without this the roll-forward
+     would happily create bookable classes on a day the studio is shut — the
+     closure had nothing to cancel when it was made, and the generator does not
+     look at it. Read once, up front, and skip those whole days below. */
+  const closedDays = new Set(
+    db.select({ day: studioClosures.day }).from(studioClosures).all().map((c) => c.day),
+  );
+
   db.transaction(() => {
     for (let i = 0; i < days; i++) {
       const dayInstant = studioAddDays(start, i);
       const dow = studioDayOfWeek(dayInstant);
       const p = studioParts(dayInstant);
+
+      if (closedDays.has(studioDateKey(dayInstant))) continue;
 
       for (const tpl of templates) {
         if (tpl.dayOfWeek !== dow) continue;

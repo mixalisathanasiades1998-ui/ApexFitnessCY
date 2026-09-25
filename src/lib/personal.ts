@@ -22,8 +22,19 @@ import { studioStartOfDay } from "./time";
  * inference like that is right until the studio moves the slot.
  */
 
-/** The hours the studio keeps free for appointments, in studio wall-clock. */
-export const PERSONAL_SLOT_HOURS = [12, 13, 14] as const;
+/**
+ * The hours the studio keeps free for appointments, in studio wall-clock.
+ *
+ * Currently EMPTY: the studio has taken personal and duet appointments off the
+ * timetable. With no hours here, the boot repair creates no appointment slots and
+ * switches off any that exist, and no new personal or duet classes are generated.
+ * Any appointment that was already booked is left standing so that member keeps
+ * their hour — the repair only removes unbooked slots.
+ *
+ * To bring appointments back, restore the hours (the studio ran 12:00, 13:00 and
+ * 14:00) and redeploy; the slots and their forward classes come straight back.
+ */
+export const PERSONAL_SLOT_HOURS = [] as const;
 
 /** Monday to Friday. Not the weekend: Saturday is the morning rota and Sunday is shut. */
 export const PERSONAL_SLOT_DAYS = [1, 2, 3, 4, 5] as const;

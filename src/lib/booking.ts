@@ -23,6 +23,7 @@ import {
   personalBookingClosesAt,
 } from "./personal";
 import { repairScheduleOnce } from "./schedule-repair";
+import { isClosed } from "./closures";
 import {
   FREE_CANCELLATION_HOURS,
   isBookable,
@@ -106,6 +107,15 @@ export function bookClass(
     const seats = personal && guestName ? 2 : 1;
 
     if (session.s.status !== "SCHEDULED")
+      return { ok: false, code: "SESSION_CANCELLED" };
+
+    /* The day itself may be shut even when the class row still says SCHEDULED —
+       a holiday set before the timetable had generated that far ahead leaves the
+       classes to be created later by the roll-forward, which does not know the
+       day is closed. Whatever the row says, nobody books a class on a day the
+       studio has marked closed. Reported as a cancelled session because from the
+       member's side it is exactly that: an hour that is not going to happen. */
+    if (isClosed(session.s.startsAt))
       return { ok: false, code: "SESSION_CANCELLED" };
 
     /* Two different cutoffs, because they answer two different questions. A

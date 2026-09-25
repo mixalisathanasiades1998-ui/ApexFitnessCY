@@ -430,9 +430,14 @@ const all = sess.json?.sessions ?? [];
 const list = all.filter((s) => s.classType?.kind !== "PERSONAL");
 const appointments = all.filter((s) => s.classType?.kind === "PERSONAL");
 check("timetable API returns classes", list.length > 0, list.length);
+/* Personal and duet appointments are switched off (PERSONAL_SLOT_HOURS is
+   empty): the studio has taken them off the timetable, so none should be
+   offered. Any appointment already booked survives as its own session but is
+   not part of the bookable list here. If appointments are brought back, this
+   flips to `appointments.length > 0`. */
 check(
-  "and appointments alongside them",
-  appointments.length > 0,
+  "appointments are switched off",
+  appointments.length === 0,
   appointments.length,
 );
 /* Comfortably outside the 24-hour cancellation window, so the cancel step

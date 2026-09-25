@@ -82,8 +82,15 @@ export default async function TimetablePage({
   ]);
 
   const now = new Date();
+  /* The days the studio has marked closed, read once. A closed day shows the
+     "Studio closed" panel, exactly as a Sunday does — so its classes are kept
+     out of the bookable list even on the rare occasion a stale SCHEDULED row is
+     still sitting on it (the booking API refuses it too; this is the visual half
+     of the same guard). */
+  const closed = closedDayReasons();
   const sessions: ScheduleSession[] = rows
     .filter((s) => s.status === "SCHEDULED")
+    .filter((s) => !closed.has(studioDateKey(s.startsAt)))
     .map((s) => ({
       id: s.id,
       day: studioDateKey(s.startsAt),
@@ -127,8 +134,8 @@ export default async function TimetablePage({
   }
 
   /* Keep Sundays and any manually closed days visible so the timetable makes the
-     studio's closure status explicit instead of silently dropping the date. */
-  const closed = closedDayReasons();
+     studio's closure status explicit instead of silently dropping the date.
+     `closed` is built above, where the session list uses it too. */
   const days = studioDayKeys(from, DAYS_SHOWN);
 
   return (

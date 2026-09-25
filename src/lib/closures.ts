@@ -198,6 +198,95 @@ export function closeDay(args: {
   });
 }
 
+/**
+ * Make every closed day actually empty, and put right any that slipped through.
+ *
+ * `closeDay` cancels the classes that exist the moment the day is shut. But a
+ * holiday is often entered months ahead, before the timetable has generated that
+ * far — so there is nothing to cancel then, and later the roll-forward creates
+ * classes on the closed day because the generator does not read the closure
+ * list. `generateSessions` now skips closed days, which stops new ones; this
+ * clears any that were already made under the old behaviour, and refunds anyone
+ * who managed to book one before the guard was in place.
+ *
+ * Idempotent: once a day's classes are CANCELLED there is nothing left to do, so
+ * it costs one cheap query per closed day on a boot where everything is already
+ * right. Past classes are left alone — a class that has happened is history, the
+ * same line `closeDay` draws.
+ *
+ * Returns how many classes it cancelled and how many members it refunded, so the
+ * caller (and the logs) can see whether it had anything to fix.
+ */
+export function enforceClosures(now = new Date()): {
+  classesCancelled: number;
+  bookingsRefunded: number;
+} {
+  const days = db
+    .select({ day: studioClosures.day })
+    .from(studioClosures)
+    .all()
+    .map((c) => c.day);
+
+  let classesCancelled = 0;
+  let bookingsRefunded = 0;
+
+  for (const day of days) {
+    const start = studioStartOfDay(new Date(`${day}T12:00:00Z`));
+    const end = studioAddDays(start, 1);
+
+    /* Only classes still standing on the closed day. A CANCELLED row is already
+       done and is skipped, which is what keeps this idempotent. */
+    const doomed = db
+      .select()
+      .from(classSessions)
+      .where(
+        and(
+          gte(classSessions.startsAt, start),
+          lt(classSessions.startsAt, end),
+          eq(classSessions.status, "SCHEDULED"),
+        ),
+      )
+      .all();
+
+    if (!doomed.length) continue;
+
+    db.transaction(() => {
+      const ids = doomed.map((s) => s.id);
+      const live = db
+        .select()
+        .from(bookings)
+        .where(
+          and(inArray(bookings.sessionId, ids), eq(bookings.status, "CONFIRMED")),
+        )
+        .all();
+
+      for (const booking of live) {
+        const session = doomed.find((s) => s.id === booking.sessionId)!;
+        /* A class already in the past is history; only a future one is refunded,
+           because the studio closing a day it has already run changes nothing. */
+        if (session.startsAt.getTime() <= now.getTime()) continue;
+        refundOneCredit(booking.userId, booking.creditBatchId, {
+          bookingId: booking.id,
+          note: `Studio closed ${day}`,
+        });
+        db.update(bookings)
+          .set({ status: "CANCELLED", cancelledAt: now, creditRefunded: true })
+          .where(eq(bookings.id, booking.id))
+          .run();
+        bookingsRefunded++;
+      }
+
+      db.update(classSessions)
+        .set({ status: "CANCELLED" })
+        .where(inArray(classSessions.id, ids))
+        .run();
+      classesCancelled += ids.length;
+    });
+  }
+
+  return { classesCancelled, bookingsRefunded };
+}
+
 /** Open a day back up. Cancelled classes are restored; bookings are not. */
 export function reopenDay(day: string) {
   return db.transaction(() => {

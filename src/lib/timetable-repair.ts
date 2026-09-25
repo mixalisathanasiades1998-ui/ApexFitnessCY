@@ -281,6 +281,57 @@ export function repairTimetable(now = new Date()): TimetableSync {
        lands. A name printed on the slot before anybody has agreed to work it is
        a promise the site is not in a position to make. */
 
+    /* Retire appointment slots the studio no longer runs — the same reconcile the
+       group rota gets below, applied to the midday slots. An appointment template
+       whose (day, hour) is not in the config is switched off, and its future
+       classes are removed *only where nobody has booked them*; a booked
+       appointment is left exactly where it is, so a member who has an hour keeps
+       it and the desk cancels it by hand if it ever needs cancelling. With the
+       config empty this switches every appointment slot off, which is how the
+       studio takes personal and duet off the timetable without disturbing the one
+       appointment already on the books. */
+    const wantedPersonal = new Set<string>();
+    for (const day of PERSONAL_SLOT_DAYS) {
+      for (const hour of PERSONAL_SLOT_HOURS) {
+        wantedPersonal.add(`${day}:${hour * 60}`);
+      }
+    }
+    const activePersonal = sqlite
+      .prepare(
+        `select id, day_of_week, start_minutes from class_templates
+          where active = 1 and class_type_id = ?`,
+      )
+      .all(personal.id) as {
+      id: string;
+      day_of_week: number;
+      start_minutes: number;
+    }[];
+    const deactivatePersonal = sqlite.prepare(
+      "update class_templates set active = 0 where id = ?",
+    );
+    const stalePersonal: string[] = [];
+    for (const t of activePersonal) {
+      if (!wantedPersonal.has(`${t.day_of_week}:${t.start_minutes}`)) {
+        deactivatePersonal.run(t.id);
+        stalePersonal.push(t.id);
+        out.staleTemplates++;
+      }
+    }
+    if (stalePersonal.length > 0) {
+      const cutoff = Math.floor(studioStartOfDay(now).getTime() / 1000);
+      const marks = stalePersonal.map(() => "?").join(", ");
+      out.sessionsPruned += sqlite
+        .prepare(
+          `delete from class_sessions
+            where starts_at >= ?
+              and template_id in (${marks})
+              and id not in (
+                select session_id from bookings where status = 'CONFIRMED'
+              )`,
+        )
+        .run(cutoff, ...stalePersonal).changes;
+    }
+
     /**
      * The rota, made authoritative for the group timetable.
      *
@@ -403,7 +454,7 @@ export function repairTimetable(now = new Date()): TimetableSync {
          is worse than an extra row. */
       if (staleIds.length > 0) {
         const marks = staleIds.map(() => "?").join(", ");
-        out.sessionsPruned = sqlite
+        out.sessionsPruned += sqlite
           .prepare(
             `delete from class_sessions
               where starts_at >= ?
