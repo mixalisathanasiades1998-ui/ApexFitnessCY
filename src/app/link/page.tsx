@@ -111,6 +111,7 @@ const COPY = {
     website: "Visit the website",
     facebook: "Facebook",
     instagram: "Instagram",
+    tiktok: "TikTok",
     install: "Install the app",
     installed: "You are using the app",
     call: "Call us",
@@ -128,6 +129,7 @@ const COPY = {
     website: "Επισκέψου την ιστοσελίδα",
     facebook: "Facebook",
     instagram: "Instagram",
+    tiktok: "TikTok",
     install: "Εγκατάσταση εφαρμογής",
     installed: "Χρησιμοποιείς την εφαρμογή",
     call: "Κάλεσέ μας",
@@ -150,7 +152,7 @@ const COPY = {
  */
 const dialable = (n: string) => n.replace(/[^\d+]/g, "");
 
-/** One row in the stack. All five look the same on purpose. */
+/** One row in the stack. They all look the same on purpose. */
 function Action({
   href,
   children,
@@ -166,7 +168,7 @@ function Action({
      near-black ground: cream at 25% reads clearly against `mocha-950` and goes
      nearly invisible against `mocha-600`, which is 4 steps lighter. */
   const className =
-    "flex w-full items-center justify-center gap-3 rounded-full border border-cream/35 px-6 py-3.5 text-xs uppercase tracking-widest text-cream transition-colors duration-300 hover:border-cream/70 hover:bg-cream/10";
+    "flex w-full items-center justify-center gap-3 rounded-full border border-cream/35 px-6 py-2.5 [@media(min-height:920px)]:py-3.5 text-xs uppercase tracking-widest text-cream transition-colors duration-300 hover:border-cream/70 hover:bg-cream/10";
 
   /* `next/link` for anything inside the site so it prefetches and navigates
      without a reload; a plain anchor for anything that leaves, including
@@ -206,10 +208,17 @@ export default async function LinkPage() {
      * is. Putting them inside `max-w-sm` would have made them two short strips
      * with brown either side, which is not what a rail is.
      */
+    /* Sized to fit one screen without scrolling. The tighter spacing is the
+       default, because most phones and laptops (a 1080p screen at 125% scaling
+       leaves ~660px) are shorter than the card at full size. On a screen at
+       least 920px tall the roomier spacing returns — every
+       `[@media(min-height:920px)]:` class on this page is that one rule. The
+       smallest phones (under 620px, e.g. an iPhone SE) also drop the monogram
+       above the wordmark: the `[@media(max-height:619px)]:` classes. */
     <main className="flex min-h-dvh flex-col bg-mocha-600">
       <MantraBar phrases={TOP_RAIL} />
 
-      <div className="flex flex-1 items-center justify-center px-6 py-8">
+      <div className="flex flex-1 items-center justify-center px-6 py-4 [@media(min-height:920px)]:py-8">
         <div className="w-full max-w-sm">
           {/* The mark. `Monogram` already does the mask-over-currentColor
               trick, so it recolours with the text around it and the 18kB of
@@ -217,19 +226,23 @@ export default async function LinkPage() {
           {/* Wrapped in a flex row rather than given `mx-auto`: `Monogram`
               renders an `inline-block` span, and auto margins do nothing to an
               inline box, so the mark sat hard left. */}
-          <div className="flex justify-center">
-            <Monogram className="h-16 w-16 text-cream/90" />
+          <div className="flex justify-center [@media(max-height:619px)]:hidden">
+            <Monogram className="h-10 w-10 text-cream/90 [@media(min-height:920px)]:h-16 [@media(min-height:920px)]:w-16" />
           </div>
 
-          <div className="mt-7 flex justify-center">
-            <Wordmark tone="cream" priority className="w-[210px]" />
+          <div className="mt-4 flex justify-center [@media(max-height:619px)]:mt-0 [@media(min-height:920px)]:mt-7">
+            <Wordmark
+              tone="cream"
+              priority
+              className="w-[170px] [@media(min-height:920px)]:w-[210px]"
+            />
           </div>
 
-          <p className="mt-7 text-center font-wordmark text-xl tracking-wide text-cream/90">
+          <p className="mt-3 text-center font-wordmark text-lg tracking-wide text-cream/90 [@media(min-height:920px)]:mt-7 [@media(min-height:920px)]:text-xl">
             {t.tagline}
           </p>
 
-          <div className="mt-10 space-y-3">
+          <div className="mt-5 space-y-2 [@media(max-height:619px)]:mt-4 [@media(max-height:619px)]:space-y-1.5 [@media(min-height:920px)]:mt-10 [@media(min-height:920px)]:space-y-3">
             <Action
               href="/"
               icon={
@@ -287,6 +300,25 @@ export default async function LinkPage() {
               {t.instagram}
             </Action>
 
+            <Action
+              external
+              href={STUDIO.tiktok}
+              icon={
+                <Image
+                  src="/brand/tiktok.svg"
+                  alt=""
+                  width={16}
+                  height={16}
+                  /* Drawn in currentColor, which an <img> reads as black, so
+                     the same invert as Facebook and Instagram turns it cream. */
+                  className="h-4 w-4 invert"
+                  aria-hidden
+                />
+              }
+            >
+              {t.tiktok}
+            </Action>
+
             {/* Filled rather than outlined: it is the one thing this page is
               really for, and it is the only action that changes anything on the
               visitor's phone. */}
@@ -319,7 +351,7 @@ export default async function LinkPage() {
             </Action>
           </div>
 
-          <p className="mt-8 text-center text-[11px] uppercase tracking-widest text-cream/45">
+          <p className="mt-5 text-center text-[11px] uppercase tracking-widest text-cream/45 [@media(min-height:920px)]:mt-8">
             {STUDIO.addressLines[1]}, {STUDIO.city}
           </p>
 
@@ -331,7 +363,7 @@ export default async function LinkPage() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${t.builtBy} ErgonSite`}
-            className="group mt-10 flex items-center justify-center gap-2.5 opacity-70 transition-opacity duration-500 hover:opacity-100"
+            className="group mt-4 flex items-center justify-center gap-2.5 opacity-70 [@media(min-height:920px)]:mt-10 transition-opacity duration-500 hover:opacity-100"
           >
             <span className="whitespace-nowrap text-[11px] text-cream/45 transition-colors duration-500 group-hover:text-cream/70">
               {t.builtBy}

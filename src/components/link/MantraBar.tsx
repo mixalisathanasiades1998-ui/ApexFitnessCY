@@ -61,7 +61,7 @@ export function MantraBar({
   return (
     <div
       className={cn(
-        "relative overflow-hidden border-y border-mocha-200/50 bg-cream-200 py-4",
+        "relative overflow-hidden border-y border-mocha-200/50 bg-cream-200 py-3 [@media(max-height:619px)]:py-2 [@media(min-height:920px)]:py-4",
         className,
       )}
     >

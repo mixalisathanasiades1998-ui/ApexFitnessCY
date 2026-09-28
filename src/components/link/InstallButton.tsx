@@ -123,11 +123,11 @@ export function InstallButton({
    * paint before the browser has been asked, which is what stops the stack
    * jumping, and after that the row either has a button in it or is not there.
    */
-  if (!ready) return <div className="h-[52px]" aria-hidden />;
+  if (!ready) return <div className="h-[38px] [@media(min-height:920px)]:h-[46px]" aria-hidden />;
 
   if (installed) {
     return (
-      <p className="py-3 text-center text-xs uppercase tracking-widest text-cream/45">
+      <p className="py-2.5 text-center text-xs uppercase tracking-widest text-cream/45 [@media(min-height:920px)]:py-3">
         {installedLabel}
       </p>
     );
@@ -156,7 +156,7 @@ export function InstallButton({
         type="button"
         onClick={onClick}
         aria-expanded={isIos ? showIosHelp : undefined}
-        className="flex w-full items-center justify-center gap-3 rounded-full bg-cream px-6 py-3.5 text-xs uppercase tracking-widest text-mocha-800 transition-opacity duration-300 hover:opacity-85"
+        className="flex w-full items-center justify-center gap-3 rounded-full bg-cream px-6 py-2.5 [@media(min-height:920px)]:py-3.5 text-xs uppercase tracking-widest text-mocha-800 transition-opacity duration-300 hover:opacity-85"
       >
         <svg
           viewBox="0 0 24 24"
