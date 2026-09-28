@@ -114,6 +114,8 @@ const COPY = {
     install: "Install the app",
     installed: "You are using the app",
     call: "Call us",
+    /* Same words as the site footer, so the two credits read as one. */
+    builtBy: "Developed & Designed by",
     iosTitle: "To add it to your home screen",
     iosSteps: [
       "Tap the Share button at the bottom of Safari.",
@@ -129,6 +131,7 @@ const COPY = {
     install: "Εγκατάσταση εφαρμογής",
     installed: "Χρησιμοποιείς την εφαρμογή",
     call: "Κάλεσέ μας",
+    builtBy: "Σχεδιασμός & Ανάπτυξη από",
     iosTitle: "Για να την προσθέσεις στην αρχική οθόνη",
     iosSteps: [
       "Πάτα το κουμπί Κοινοποίηση στο κάτω μέρος του Safari.",
@@ -319,6 +322,29 @@ export default async function LinkPage() {
           <p className="mt-8 text-center text-[11px] uppercase tracking-widest text-cream/45">
             {STUDIO.addressLines[1]}, {STUDIO.city}
           </p>
+
+          {/* The builder's credit, matching the one in the site footer: the
+              studio's page comes first and this sits quietly underneath it,
+              faded until hovered. A plain outbound link, nothing else. */}
+          <a
+            href="https://www.ergonsite.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${t.builtBy} ErgonSite`}
+            className="group mt-10 flex items-center justify-center gap-2.5 opacity-70 transition-opacity duration-500 hover:opacity-100"
+          >
+            <span className="whitespace-nowrap text-[11px] text-cream/45 transition-colors duration-500 group-hover:text-cream/70">
+              {t.builtBy}
+            </span>
+            <Image
+              src="/brand/ergonsite.png"
+              alt="ErgonSite"
+              width={480}
+              height={104}
+              sizes="100px"
+              className="h-auto w-[84px]"
+            />
+          </a>
         </div>
       </div>
 
