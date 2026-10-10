@@ -33,6 +33,9 @@ import "@fontsource/jost/200.css";
 import "@fontsource/jost/300.css";
 import "@fontsource/jost/400.css";
 import "@fontsource/jost/500.css";
+/* Bold, for the names in the desk's bookings list. Only downloaded by a page
+   that actually renders text at this weight. */
+import "@fontsource/jost/600.css";
 import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400.css";
 import "@fontsource/cormorant-garamond/500.css";

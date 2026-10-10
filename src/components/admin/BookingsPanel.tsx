@@ -831,7 +831,8 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                 </span>
 
                 <span className="flex flex-1 flex-wrap items-baseline gap-x-3">
-                  <span className="text-[14px] text-mocha-600">
+                  {/* Bold, so the desk finds the person at a glance. */}
+                  <span className="text-[14px] font-semibold text-mocha-600">
                     {a.guestName ? `${a.name} + ${a.guestName}` : a.name}
                   </span>
                   <span className="text-[12px] text-clay">
@@ -1003,14 +1004,16 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                       <li key={a.bookingId} className="py-3">
                        <div className="flex flex-wrap items-center justify-between gap-3">
                         <span>
-                          <span className="text-[14px] text-mocha-600">
+                          {/* Bold, so the names stand out from the phone
+                              number and status beside them. */}
+                          <span className="text-[14px] font-semibold text-mocha-600">
                             {a.name}
                           </span>
                           {/* The second person, who has no account and no other
                               record anywhere. Whoever opens the door needs to be
                               expecting two. */}
                           {a.guestName && (
-                            <span className="ml-2 rounded-full bg-gold/25 px-2 py-0.5 text-[10px] text-[#8a6f1a]">
+                            <span className="ml-2 rounded-full bg-gold/25 px-2 py-0.5 text-[10px] font-semibold text-[#8a6f1a]">
                               + {a.guestName}
                             </span>
                           )}
