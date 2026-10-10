@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { DateField, dayKey } from "@/components/ui/DateField";
+import { ExtendAllCard } from "@/components/admin/ExtendAllCard";
 import { useI18n } from "@/i18n/LanguageProvider";
 
 /**
@@ -353,6 +354,10 @@ export function ClosurePanel({
           )}
         </div>
       </div>
+
+      {/* After a closure is the moment the studio thinks of this, so it sits
+          here, across the full width under the two cards above. */}
+      <ExtendAllCard onNotice={onNotice} />
     </div>
   );
 }

@@ -538,6 +538,72 @@ check(
 );
 check("balance back to 8", cancelled.json?.credits === 8, cancelled.json);
 
+console.log("\n8z. A pack bought to start on a later day");
+{
+  /* The member now holds a running pack with sessions in it, so the checkout
+     suggests the day after it ends; they choose a nearer day instead. */
+  const dayKey = (n) => {
+    const d = new Date(Date.now() + n * 864e5);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Nicosia",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  };
+  const past = await req("/api/checkout", {
+    method: "POST",
+    body: { packSlug: "month-2", startsOn: dayKey(-1) },
+  });
+  check("a start day in the past is refused", past.json?.error === "BAD_START", past.json);
+  const far = await req("/api/checkout", {
+    method: "POST",
+    body: { packSlug: "month-2", startsOn: dayKey(200) },
+  });
+  check("a start day far beyond the limit is refused", far.json?.error === "BAD_START", far.json);
+
+  const open2 = await req("/api/checkout", {
+    method: "POST",
+    body: { packSlug: "month-2" },
+  });
+  check(
+    "with a pack running, the suggested start is after today",
+    typeof open2.json?.startsOn === "string" && open2.json.startsOn > dayKey(0),
+    open2.json?.startsOn,
+  );
+  const moved = await req("/api/checkout/start", {
+    method: "POST",
+    body: { purchaseId: open2.json?.purchaseId, startsOn: dayKey(3) },
+  });
+  check(
+    "the member can change the day before paying",
+    moved.json?.ok && moved.json?.startsOn === dayKey(3),
+    moved.json,
+  );
+  const settled2 = await req("/api/payments/settle", {
+    method: "POST",
+    body: { purchaseId: open2.json?.purchaseId },
+  });
+  check("the payment lands", settled2.json?.status === "PAID", settled2.json);
+  check("the sessions are in the balance", settled2.json?.credits === 16, settled2.json);
+  const after = await req("/api/checkout/start", {
+    method: "POST",
+    body: { purchaseId: open2.json?.purchaseId, startsOn: dayKey(5) },
+  });
+  check(
+    "a paid pack's day cannot be changed by the member",
+    after.status === 409,
+    after.status,
+  );
+  /* A pack was already running, so the new one is a top-up: its days are
+     counted from the chosen day but nothing is held back until then. */
+  const acct = await req("/account");
+  check(
+    "with a pack running, the new sessions are not held back",
+    !acct.text.includes("start on"),
+  );
+}
+
 /* Every group class the studio runs is 50 minutes with five places. */
 const cap = list.every((s) => s.capacity === 5);
 check(
@@ -1100,6 +1166,12 @@ const rPromo = await req("/api/admin/promo");
 check("reception is refused /api/admin/promo", rPromo.status === 403, rPromo.status);
 const rTeam = await req("/api/admin/team");
 check("reception is refused /api/admin/team", rTeam.status === 403, rTeam.status);
+const rExtendAll = await req("/api/admin/extend-all");
+check(
+  "reception is refused extending every pack",
+  rExtendAll.status === 403,
+  rExtendAll.status,
+);
 
 /* Back to the owner, unlocked, so the rest of the suite runs as before. */
 await req("/api/auth/login", {

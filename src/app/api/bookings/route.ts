@@ -69,6 +69,8 @@ export async function POST(req: Request) {
         /* Only ever set on SESSIONS_EXPIRE_FIRST, where the refusal is only
            useful if it can name the last date that would have worked. */
         until: result.until?.toISOString(),
+        /* Only on PACK_STARTS_LATER: the first day their pack can book. */
+        from: result.from?.toISOString(),
       },
       { status: needsPayment ? 402 : 409 },
     );

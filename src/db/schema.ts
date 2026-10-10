@@ -619,6 +619,13 @@ export const purchases = sqliteTable(
      */
     promoCode: text("promo_code"),
     promoDiscountCents: integer("promo_discount_cents"),
+    /**
+     * The day the member chose for the pack to start, as "YYYY-MM-DD" in
+     * Larnaca. Written when the payment is opened (and if they change the date
+     * before paying), read when the payment lands. Null on every purchase made
+     * before members could choose, and on a pack started today.
+     */
+    startsOn: text("starts_on"),
     createdAt: now().notNull(),
     paidAt: integer("paid_at", { mode: "timestamp" }),
   },

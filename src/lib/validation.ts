@@ -145,6 +145,15 @@ export const checkoutSchema = z
     packSlug: z.string().min(1).optional(),
     /** An optional discount code, checked and priced on the server. */
     code: z.string().trim().min(1).max(40).optional(),
+    /**
+     * The day the member wants the pack to start, "YYYY-MM-DD". Optional: left
+     * out, the server uses its own suggestion. Whether the day is allowed is
+     * decided on the server, against the member's own packs.
+     */
+    startsOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   })
   .refine((v) => Boolean(v.packageId || v.packSlug), {
     message: "packageId or packSlug is required",

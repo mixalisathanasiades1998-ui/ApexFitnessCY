@@ -11,6 +11,7 @@ import {
 } from "@/lib/intake";
 import { Pager } from "@/components/ui/Pager";
 import { cn } from "@/lib/utils";
+import { STUDIO } from "@/lib/studio";
 
 /**
  * One member, and everything the desk can do about them.
@@ -74,6 +75,10 @@ type Detail = {
     source: string;
     kind: string;
     usableTo: string | null;
+    /** Set when the pack starts on a later day than it was bought. */
+    usableFrom: string | null;
+    /** The day its days are counted from, when on record; else null. */
+    countsFrom?: string | null;
   }[];
   payments: {
     id: string;
@@ -101,6 +106,22 @@ type Detail = {
  */
 function toDateInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
+}
+
+/**
+ * The studio's calendar day for an instant, "YYYY-MM-DD".
+ *
+ * Not `toDateInput`, which cuts the UTC date out of the string: a pack starting
+ * at midnight in Larnaca is 21:00 the evening before in UTC, and cutting would
+ * show the day before.
+ */
+function studioDay(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: STUDIO.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 /** Add whole days to a "YYYY-MM-DD" value, staying in UTC so no day is skipped
@@ -154,6 +175,21 @@ export function MemberDesk({
      for "extend all". Empty until the desk touches a field, at which point the
      input falls back to the pack's own current expiry. */
   const [extendDates, setExtendDates] = useState<Record<string, string>>({});
+  /* Move-start form, per pack, like the extend dates above. */
+  const [startDates, setStartDates] = useState<Record<string, string>>({});
+
+  /* The start day for a sale: the same suggestion the member would see at
+     checkout, fetched whenever the member or the kind of pack changes. */
+  const [sellStart, setSellStart] = useState("");
+  /* True when the member already has a pack of this kind running: the new
+     sessions are usable at once and the day only sets where its days count from. */
+  const [sellTopUp, setSellTopUp] = useState(false);
+  /* While the suggested day is on its way, a sale would go without one. */
+  const [sellStartLoading, setSellStartLoading] = useState(false);
+  const [sellStartRange, setSellStartRange] = useState<{
+    min: string;
+    max: string;
+  } | null>(null);
   const [extendAllDate, setExtendAllDate] = useState("");
 
   /* Contact form */
@@ -249,6 +285,56 @@ export function MemberDesk({
     setEraseConfirm("");
   }, []);
 
+  useEffect(() => {
+    /* Cleared first, so a sale made before the new suggestion arrives can never
+       carry the previous member's start day. Empty means "no start day sent",
+       which keeps the old behaviour. */
+    setSellStart("");
+    setSellStartRange(null);
+    setSellTopUp(false);
+    if (!member) {
+      setSellStartLoading(false);
+      return;
+    }
+    let live = true;
+    setSellStartLoading(true);
+    void (async () => {
+      try {
+        await loadStart();
+      } catch {
+        /* No suggestion: the sale still works, with the old rule. */
+      } finally {
+        if (live) setSellStartLoading(false);
+      }
+    })();
+    async function loadStart() {
+      if (!member) return;
+      const res = await fetch(
+        `/api/admin/start-choice?userId=${encodeURIComponent(member.id)}&kind=${sellKind}`,
+      );
+      if (!res.ok || !live) return;
+      const data = (await res.json()) as {
+        startsOn: string;
+        min: string;
+        max: string;
+        current: unknown;
+      };
+      /* Checked again after the body arrives: the desk may have opened another
+         member while it was on its way. */
+      if (!live) return;
+      setSellStart(data.startsOn);
+      setSellTopUp(Boolean(data.current));
+      setSellStartRange({ min: data.min, max: data.max });
+    }
+    return () => {
+      live = false;
+    };
+    /* Keyed on who, what kind, and their balance: a sale changes the balance
+       and with it the suggestion, while saving their phone number does not
+       throw away a day the desk has just picked. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member?.id, member?.credits, sellKind]);
+
   async function post(url: string, payload: unknown, key: string, method = "POST") {
     setBusy(key);
     try {
@@ -277,6 +363,11 @@ export function MemberDesk({
           NOTHING_TO_EXTEND: d.errExtendNothing,
           TOO_FAR: d.errExtendTooFar,
           BAD_DATE: d.errExtendBadDate,
+          BAD_START: d.errStartBad,
+          ALREADY_USED: d.errStartUsed,
+          NOT_A_PACK: d.errStartNotPack,
+          NOT_CHANGED: d.errStartSame,
+          NO_START: d.errStartUnknown,
         };
         const code = String(data.error ?? "");
         onNotice(known[code] ?? code ?? t.common.somethingWrong);
@@ -510,6 +601,31 @@ export function MemberDesk({
                   className="input lining-nums tabular-nums"
                 />
               </Field>
+              {/* A sale has a start day; a goodwill adjustment starts today. */}
+              {method !== "adjustment" && credits > 0 && (
+                <div className="sm:col-span-2">
+                  <Field label={d.sellStart}>
+                    <input
+                      type="date"
+                      value={sellStart}
+                      min={sellStartRange?.min}
+                      max={sellStartRange?.max}
+                      onChange={(e) => setSellStart(e.target.value)}
+                      className="input lining-nums tabular-nums"
+                    />
+                  </Field>
+                  {sellStart && validity > 0 && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-clay">
+                      {(sellTopUp ? d.sellStartHelpTopUp : d.sellStartHelp)
+                        .replace("{start}", fmtShortDate(`${sellStart}T12:00:00Z`))
+                        .replace(
+                          "{end}",
+                          fmtShortDate(`${addDaysStr(sellStart, validity)}T12:00:00Z`),
+                        )}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <Field label={d.sellKind}>
                   <div className="flex flex-wrap gap-2">
@@ -568,6 +684,7 @@ export function MemberDesk({
               disabled={
                 busy === "sell" ||
                 credits === 0 ||
+                (sellStartLoading && method !== "adjustment" && credits > 0) ||
                 /* Only the giving half. A negative number is a correction and
                    stays available whatever state the account is in. */
                 (credits > 0 && !member.emailVerifiedAt && !member.erasedAt)
@@ -586,6 +703,9 @@ export function MemberDesk({
                     method,
                     note: note || undefined,
                     kind: sellKind,
+                    ...(method !== "adjustment" && sellStart
+                      ? { startsOn: sellStart }
+                      : {}),
                   },
                   "sell",
                 );
@@ -616,6 +736,19 @@ export function MemberDesk({
                         : d.sellKindClass;
                   const canExtend = Boolean(b.expiresAt);
                   const value = extendDates[b.id] ?? toDateInput(b.expiresAt);
+                  /* A later start day, shown beside the expiry. */
+                  const startsLater =
+                    b.usableFrom && new Date(b.usableFrom).getTime() > Date.now()
+                      ? b.usableFrom
+                      : null;
+                  /* Only a paid pack nothing has been spent from, and whose
+                     start day is on record, can move. */
+                  const canMoveStart =
+                    b.source === "PURCHASE" &&
+                    canExtend &&
+                    Boolean(b.countsFrom) &&
+                    b.creditsRemaining === b.creditsTotal;
+                  const startValue = startDates[b.id] ?? b.countsFrom ?? "";
                   return (
                     <li
                       key={b.id}
@@ -632,6 +765,8 @@ export function MemberDesk({
                           </span>
                         </span>
                         <span className="text-[12px] text-clay">
+                          {startsLater &&
+                            `${d.packsStarts} ${fmtShortDate(startsLater)} · `}
                           {canExtend
                             ? `${d.packsExpires} ${fmtShortDate(b.expiresAt!)}`
                             : d.packsNever}
@@ -701,6 +836,64 @@ export function MemberDesk({
                             {busy === `extend:${b.id}`
                               ? t.common.loading
                               : d.packsExtend}
+                          </Button>
+                        </div>
+                      )}
+
+                      {canMoveStart && (
+                        <div className="mt-3 flex flex-wrap items-end gap-2">
+                          <Field label={d.packsMoveStart}>
+                            <input
+                              type="date"
+                              value={startValue}
+                              min={studioDay(new Date().toISOString())}
+                              onChange={(e) =>
+                                setStartDates((s) => ({
+                                  ...s,
+                                  [b.id]: e.target.value,
+                                }))
+                              }
+                              className="input lining-nums tabular-nums"
+                            />
+                          </Field>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy === `start:${b.id}` || !startValue}
+                            onClick={async () => {
+                              const res = await post(
+                                "/api/admin/session/start",
+                                {
+                                  userId: member.id,
+                                  batchId: b.id,
+                                  startsOn: startValue,
+                                },
+                                `start:${b.id}`,
+                              );
+                              if (res) {
+                                onNotice(
+                                  d.packsMoved
+                                    .replace("{name}", member.name)
+                                    .replace(
+                                      "{start}",
+                                      fmtShortDate(`${res.startsOn as string}T12:00:00Z`),
+                                    )
+                                    .replace(
+                                      "{end}",
+                                      fmtShortDate(`${res.expiresOn as string}T12:00:00Z`),
+                                    ),
+                                );
+                                setStartDates((s) => {
+                                  const next = { ...s };
+                                  delete next[b.id];
+                                  return next;
+                                });
+                              }
+                            }}
+                          >
+                            {busy === `start:${b.id}`
+                              ? t.common.loading
+                              : d.packsMoveStartDo}
                           </Button>
                         </div>
                       )}

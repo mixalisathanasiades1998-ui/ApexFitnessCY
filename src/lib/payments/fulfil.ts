@@ -105,7 +105,7 @@ export async function fulfilPurchase(args: {
           inArray(purchases.status, ["PENDING", "FAILED"]),
         ),
       )
-      .returning({ id: purchases.id })
+      .returning({ id: purchases.id, startsOn: purchases.startsOn })
       .all();
 
     if (!claimed.length) return;
@@ -139,6 +139,12 @@ export async function fulfilPurchase(args: {
          this had. */
       kind: pkg?.kind === "PERSONAL" || pkg?.kind === "DUET" ? pkg.kind : "CLASS",
       perDayLimit: pkg?.perDayLimit ?? null,
+      /* The day the member chose at checkout, read from the row as it was
+         claimed rather than as it was first read: the member can change the
+         day while this call is waiting on the catalogue above. Null on a
+         purchase from before members could choose, which keeps the old
+         queueing for those. */
+      startsOn: claimed[0]!.startsOn,
     });
 
     /* Count the discount code, once, here — inside the same claim that grants

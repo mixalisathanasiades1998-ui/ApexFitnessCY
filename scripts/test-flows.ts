@@ -2478,6 +2478,528 @@ async function main() {
     }
   }
 
+  console.log("\n15. A pack that starts on a day the member chose");
+  /**
+   * The studio's rule for the suggested start, and what a chosen start does.
+   *
+   *   - nothing running: today;
+   *   - a pack running with sessions left: the day after it ends;
+   *   - every session used or booked: the day after the last booked class;
+   *   - a pack started on a later day cannot book a class before that day, and
+   *     the refusal names the day; from that day on it books normally;
+   *   - without a chosen day, the old queueing is exactly what it was.
+   */
+  {
+    const C = await import("../src/lib/credits");
+    const { creditBatches, bookings: bk, classTypes } = await import(
+      "../src/db/schema"
+    );
+    const { studioDateKey } = await import("../src/lib/time");
+    const { asc } = await import("drizzle-orm");
+
+    const u = db
+      .insert(users)
+      .values({
+        email: `start-${Date.now()}@apex.test`,
+        name: "Start Day",
+        passwordHash: await hashPassword("x".repeat(10)),
+        emailVerifiedAt: new Date(),
+      })
+      .returning()
+      .get();
+    const clear = () => {
+      db.delete(bk).where(eq(bk.userId, u.id)).run();
+      db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
+    };
+    const today = studioDateKey(new Date());
+    const day = (n: number) => C.addDays(today, n);
+    const key = (d: Date | null) => (d ? studioDateKey(d) : null);
+    const groupAfter = (n: number) =>
+      db
+        .select({ id: classSessions.id, at: classSessions.startsAt })
+        .from(classSessions)
+        .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+        .where(
+          and(
+            eq(classTypes.kind, "GROUP"),
+            eq(classSessions.status, "SCHEDULED"),
+            gt(classSessions.startsAt, new Date(Date.now() + n * 864e5)),
+          ),
+        )
+        .orderBy(asc(classSessions.startsAt))
+        .all();
+
+    let c = C.startChoices(u.id, "CLASS");
+    check("nothing running: suggests today", c.startsOn === today && c.reason === "TODAY", c);
+    check("may choose up to 30 days ahead", c.max === day(30), c.max);
+    check("a past day is refused", !C.startAllowed(u.id, "CLASS", day(-1)));
+    check("31 days ahead is refused", !C.startAllowed(u.id, "CLASS", day(31)));
+    check("a day that does not exist is refused", !C.startAllowed(u.id, "CLASS", "2026-02-30"));
+
+    const w0 = C.packWindow(today, 30);
+    const w5 = C.packWindow(day(5), 30);
+    check(
+      "started today: usable now, to the end of today + 30",
+      w0.usableFrom === null && key(w0.expiresAt) === day(30),
+      w0,
+    );
+    check(
+      "started in five days: from that day, to 30 days after it",
+      key(w5.usableFrom) === day(5) && key(w5.expiresAt) === day(35),
+      w5,
+    );
+
+    clear();
+    grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: null,
+      expiresAt: new Date(Date.now() + 10 * 864e5),
+      source: "PURCHASE",
+    });
+    c = C.startChoices(u.id, "CLASS");
+    check(
+      "a pack with sessions left: the day after it ends",
+      c.startsOn === day(11) && c.reason === "AFTER_PACK" && c.current?.sessionsLeft === 4,
+      c,
+    );
+
+    clear();
+    grantCredits({
+      userId: u.id,
+      credits: 2,
+      validityDays: null,
+      expiresAt: new Date(Date.now() + 25 * 864e5),
+      source: "PURCHASE",
+    });
+    const g = groupAfter(2);
+    const first = g[0]!;
+    const second = g.find((x) => studioDateKey(x.at) >= day(6))!;
+    bookClass(u.id, first.id, { guestName: null });
+    bookClass(u.id, second.id, { guestName: null });
+    c = C.startChoices(u.id, "CLASS");
+    check(
+      "every session booked: still the day after the pack ends (nothing shortened)",
+      c.startsOn === day(26) && c.reason === "AFTER_PACK",
+      c,
+    );
+
+    clear();
+    grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(5),
+    });
+    const b = db
+      .select()
+      .from(creditBatches)
+      .where(eq(creditBatches.userId, u.id))
+      .get()!;
+    check(
+      "the pack is granted from the chosen day for its full length",
+      key(b.usableFrom) === day(5) && key(b.expiresAt) === day(35),
+      { from: key(b.usableFrom), to: key(b.expiresAt) },
+    );
+    const g2 = groupAfter(0);
+    const early = g2.find(
+      (x) => studioDateKey(x.at) < day(5) && x.at.getTime() > Date.now() + 3600e3,
+    );
+    if (early) {
+      const r = bookClass(u.id, early.id, { guestName: null });
+      check(
+        "a class before the start is refused, naming the start day",
+        !r.ok && r.code === "PACK_STARTS_LATER" && key(r.from ?? null) === day(5),
+        r,
+      );
+    }
+    const onTime = g2.find((x) => studioDateKey(x.at) >= day(5))!;
+    check(
+      "a class from the start day books",
+      bookClass(u.id, onTime.id, { guestName: null }).ok,
+    );
+    const late = groupAfter(40)[0]!;
+    const rl = bookClass(u.id, late.id, { guestName: null });
+    check(
+      "a class after the end names the end day",
+      !rl.ok && rl.code === "SESSIONS_EXPIRE_FIRST" && key(rl.until ?? null) === day(35),
+      rl,
+    );
+
+    /* With a pack still running, a chosen day only sets where the days are
+       counted from: the new sessions are a top-up and book straight away. */
+    clear();
+    grantCredits({
+      userId: u.id,
+      credits: 1,
+      validityDays: null,
+      expiresAt: new Date(Date.now() + 9 * 864e5),
+      source: "PURCHASE",
+    });
+    const topUp = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(10),
+    });
+    check(
+      "a pack running: the new one is usable now, its days counted from the chosen day",
+      topUp.usableFrom === null && key(topUp.expiresAt) === day(40),
+      { from: topUp.usableFrom, to: key(topUp.expiresAt) },
+    );
+    db.update(creditBatches)
+      .set({ creditsRemaining: 0 })
+      .where(and(eq(creditBatches.userId, u.id), eq(creditBatches.creditsTotal, 1)))
+      .run();
+    const soon = groupAfter(0).find(
+      (x) => studioDateKey(x.at) < day(10) && x.at.getTime() > Date.now() + 3600e3,
+    );
+    if (soon) {
+      check(
+        "and a top-up session books a class before that day",
+        bookClass(u.id, soon.id, { guestName: null }).ok,
+      );
+    }
+
+    clear();
+    const oldEnd = new Date(Date.now() + 10 * 864e5);
+    grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: null,
+      expiresAt: oldEnd,
+      source: "PURCHASE",
+    });
+    grantCredits({ userId: u.id, credits: 3, validityDays: 30, source: "PURCHASE" });
+    const queued = db
+      .select()
+      .from(creditBatches)
+      .where(and(eq(creditBatches.userId, u.id), eq(creditBatches.creditsTotal, 3)))
+      .get()!;
+    check(
+      "without a chosen day, the old queueing is unchanged",
+      key(queued.expiresAt) ===
+        studioDateKey(new Date(oldEnd.getTime() + 30 * 864e5)) &&
+        queued.usableFrom === null,
+      key(queued.expiresAt),
+    );
+
+    /* The desk can move an unused pack's start, keeping its length. */
+    const R = await import("../src/lib/reception");
+    clear();
+    const sold = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(3),
+    });
+    const moved = R.moveStart({
+      userId: u.id,
+      batchId: sold.id,
+      startsOn: day(8),
+      staffName: "Suite",
+    });
+    const mb = db.select().from(creditBatches).where(eq(creditBatches.id, sold.id)).get()!;
+    check(
+      "the desk moves a start and the end moves with it",
+      moved.ok && key(mb.usableFrom) === day(8) && key(mb.expiresAt) === day(38),
+      { moved, from: key(mb.usableFrom), to: key(mb.expiresAt) },
+    );
+    /* A top-up has no start of its own, but its days are counted from the day
+       chosen at checkout; moving it must shift from that day, not from the day
+       it was bought. */
+    const P = await import("../src/db/schema");
+    const runningPack = grantCredits({
+      userId: u.id,
+      credits: 2,
+      validityDays: null,
+      expiresAt: new Date(Date.now() + 9 * 864e5),
+      source: "PURCHASE",
+    });
+    const tp = db
+      .insert(P.purchases)
+      .values({
+        userId: u.id,
+        credits: 4,
+        amountCents: 6000,
+        currency: "eur",
+        status: "PAID",
+        provider: "test",
+        startsOn: day(10),
+      })
+      .returning()
+      .get();
+    const topped = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(10),
+      purchaseId: tp.id,
+    });
+    const tm = R.moveStart({
+      userId: u.id,
+      batchId: topped.id,
+      startsOn: day(12),
+      staffName: "Suite",
+    });
+    const tb = db.select().from(creditBatches).where(eq(creditBatches.id, topped.id)).get()!;
+    check(
+      "moving a top-up shifts its days from the chosen day, and it stays usable now",
+      tm.ok && key(tb.expiresAt) === day(42) && tb.usableFrom === null,
+      { tm, to: key(tb.expiresAt), from: tb.usableFrom },
+    );
+    db.delete(creditBatches).where(eq(creditBatches.id, runningPack.id)).run();
+    db.delete(creditBatches).where(eq(creditBatches.id, topped.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.purchaseId, tp.id)).run();
+    db.delete(P.purchases).where(eq(P.purchases.id, tp.id)).run();
+
+    db.update(creditBatches).set({ creditsRemaining: 3 }).where(eq(creditBatches.id, sold.id)).run();
+    const refused = R.moveStart({
+      userId: u.id,
+      batchId: sold.id,
+      startsOn: day(10),
+      staffName: "Suite",
+    });
+    check(
+      "a pack already used from cannot have its start moved",
+      !refused.ok && refused.code === "ALREADY_USED",
+      refused,
+    );
+
+    /* --- review fixes --- */
+    const newPurchase = (startsOn: string | null) =>
+      db
+        .insert(P.purchases)
+        .values({
+          userId: u.id,
+          credits: 4,
+          amountCents: 6000,
+          currency: "eur",
+          status: "PAID",
+          provider: "test",
+          startsOn,
+        })
+        .returning()
+        .get();
+    const startOf = (id: string) =>
+      db.select().from(P.purchases).where(eq(P.purchases.id, id)).get()!.startsOn;
+
+    /* A: with a pack running, the latest day is the suggested one. */
+    clear();
+    grantCredits({
+      userId: u.id,
+      credits: 2,
+      validityDays: null,
+      expiresAt: new Date(Date.now() + 5 * 864e5),
+      source: "PURCHASE",
+    });
+    c = C.startChoices(u.id, "CLASS");
+    check(
+      "a pack running: the latest choosable day is the day after it ends",
+      c.startsOn === day(6) && c.max === day(6),
+      c,
+    );
+    check(
+      "a pack running: a later day is refused (it would only be free days)",
+      !C.startAllowed(u.id, "CLASS", day(7)) && C.startAllowed(u.id, "CLASS", day(2)),
+    );
+
+    /* Two tabs: chosen while nothing was running, granted after another pack
+       was bought. The top-up is capped at the day after the running pack. */
+    const pTab = newPurchase(day(25));
+    const tabbed = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(25),
+      purchaseId: pTab.id,
+    });
+    check(
+      "a late day on a top-up is capped at grant time: usable now, 30 days from the day after the running pack",
+      tabbed.usableFrom === null && key(tabbed.expiresAt) === day(36),
+      { from: tabbed.usableFrom, to: key(tabbed.expiresAt) },
+    );
+    check("and the purchase records the day actually used", startOf(pTab.id) === day(6), startOf(pTab.id));
+
+    /* C: a day that has passed by the time the payment lands becomes today,
+       and the purchase says so. */
+    clear();
+    const pPast = newPurchase(day(-1));
+    const past = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      startsOn: day(-1),
+      purchaseId: pPast.id,
+    });
+    check(
+      "a passed start day becomes today, on the batch and on the purchase",
+      past.usableFrom === null && key(past.expiresAt) === day(30) && startOf(pPast.id) === today,
+      { to: key(past.expiresAt), rec: startOf(pPast.id) },
+    );
+
+    /* B: a pack with no start day on record cannot have its start moved. */
+    clear();
+    const pOld = newPurchase(null);
+    const legacy = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      purchaseId: pOld.id,
+    });
+    const noStart = R.moveStart({ userId: u.id, batchId: legacy.id, startsOn: day(5), staffName: "Suite" });
+    check("a pack bought before start days cannot be moved (no free days)", !noStart.ok && noStart.code === "NO_START", noStart);
+    const detail = await R.memberDetail(u.id);
+    check(
+      "the desk is not offered the move for it",
+      detail?.batches.find((x) => x.id === legacy.id)?.countsFrom === null,
+    );
+    const pNew = newPurchase(null);
+    const fresh = grantCredits({
+      userId: u.id,
+      credits: 4,
+      validityDays: 30,
+      source: "PURCHASE",
+      purchaseId: pNew.id,
+      startsOn: today,
+    });
+    const detail2 = await R.memberDetail(u.id);
+    check(
+      "a pack with a start on record is offered the move",
+      detail2?.batches.find((x) => x.id === fresh.id)?.countsFrom !== null,
+    );
+    for (const id of [pTab.id, pPast.id, pOld.id, pNew.id]) {
+      db.delete(creditLedger).where(eq(creditLedger.purchaseId, id)).run();
+    }
+    clear();
+    for (const id of [pTab.id, pPast.id, pOld.id, pNew.id]) {
+      db.delete(P.purchases).where(eq(P.purchases.id, id)).run();
+    }
+
+    clear();
+    db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
+    db.delete(users).where(eq(users.id, u.id)).run();
+  }
+
+  console.log("\n16. Every active pack extended at once");
+  /**
+   * After a closure the studio adds the same days to every active pack. Only
+   * live packs with sessions left move; the class window moves with the
+   * expiry; one ledger line per pack with no change to any balance; and the
+   * same request sent twice adds the days once.
+   */
+  {
+    const R = await import("../src/lib/reception");
+    const { creditBatches } = await import("../src/db/schema");
+    const { studioDateKey } = await import("../src/lib/time");
+    const C = await import("../src/lib/credits");
+    const now = new Date();
+    const u = db
+      .insert(users)
+      .values({
+        email: `bulk-${Date.now()}@apex.test`,
+        name: "Bulk Extend",
+        passwordHash: await hashPassword("x".repeat(10)),
+        emailVerifiedAt: new Date(),
+      })
+      .returning()
+      .get();
+    const live = grantCredits({ userId: u.id, credits: 4, validityDays: 30, source: "PURCHASE" });
+    const empty = grantCredits({ userId: u.id, credits: 2, validityDays: 30, source: "PURCHASE" });
+    db.update(creditBatches).set({ creditsRemaining: 0 }).where(eq(creditBatches.id, empty.id)).run();
+    const gone = grantCredits({
+      userId: u.id,
+      credits: 3,
+      validityDays: null,
+      expiresAt: new Date(now.getTime() - 864e5),
+      source: "PURCHASE",
+    });
+    const get = (id: string) =>
+      db.select().from(creditBatches).where(eq(creditBatches.id, id)).get()!;
+    const before = {
+      live: studioDateKey(get(live.id).expiresAt!),
+      empty: studioDateKey(get(empty.id).expiresAt!),
+      gone: studioDateKey(get(gone.id).expiresAt!),
+    };
+    const balanceBefore = await getAvailableCredits(u.id);
+
+    check("0 days is refused", !R.extendAllActive({ days: 0, ref: "suite-bulk-0", staffName: "Suite" }).ok);
+    check("91 days is refused", !R.extendAllActive({ days: 91, ref: "suite-bulk-1", staffName: "Suite" }).ok);
+    const ref = `suite-bulk-${Date.now()}`;
+    const r = R.extendAllActive({ days: 10, ref, staffName: "Suite", note: "Closed" });
+    check("extends the live packs", r.ok, r);
+    check(
+      "a live pack gains 10 days, window included",
+      studioDateKey(get(live.id).expiresAt!) === C.addDays(before.live, 10) &&
+        studioDateKey(get(live.id).usableTo!) === C.addDays(before.live, 10),
+    );
+    check("a pack with nothing left is untouched", studioDateKey(get(empty.id).expiresAt!) === before.empty);
+    check("an expired pack is untouched", studioDateKey(get(gone.id).expiresAt!) === before.gone);
+    const twice = R.extendAllActive({ days: 10, ref, staffName: "Suite" });
+    check("the same request twice adds the days once", !twice.ok && twice.code === "ALREADY_DONE", twice);
+    check("still +10, not +20", studioDateKey(get(live.id).expiresAt!) === C.addDays(before.live, 10));
+    check("no balance moved", (await getAvailableCredits(u.id)) === balanceBefore);
+
+    /* H: a pack whose window an older migration left a few hours short of its
+       expiry still has its window moved, by the bulk and by the per-member
+       extension; a gifted promo window is left alone. */
+    const legacy = grantCredits({ userId: u.id, credits: 4, validityDays: 20, source: "PURCHASE" });
+    const lb = get(legacy.id);
+    db.update(creditBatches)
+      .set({ usableTo: new Date(lb.expiresAt!.getTime() - 5 * 3600e3) })
+      .where(eq(creditBatches.id, legacy.id))
+      .run();
+    const promoTo = new Date(now.getTime() + 3 * 864e5);
+    const promoB = grantCredits({
+      userId: u.id,
+      credits: 1,
+      validityDays: null,
+      expiresAt: new Date(now.getTime() + 20 * 864e5),
+      usableFrom: new Date(now.getTime() - 864e5),
+      usableTo: promoTo,
+      source: "GRANT",
+    });
+    const r2 = R.extendAllActive({ days: 5, ref: `suite-bulk-h-${Date.now()}`, staffName: "Suite" });
+    check(
+      "bulk: a legacy pack's window moves with its expiry",
+      r2.ok && get(legacy.id).usableTo!.getTime() === get(legacy.id).expiresAt!.getTime(),
+      { to: get(legacy.id).usableTo, exp: get(legacy.id).expiresAt },
+    );
+    check(
+      "bulk: a promo window is left where it was",
+      Math.floor(get(promoB.id).usableTo!.getTime() / 1000) === Math.floor(promoTo.getTime() / 1000),
+      { got: get(promoB.id).usableTo, want: promoTo },
+    );
+    db.update(creditBatches)
+      .set({ usableTo: new Date(get(legacy.id).expiresAt!.getTime() - 5 * 3600e3) })
+      .where(eq(creditBatches.id, legacy.id))
+      .run();
+    const one = await R.extendExpiry({
+      userId: u.id,
+      batchId: legacy.id,
+      newExpiry: new Date(get(legacy.id).expiresAt!.getTime() + 7 * 864e5),
+      staffId: u.id,
+      staffName: "Suite",
+    });
+    check(
+      "per member: a legacy pack's window moves with its expiry",
+      one.ok && get(legacy.id).usableTo!.getTime() === get(legacy.id).expiresAt!.getTime(),
+      one,
+    );
+
+    /* Undo this member's extension so no other check sees a moved date. */
+    db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
+    db.delete(users).where(eq(users.id, u.id)).run();
+  }
+
   console.log(
     `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
   );

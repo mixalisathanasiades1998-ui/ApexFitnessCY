@@ -60,6 +60,7 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "invoice_seq", ddl: "integer" },
     { name: "promo_code", ddl: "text" },
     { name: "promo_discount_cents", ddl: "integer" },
+    { name: "starts_on", ddl: "text" },
   ],
   /* The desk owns a pack once it edits it: edited_at freezes the boot sync off
      the row, price_edited_at keeps the desk price over the code price, and

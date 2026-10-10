@@ -11,6 +11,7 @@ import {
 import {
   kindsThatPayFor,
   lastClassDateFor,
+  startsLaterFor,
   refundOneCredit,
   spendableAnywhere,
   spendBlockReason,
@@ -42,6 +43,8 @@ export type BookingResultCode =
   | "CREDITS_NOT_VALID_HERE"
   /** Their sessions expire before this class runs. Carries the last date. */
   | "SESSIONS_EXPIRE_FIRST"
+  /** Their pack starts after this class. Carries the first date it can book. */
+  | "PACK_STARTS_LATER"
   /** An appointment, asked for after the end of the day before. */
   | "PERSONAL_TOO_LATE"
   /** They hold class sessions but nothing that buys an appointment. */
@@ -71,6 +74,12 @@ export type BookingResult =
        * which date would have worked.
        */
       until?: Date;
+      /**
+       * The first day their pack can book. Set only on PACK_STARTS_LATER: a
+       * member who chose a start date and then tried the day before needs the
+       * date, not a puzzle.
+       */
+      from?: Date;
     };
 
 /**
@@ -193,6 +202,10 @@ export function bookClass(
        * no start date, which is exactly what separates the two.
        */
       if (why === "WINDOW") {
+        /* Before the day their pack starts. Checked first, because it is the
+           more specific answer: the sessions are fine, the date is early. */
+        const from = startsLaterFor(userId, kinds, session.s.startsAt, now);
+        if (from) return { ok: false, code: "PACK_STARTS_LATER", from };
         const until = lastClassDateFor(userId, kinds, now);
         if (until) return { ok: false, code: "SESSIONS_EXPIRE_FIRST", until };
         return { ok: false, code: "CREDITS_NOT_VALID_HERE" };

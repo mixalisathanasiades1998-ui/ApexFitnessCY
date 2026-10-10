@@ -7,6 +7,9 @@ import { currentUser } from "@/lib/auth";
 import { getPackageById, getPackageBySlug } from "@/lib/catalogue";
 import { activeProvider } from "@/lib/payments";
 import { checkPromo, discountFor } from "@/lib/promo-codes";
+import { packWindow, startAllowed, startChoices } from "@/lib/credits";
+import type { CreditKind } from "@/lib/packs";
+import { studioDateKey } from "@/lib/time";
 import { siteUrl } from "@/lib/stripe";
 import { checkoutSchema } from "@/lib/validation";
 
@@ -43,6 +46,23 @@ export async function POST(req: Request) {
   if (!pkg || !pkg.active) {
     return NextResponse.json({ error: "PACKAGE_NOT_FOUND" }, { status: 404 });
   }
+
+  /* When the pack starts. The member's own choice if they made one, and only
+     if it is a day they may choose; otherwise the site's suggestion. Decided
+     here rather than trusted from the page, because it decides which classes
+     the sessions can book. */
+  const kind: CreditKind =
+    pkg.kind === "PERSONAL" || pkg.kind === "DUET" ? pkg.kind : "CLASS";
+  let startsOn: string;
+  if (parsed.data.startsOn) {
+    if (!startAllowed(user.id, kind, parsed.data.startsOn)) {
+      return NextResponse.json({ error: "BAD_START" }, { status: 400 });
+    }
+    startsOn = parsed.data.startsOn;
+  } else {
+    startsOn = startChoices(user.id, kind).startsOn;
+  }
+  const window = packWindow(startsOn, pkg.validityDays);
 
   /* The pack's live price is where a code starts from — a code stacks on top of
      whatever shopfront offer is already running, and both are decided on the
@@ -91,6 +111,7 @@ export async function POST(req: Request) {
       provider: provider.id,
       promoCode,
       promoDiscountCents,
+      startsOn: window.startsOn,
     })
     .returning()
     .get();
@@ -129,6 +150,9 @@ export async function POST(req: Request) {
       promo: promoCode
         ? { code: promoCode, discountCents: promoDiscountCents }
         : null,
+      /* The window, so the page shows the dates the server will grant. */
+      startsOn: window.startsOn,
+      expiresOn: window.expiresAt ? studioDateKey(window.expiresAt) : null,
       ...started,
     });
   } catch (err) {

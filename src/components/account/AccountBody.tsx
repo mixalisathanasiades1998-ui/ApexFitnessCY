@@ -100,6 +100,12 @@ const REASON: Record<string, { en: string; el: string }> = {
   BOOKING: { en: "Class booked", el: "Κράτηση μαθήματος" },
   CANCELLATION_REFUND: { en: "Cancellation refund", el: "Επιστροφή ακύρωσης" },
   ADMIN_GRANT: { en: "Studio adjustment", el: "Διόρθωση στούντιο" },
+  /* An expiry extended, or a start day moved, by the studio. No session added
+     or taken, so the line shows 0 — but it must still read as words. */
+  ADMIN_EXTEND: {
+    en: "Pack dates updated by the studio",
+    el: "Ενημέρωση ημερομηνιών πακέτου από το στούντιο",
+  },
   EXPIRY: { en: "Credits expired", el: "Λήξη credits" },
 };
 
@@ -363,7 +369,24 @@ export function AccountBody(props: Props) {
      week offer, today. Grouped rather than listed: a member with one free
      session does not want a table. */
   const windowed = props.wallet.batches.filter(
-    (b) => b.usableFrom && b.usableTo && b.creditsRemaining > 0,
+    (b) =>
+      b.usableFrom &&
+      b.usableTo &&
+      b.creditsRemaining > 0 &&
+      /* A paid pack with a chosen start day is not a gifted window; it has
+         its own line below. */
+      b.source !== "PURCHASE",
+  );
+
+  /* Packs the member chose to start on a later day. Their sessions are in the
+     balance already, so the card says plainly when they can be used. */
+  const nowMs = Date.now();
+  const startingLater = props.wallet.batches.filter(
+    (b) =>
+      b.source === "PURCHASE" &&
+      b.usableFrom &&
+      new Date(b.usableFrom).getTime() > nowMs &&
+      b.creditsRemaining > 0,
   );
   const windowedCredits = windowed.reduce((n, b) => n + b.creditsRemaining, 0);
 
@@ -479,6 +502,21 @@ export function AccountBody(props: Props) {
                   </p>
                 )}
 
+                {startingLater.map((b) => (
+                  <p
+                    key={b.id}
+                    className="mt-6 rounded-2xl bg-cream/10 px-4 py-3 text-[12px] leading-relaxed text-cream/80"
+                  >
+                    {t.account.walletStartsLater
+                      .replace("{n}", fmtSessions(b.creditsRemaining))
+                      .replace("{start}", fmtFullDate(b.usableFrom!))
+                      .replace(
+                        "{end}",
+                        b.expiresAt ? fmtFullDate(b.expiresAt) : "",
+                      )}
+                  </p>
+                ))}
+
                 {props.wallet.nextExpiry ? (
                   <p className="mt-6 text-[12px] text-cream/60">
                     {/* "1 sessions expires" was the plural of a count that is
@@ -533,9 +571,18 @@ export function AccountBody(props: Props) {
                   className="rounded-full border border-mocha-200 bg-white/60 px-4 py-2 text-[11px] text-mocha-500"
                 >
                   {b.creditsRemaining}/{b.creditsTotal} {t.common.credits}
-                  {b.expiresAt
-                    ? ` · ${t.account.expiringOn} ${fmtDayMonth(b.expiresAt)}`
-                    : ""}
+                  {b.usableFrom &&
+                  b.source === "PURCHASE" &&
+                  new Date(b.usableFrom).getTime() > nowMs
+                    ? ` · ${t.account.walletFromTo
+                        .replace("{from}", fmtDayMonth(b.usableFrom))
+                        .replace(
+                          "{to}",
+                          b.expiresAt ? fmtDayMonth(b.expiresAt) : "",
+                        )}`
+                    : b.expiresAt
+                      ? ` · ${t.account.expiringOn} ${fmtDayMonth(b.expiresAt)}`
+                      : ""}
                 </span>
               ))}
             </div>

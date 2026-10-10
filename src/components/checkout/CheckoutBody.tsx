@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Monogram } from "@/components/ui/Monogram";
 import { Button } from "@/components/ui/Button";
+import { DateField } from "@/components/ui/DateField";
 import { Reveal } from "@/components/ui/Reveal";
 import { Section } from "@/components/ui/Section";
 import { TestCardForm } from "@/components/checkout/TestCardForm";
@@ -53,23 +54,45 @@ type Started =
  * renders one of three things: the provider's own card fields, a handover to
  * the provider's page, or the test form used until credentials arrive.
  */
+/** The start-day choice, as the server worked it out. */
+type StartChoice = {
+  startsOn: string;
+  reason: "TODAY" | "AFTER_PACK" | "AFTER_LAST_BOOKING";
+  current: { sessionsLeft: number; endsOn: string } | null;
+  lastBookedOn: string | null;
+  min: string;
+  max: string;
+};
+
+/** A day key moved by whole days. Noon UTC, so no timezone can tip it over. */
+function addDayKey(key: string, days: number) {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function CheckoutBody({
   pack,
   member,
   balance,
   payment,
+  start,
 }: {
   pack: Pack;
   member: { name: string; email: string };
   balance: number;
   payment: { id: string | null; label: string | null; configured: boolean };
+  start: StartChoice;
 }) {
-  const { t, locale, fmtMoney, fmtSessions } = useI18n();
+  const { t, locale, fmtMoney, fmtSessions, fmtFullDate } = useI18n();
   const c = t.checkoutPage;
   const el = locale === "el";
   const router = useRouter();
 
   const [started, setStarted] = useState<Started | null>(null);
+  /* Read by `open`, which is memoised: the start day it sends must be the one
+     on screen, not the one from when the callback was made. */
+  const startRef = useRef(start.startsOn);
   const [error, setError] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
 
@@ -83,6 +106,19 @@ export function CheckoutBody({
   const [codeInput, setCodeInput] = useState("");
   const [applying, setApplying] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+
+  /* The start day. Preselected with the server's suggestion; the member can
+     change it, and the open payment is updated to carry the new day. */
+  const [startsOn, setStartsOn] = useState(start.startsOn);
+  const [savingStart, setSavingStart] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  /* The same rule as the server: N days from the start day. */
+  const endsOn = addDayKey(startsOn, pack.validityDays);
+  const startsToday = startsOn <= start.min;
+  /* A pack of this kind is running: the new one tops it up. Its days are
+     counted from the chosen day, but its sessions can be booked now. */
+  const topUp = start.current !== null;
+  const day = (key: string) => fmtFullDate(`${key}T12:00:00Z`);
 
   const name = el ? pack.nameEl : pack.nameEn;
   const amountLabel = fmtMoney(amountCents);
@@ -106,6 +142,7 @@ export function CheckoutBody({
           body: JSON.stringify({
             packSlug: pack.slug,
             ...(code ? { code } : {}),
+            startsOn: startRef.current,
           }),
         });
         const data = (await res.json()) as Record<string, unknown> & {
@@ -122,11 +159,51 @@ export function CheckoutBody({
           setError(
             data.error === "PAYMENTS_NOT_CONFIGURED"
               ? c.errNotConfigured
-              : c.errProvider,
+              : /* The page was opened before midnight and the day on it has
+                   since passed, or another pack was bought on another tab:
+                   the dates on screen are out of date, not the card. */
+                data.error === "BAD_START"
+                ? c.startStale
+                : c.errProvider,
           );
           return false;
         }
         setStarted(data as unknown as Started);
+        /* The day may have been changed while this payment was opening. If the
+           server recorded a different one, send the day on screen now. */
+        const opened = data as { purchaseId?: string; startsOn?: string };
+        if (
+          opened.purchaseId &&
+          opened.startsOn &&
+          opened.startsOn !== startRef.current
+        ) {
+          /* Covered while it saves, like any other change of day, and if it is
+             refused the screen goes back to the day the payment really carries
+             — what is shown must be what is charged for. */
+          const wanted = startRef.current;
+          setSavingStart(true);
+          let saved = false;
+          try {
+            const r = await fetch("/api/checkout/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                purchaseId: opened.purchaseId,
+                startsOn: wanted,
+              }),
+            });
+            saved = r.ok;
+          } catch {
+            saved = false;
+          } finally {
+            setSavingStart(false);
+          }
+          if (!saved && startRef.current === wanted) {
+            startRef.current = opened.startsOn;
+            setStartsOn(opened.startsOn);
+            setStartError(c.startBad);
+          }
+        }
         if (typeof data.amountCents === "number") setAmountCents(data.amountCents);
         setPromo(data.promo ?? null);
         return true;
@@ -135,8 +212,44 @@ export function CheckoutBody({
         return false;
       }
     },
-    [pack.slug, c.errNotConfigured, c.errProvider, c.codeInvalid],
+    [pack.slug, c.errNotConfigured, c.errProvider, c.codeInvalid, c.startBad, c.startStale],
   );
+
+  /**
+   * Change the start day on the payment that is already open.
+   *
+   * The amount does not change, so no new payment is needed: the server just
+   * writes the new day on this one. The payment area is covered while it saves,
+   * so nobody can pay in the half second between choosing a day and the day
+   * being recorded.
+   */
+  async function changeStart(next: string) {
+    if (!next || next === startsOn) return;
+    const previous = startsOn;
+    setStartsOn(next);
+    startRef.current = next;
+    setStartError(null);
+    if (!started) return;
+    setSavingStart(true);
+    try {
+      const res = await fetch("/api/checkout/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purchaseId: started.purchaseId, startsOn: next }),
+      });
+      if (!res.ok) {
+        setStartsOn(previous);
+        startRef.current = previous;
+        setStartError(c.startBad);
+      }
+    } catch {
+      setStartsOn(previous);
+      startRef.current = previous;
+      setStartError(c.startBad);
+    } finally {
+      setSavingStart(false);
+    }
+  }
 
   /* One payment per visit to this page. The guard matters in development, where
      effects run twice and would otherwise open two payments for one member. */
@@ -224,6 +337,69 @@ export function CheckoutBody({
                 </p>
               </div>
 
+              {/* When the pack starts. Above the details, because it changes
+                  what the details mean: which days these sessions can book. */}
+              <div className="mt-8 border-t border-mocha-200/70 pt-6">
+                <label className="label" htmlFor="pack-start">
+                  {c.startTitle}
+                </label>
+                <DateField
+                  id="pack-start"
+                  value={startsOn}
+                  min={start.min}
+                  max={start.max}
+                  onChange={(v) => void changeStart(v)}
+                />
+                <p className="mt-3 text-[14px] leading-relaxed text-mocha-600">
+                  {startsToday
+                    ? c.startToday.replace("{end}", day(endsOn))
+                    : topUp
+                      ? c.startTopUp
+                          .replace("{days}", String(pack.validityDays))
+                          .replace("{start}", day(startsOn))
+                          .replace("{end}", day(endsOn))
+                      : c.startLater
+                          .replaceAll("{start}", day(startsOn))
+                          .replace("{end}", day(endsOn))}
+                </p>
+                {start.reason === "AFTER_PACK" &&
+                  start.current &&
+                  startsOn === start.startsOn && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-clay">
+                      {start.current.sessionsLeft > 0
+                        ? c.startWhyAfterPack
+                            .replace("{date}", day(start.startsOn))
+                            .replace("{n}", fmtSessions(start.current.sessionsLeft))
+                            .replace("{end}", day(start.current.endsOn))
+                        : c.startWhyRunsUntil
+                            .replace("{date}", day(start.startsOn))
+                            .replace("{days}", String(pack.validityDays))}
+                    </p>
+                  )}
+                {start.reason === "AFTER_LAST_BOOKING" &&
+                  start.lastBookedOn &&
+                  startsOn === start.startsOn && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-clay">
+                      {c.startWhyAfterBooking
+                        .replace("{date}", day(start.startsOn))
+                        .replace("{last}", day(start.lastBookedOn))}
+                    </p>
+                  )}
+                {/* Choosing a day while sessions are still running on the old
+                    pack is allowed, but it is worth knowing what it means. */}
+                {start.current && startsOn <= start.current.endsOn && (
+                  <p className="mt-3 rounded-2xl border border-gold/40 bg-[#FBF6E7] px-4 py-3 text-[12px] leading-relaxed text-mocha-700">
+                    {c.startOverlap.replace("{end}", day(start.current.endsOn))}
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] text-clay">
+                  {c.startRange.replace("{max}", day(start.max))}
+                </p>
+                {startError && (
+                  <p className="mt-2 text-[12px] text-red-700">{startError}</p>
+                )}
+              </div>
+
               <dl className="mt-8 space-y-3 border-t border-mocha-200/70 pt-6 text-[13px]">
                 <Row
                   k={t.home.hero.stat2}
@@ -233,6 +409,8 @@ export function CheckoutBody({
                   k={c.validityLabel}
                   v={c.validityValue.replace("{n}", String(pack.validityDays))}
                 />
+                <Row k={topUp ? c.countRow : c.startRow} v={day(startsOn)} />
+                <Row k={c.endRow} v={day(endsOn)} strong />
                 <Row k={c.balanceNow} v={fmtSessions(balance)} />
                 <Row
                   k={c.afterPurchase}
@@ -345,7 +523,15 @@ export function CheckoutBody({
                 </p>
               </div>
 
-              <div className="mt-8">
+              <div
+                className={`relative mt-8 ${savingStart ? "pointer-events-none" : ""}`}
+                aria-busy={savingStart}
+              >
+                {savingStart && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-cream/80 text-sm text-clay">
+                    {c.startSaving}
+                  </div>
+                )}
                 {error && (
                   <p
                     role="alert"

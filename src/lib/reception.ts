@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte } from "drizzle-orm";
+import { and, desc, eq, gt, gte, like } from "drizzle-orm";
 import {
   CONDITION_MAX_CHARS,
   STAFF_NOTES_MAX_CHARS,
@@ -18,11 +18,24 @@ import {
   users,
 } from "@/db/schema";
 import { isClassLevel, type ClassLevel } from "@/lib/class-level";
-import { studioDateKey, studioEndOfDay, studioStartOfDay } from "@/lib/time";
+import {
+  studioAddDays,
+  studioDateKey,
+  studioEndOfDay,
+  studioStartOfDay,
+} from "@/lib/time";
 import { hashPassword, isVerified } from "@/lib/auth";
 import { deviceCount } from "@/lib/messaging/push";
 import { toE164 } from "@/lib/messaging/sms";
-import { getCreditSummary, grantCredits, refundOneCredit } from "@/lib/credits";
+import {
+  addDays,
+  getCreditSummary,
+  grantCredits,
+  hasRunningPack,
+  isDayKey,
+  refundOneCredit,
+  startAllowed,
+} from "@/lib/credits";
 import { assignInvoiceNumber } from "@/lib/invoice-number";
 import { bookClass } from "@/lib/booking";
 import { MAX_REPEAT_WEEKS, repeatWeekly } from "@/lib/booking-repeat";
@@ -223,7 +236,11 @@ export async function memberDetail(userId: string) {
     role: user.role,
     createdAt: user.createdAt,
     credits: wallet.available,
-    batches: wallet.batches,
+    /* Each pack with the day its days are counted from, when one is on record.
+       The desk's "move start" is offered only where this is known: without it
+       there is nothing to move the pack *from*, and guessing (the day it was
+       bought) would hand a queued pack free days. */
+    batches: wallet.batches.map((b) => ({ ...b, countsFrom: packCountsFrom(b) })),
     notifyEmail: user.notifyEmail,
     notifySms: user.notifySms,
     notifyPush: user.notifyPush,
@@ -297,7 +314,12 @@ export type SellResult =
   | { ok: true; credits: number; balance: number }
   | {
       ok: false;
-      code: "NOT_FOUND" | "NOTHING_TO_TAKE" | "BAD_AMOUNT" | "EMAIL_UNVERIFIED";
+      code:
+        | "NOT_FOUND"
+        | "NOTHING_TO_TAKE"
+        | "BAD_AMOUNT"
+        | "EMAIL_UNVERIFIED"
+        | "BAD_START";
     };
 
 /**
@@ -350,6 +372,12 @@ export async function sellSessions(args: {
    * existing caller sells what it always sold.
    */
   kind?: CreditKind;
+  /**
+   * The day the pack starts, "YYYY-MM-DD". Only for a sale (cash or card): a
+   * goodwill adjustment starts today, as it always has. Left out, the old
+   * queueing behind a running pack applies, so existing callers are unchanged.
+   */
+  startsOn?: string;
 }): Promise<SellResult> {
   const {
     userId,
@@ -362,9 +390,16 @@ export async function sellSessions(args: {
     staffName,
     kind = "CLASS",
   } = args;
+  /* A start day only means something on a sale. */
+  const startsOn =
+    method !== "adjustment" && credits > 0 ? args.startsOn : undefined;
 
   if (!Number.isInteger(credits) || credits === 0 || Math.abs(credits) > 100) {
     return { ok: false, code: "BAD_AMOUNT" };
+  }
+  /* The same range a member may choose from at checkout. */
+  if (startsOn !== undefined && !startAllowed(userId, kind, startsOn)) {
+    return { ok: false, code: "BAD_START" };
   }
 
   const user = db.select().from(users).where(eq(users.id, userId)).get();
@@ -401,6 +436,7 @@ export async function sellSessions(args: {
                 provider: method,
                 paidAt: new Date(),
                 providerRef: `desk:${staffId.slice(0, 8)}`,
+                startsOn: startsOn ?? null,
               })
               .returning()
               .get();
@@ -414,6 +450,7 @@ export async function sellSessions(args: {
         reason: method === "adjustment" ? "ADMIN_GRANT" : "PURCHASE",
         note: reason,
         kind,
+        startsOn,
       });
 
       sold = purchase?.id ?? null;
@@ -648,15 +685,10 @@ export async function extendExpiry(args: {
       const from = b.expiresAt ? studioDateKey(b.expiresAt) : "none";
       /* Move the window with the expiry only when it was following it. A promo
          window (narrower than the expiry) is left untouched. */
-      const windowFollowsExpiry =
-        b.usableTo !== null &&
-        b.expiresAt !== null &&
-        b.usableTo.getTime() === b.expiresAt.getTime();
-
       db.update(creditBatches)
         .set({
           expiresAt: target,
-          ...(windowFollowsExpiry ? { usableTo: target } : {}),
+          ...(windowFollowsExpiry(b) ? { usableTo: laterOf(b.usableTo, target) } : {}),
         })
         .where(eq(creditBatches.id, b.id))
         .run();
@@ -679,6 +711,288 @@ export async function extendExpiry(args: {
     ok: true,
     extended: movable.length,
     balance: (await getCreditSummary(userId)).available,
+  };
+}
+
+/**
+ * Whether a pack's class window ("usable until") should move with its expiry.
+ *
+ * It does for every ordinary pack. The only window that must stay put is a
+ * gifted one with its own dates — the opening-week sessions, which carry a
+ * `usableFrom` and are not a purchase. This used to be decided by "the window
+ * equals the expiry to the millisecond", which an older migration broke: it
+ * rounded `expires_at` to the end of the day and left `usable_to` at the old
+ * hour, so on those packs an extension moved the expiry and not the window and
+ * the member could not book in the extra days.
+ */
+function windowFollowsExpiry(b: {
+  usableTo: Date | null;
+  usableFrom: Date | null;
+  source: string;
+}) {
+  if (b.usableTo === null) return false; // no upper bound to move
+  return !(b.usableFrom !== null && b.source !== "PURCHASE");
+}
+
+function laterOf(a: Date | null, b: Date) {
+  return a && a > b ? a : b;
+}
+
+/* -------------------------------------------- move an unused pack's start */
+
+/** How far ahead the desk may move a pack's start. Wider than a member's own. */
+export const DESK_START_AHEAD_DAYS = 90;
+
+export type MoveStartResult =
+  | { ok: true; startsOn: string; expiresOn: string }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "BAD_DATE"
+        | "ALREADY_USED"
+        | "NOT_A_PACK"
+        | "NOT_CHANGED"
+        | "NO_START";
+    };
+
+/**
+ * The day a pack's days are counted from, when that is on record: its own
+ * start day if it has one, else the day chosen at checkout (a top-up keeps no
+ * start of its own but still counts its days from that day). Null for
+ * anything else, including every pack sold before start days existed.
+ */
+export function packCountsFrom(b: {
+  id: string;
+  source: string;
+  usableFrom: Date | null;
+}): string | null {
+  if (b.source !== "PURCHASE") return null;
+  if (b.usableFrom) return studioDateKey(b.usableFrom);
+  const row = db
+    .select({ startsOn: purchases.startsOn })
+    .from(creditBatches)
+    .innerJoin(purchases, eq(creditBatches.purchaseId, purchases.id))
+    .where(eq(creditBatches.id, b.id))
+    .get();
+  return row?.startsOn && isDayKey(row.startsOn) ? row.startsOn : null;
+}
+
+/**
+ * Change the day a paid pack starts, keeping its length.
+ *
+ * For "I bought it to start on the 15th but I'm away until the 20th". The pack
+ * keeps the same number of days: its expiry moves by exactly as many days as
+ * its start. Only a pack nothing has been spent from, because a pack with
+ * classes already booked against it would end up with bookings outside its own
+ * window — that member needs an extension instead, which the desk already has.
+ */
+export function moveStart(args: {
+  userId: string;
+  batchId: string;
+  startsOn: string;
+  staffName: string;
+  now?: Date;
+}): MoveStartResult {
+  const { userId, batchId, startsOn, staffName, now = new Date() } = args;
+  const today = studioDateKey(now);
+
+  if (
+    !isDayKey(startsOn) ||
+    startsOn < today ||
+    startsOn > addDays(today, DESK_START_AHEAD_DAYS)
+  ) {
+    return { ok: false, code: "BAD_DATE" };
+  }
+
+  const b = db
+    .select()
+    .from(creditBatches)
+    .where(and(eq(creditBatches.id, batchId), eq(creditBatches.userId, userId)))
+    .get();
+  if (!b || !b.expiresAt || b.expiresAt <= now) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+  if (b.source !== "PURCHASE") return { ok: false, code: "NOT_A_PACK" };
+  if (b.creditsRemaining < b.creditsTotal) {
+    return { ok: false, code: "ALREADY_USED" };
+  }
+
+  /* Where its days are counted from now. Refused when that is not on record —
+     a pack bought before start days existed, or one queued behind another —
+     because the day it was bought is not where its days begin, and moving
+     "from" it would add days nobody paid for. Those get an extension. */
+  const current = packCountsFrom(b);
+  if (!current) return { ok: false, code: "NO_START" };
+  const shift = Math.round(
+    (new Date(`${startsOn}T12:00:00Z`).getTime() -
+      new Date(`${current}T12:00:00Z`).getTime()) /
+      86_400_000,
+  );
+  if (shift === 0) return { ok: false, code: "NOT_CHANGED" };
+
+  const expiresAt = studioEndOfDay(studioAddDays(b.expiresAt, shift));
+  const follows = windowFollowsExpiry(b);
+  /* The same rule as a purchase: a hard start only when the member has no
+     other pack of this kind running; otherwise the days move and the sessions
+     stay bookable now. */
+  const usableFrom =
+    startsOn > today &&
+    /* A pack that already waits for its day keeps waiting; only a top-up asks
+       whether something else is still running. */
+    (b.usableFrom !== null ||
+      !hasRunningPack(userId, b.kind as CreditKind, now, b.id))
+      ? studioStartOfDay(new Date(`${startsOn}T12:00:00Z`))
+      : null;
+
+  db.transaction(() => {
+    db.update(creditBatches)
+      .set({
+        usableFrom,
+        expiresAt,
+        /* A move can be earlier as well as later, so the window is set to the
+           new expiry outright rather than only ever widened. */
+        ...(follows ? { usableTo: expiresAt } : {}),
+      })
+      .where(eq(creditBatches.id, b.id))
+      .run();
+    if (b.purchaseId) {
+      db.update(purchases)
+        .set({ startsOn })
+        .where(eq(purchases.id, b.purchaseId))
+        .run();
+    }
+    db.insert(creditLedger)
+      .values({
+        userId,
+        delta: 0,
+        reason: "ADMIN_EXTEND",
+        note: `Start ${current} to ${startsOn}, expiry ${studioDateKey(
+          b.expiresAt!,
+        )} to ${studioDateKey(expiresAt)}, ${staffName}`,
+        batchId: b.id,
+      })
+      .run();
+  });
+
+  return { ok: true, startsOn, expiresOn: studioDateKey(expiresAt) };
+}
+
+/* ------------------------------------------- extend every active pack at once */
+
+/** The most days one bulk extension may add. A typo guard, not a policy. */
+export const BULK_EXTEND_MAX_DAYS = 90;
+
+/**
+ * The packs a bulk extension would move: every live pack with sessions left and
+ * an expiry, whoever holds it. The same set the per-member "extend all" sees,
+ * for every member at once.
+ */
+function bulkExtendTargets(now = new Date()) {
+  return db
+    .select()
+    .from(creditBatches)
+    .where(
+      and(gt(creditBatches.creditsRemaining, 0), gt(creditBatches.expiresAt, now)),
+    )
+    .all();
+}
+
+/** What a bulk extension would touch, for the confirmation sentence. */
+export function bulkExtendPreview(now = new Date()) {
+  const rows = bulkExtendTargets(now);
+  return {
+    packs: rows.length,
+    members: new Set(rows.map((b) => b.userId)).size,
+  };
+}
+
+export type BulkExtendResult =
+  | { ok: true; packs: number; members: number; days: number }
+  | { ok: false; code: "BAD_DAYS" | "NOTHING_TO_EXTEND" | "ALREADY_DONE" };
+
+/**
+ * Add the same number of days to every active pack in the studio.
+ *
+ * For the times the studio itself is the reason members could not train — a
+ * week closed for repairs, a fortnight over a holiday. Each member's own
+ * "extend" stays the tool for one person; this is the same act for everybody,
+ * and it follows the same rules: extend only, the class window moves with the
+ * expiry when it was following it (a narrower promotional window is left
+ * alone), and a zero-delta ledger line per pack that says who did it and why.
+ *
+ * Expired packs and packs with nothing left are not touched: there is nothing
+ * in them for the extra days to be spent on.
+ *
+ * `ref` makes it safe to press twice. The confirmation screen sends one id per
+ * extension, it is written into every ledger line, and a second request
+ * carrying an id already in the ledger is refused rather than adding the days
+ * a second time — a double click must never turn ten days into twenty.
+ */
+export function extendAllActive(args: {
+  days: number;
+  ref: string;
+  staffName: string;
+  note?: string;
+  now?: Date;
+}): BulkExtendResult {
+  const { days, ref, staffName, note, now = new Date() } = args;
+  if (!Number.isInteger(days) || days < 1 || days > BULK_EXTEND_MAX_DAYS) {
+    return { ok: false, code: "BAD_DAYS" };
+  }
+
+  const tag = `[bulk:${ref}]`;
+  const seen = db
+    .select({ id: creditLedger.id })
+    .from(creditLedger)
+    .where(
+      and(
+        eq(creditLedger.reason, "ADMIN_EXTEND"),
+        like(creditLedger.note, `%${tag}%`),
+      ),
+    )
+    .get();
+  if (seen) return { ok: false, code: "ALREADY_DONE" };
+
+  const targets = bulkExtendTargets(now);
+  if (targets.length === 0) return { ok: false, code: "NOTHING_TO_EXTEND" };
+
+  const why = note?.trim() ? `${note.trim()}, ${staffName}` : staffName;
+
+  db.transaction(() => {
+    for (const b of targets) {
+      if (!b.expiresAt) continue;
+      /* Whole calendar days in Larnaca, landing on the end of the day, so a
+         pack that ended on the 5th ends on the 15th at the same last second
+         — across a clock change too. */
+      const target = studioEndOfDay(studioAddDays(b.expiresAt, days));
+      db.update(creditBatches)
+        .set({
+          expiresAt: target,
+          ...(windowFollowsExpiry(b) ? { usableTo: laterOf(b.usableTo, target) } : {}),
+        })
+        .where(eq(creditBatches.id, b.id))
+        .run();
+
+      db.insert(creditLedger)
+        .values({
+          userId: b.userId,
+          delta: 0,
+          reason: "ADMIN_EXTEND",
+          note: `Expiry ${studioDateKey(b.expiresAt)} to ${studioDateKey(
+            target,
+          )}, every active pack +${days} days, ${why} ${tag}`,
+          batchId: b.id,
+        })
+        .run();
+    }
+  });
+
+  return {
+    ok: true,
+    packs: targets.length,
+    members: new Set(targets.map((b) => b.userId)).size,
+    days,
   };
 }
 
@@ -938,7 +1252,7 @@ export async function resetPassword(userId: string, plain: string) {
 
 export type DeskBookResult =
   | { ok: true; bookingId: string; balance: number; guestName: string | null }
-  | { ok: false; code: string; until?: Date };
+  | { ok: false; code: string; until?: Date; from?: Date };
 
 /**
  * Reception taking a booking over the telephone.
@@ -1004,7 +1318,12 @@ export async function bookForMember(args: {
   });
 
   if (!result.ok) {
-    return { ok: false, code: result.code, until: result.until };
+    return {
+      ok: false,
+      code: result.code,
+      until: result.until,
+      from: result.from,
+    };
   }
 
   /**

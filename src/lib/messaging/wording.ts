@@ -507,7 +507,12 @@ export function purchasedWords(a: {
    * actually did.
    */
   hasInvoice?: boolean;
+  /** Set when the pack starts on a later day than it was bought. */
+  usableFrom?: Date | null;
 }): Bilingual {
+  const later = a.usableFrom && a.usableFrom.getTime() > Date.now() ? a.usableFrom : null;
+  const startEn = later ? ` Your pack starts on ${dateWords(later)}.` : "";
+  const startEl = later ? ` Το πακέτο σας ξεκινά στις ${dateWords(later, "el")}.` : "";
   const expiryEn = a.expiresAt
     ? ` They expire on ${dateWords(a.expiresAt)}.`
     : "";
@@ -534,14 +539,14 @@ export function purchasedWords(a: {
       subject: "Payment received",
       body:
         `${sessionWords(a.credits)} added to your balance for ` +
-        `${moneyWords(a.amountCents, a.currency)}.${expiryEn}${invoiceEn}`,
+        `${moneyWords(a.amountCents, a.currency)}.${startEn}${expiryEn}${invoiceEn}`,
       url: "/account?tab=payments",
     },
     el: {
       subject: "Η πληρωμή ελήφθη",
       body:
         `${sessionWords(a.credits, "el")} προστέθηκαν στο υπόλοιπό σας για ` +
-        `${moneyWords(a.amountCents, a.currency, "el")}.${expiryEl}${invoiceEl}`,
+        `${moneyWords(a.amountCents, a.currency, "el")}.${startEl}${expiryEl}${invoiceEl}`,
       url: "/account?tab=payments",
     },
   };

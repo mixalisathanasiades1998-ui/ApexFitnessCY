@@ -101,6 +101,7 @@ export function ScheduleClient({
   duetCredits = 0,
   soloCredits = 0,
   personalCredits = 0,
+  startsLater = null,
   days,
   closedDays,
   firstBookableDay,
@@ -117,6 +118,11 @@ export function ScheduleClient({
   soloCredits?: number;
   /** Both kinds together, for the balance line. */
   personalCredits?: number;
+  /**
+   * Sessions in a pack the member chose to start later: how many, and the day.
+   * Counted in the balance, so the line beside it says when they can be used.
+   */
+  startsLater?: { n: number; from: string } | null;
   days: string[]; // ISO date strings, one per day shown
   /** Desk closures keyed by day, each carrying the reason the desk typed. */
   closedDays: Map<string, { reasonEn: string; reasonEl: string }>;
@@ -426,6 +432,8 @@ export function ScheduleClient({
         firstBooking?: boolean;
         /** The last class date their sessions reach, on SESSIONS_EXPIRE_FIRST. */
         until?: string;
+        /** The day their pack starts, on PACK_STARTS_LATER. */
+        from?: string;
       };
 
       if (data.ok && data.bookingId) {
@@ -476,6 +484,17 @@ export function ScheduleClient({
             data.until ? fmtLongDate(new Date(data.until)) : "",
           ),
           cta: { href: "/pricing", label: t.booking.noCreditsCta },
+        });
+        return;
+      }
+
+      /* They chose to start their pack on a later day. Says which day, so the
+         next tap is a class on or after it rather than a guess. */
+      if (data.error === "PACK_STARTS_LATER") {
+        const day = data.from ? fmtLongDate(new Date(data.from)) : "";
+        flash({
+          kind: "warn",
+          text: t.booking.packStartsLater.replaceAll("{date}", day),
         });
         return;
       }
@@ -726,6 +745,13 @@ export function ScheduleClient({
             {personalCredits > 0 && (
               <span className="rounded-full border border-gold/50 bg-[#FBF6E7]/70 px-2.5 py-1 text-[10px] uppercase tracking-widest text-[#8a6f1a]">
                 {t.booking.personalHeld.replace("{n}", String(personalCredits))}
+              </span>
+            )}
+            {startsLater && startsLater.n > 0 && (
+              <span className="rounded-full border border-gold/50 bg-[#FBF6E7]/70 px-2.5 py-1 text-[10px] uppercase tracking-widest text-[#8a6f1a]">
+                {t.booking.startsLaterChip
+                  .replace("{n}", String(startsLater.n))
+                  .replace("{date}", fmtDayMonth(new Date(startsLater.from)))}
               </span>
             )}
           </p>

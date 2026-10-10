@@ -24,11 +24,14 @@ import { useI18n } from "@/i18n/LanguageProvider";
 export function CheckoutResult({
   kind,
   credits,
+  packWindow = null,
 }: {
   kind: "success" | "cancelled";
   credits: number;
+  /** Set when the pack the member just bought starts on a later day. */
+  packWindow?: { startsOn: string; endsOn: string | null } | null;
 }) {
-  const { t } = useI18n();
+  const { t, fmtFullDate } = useI18n();
   const router = useRouter();
   const [waiting, setWaiting] = useState(kind === "success" && credits === 0);
 
@@ -84,6 +87,19 @@ export function CheckoutResult({
             <span className="text-[11px] uppercase tracking-widest text-clay">
               {waiting ? t.checkout.processing : t.common.creditsLeft}
             </span>
+          </p>
+        )}
+
+        {/* Bought to start on a later day: said here, at the moment they are
+            most likely to go straight to the timetable and try tomorrow. */}
+        {success && packWindow && !waiting && (
+          <p className="mx-auto mt-6 max-w-md rounded-2xl border border-gold/40 bg-[#FBF6E7] px-5 py-3 text-[14px] leading-relaxed text-mocha-700">
+            {t.checkoutPage.startLater
+              .replaceAll("{start}", fmtFullDate(`${packWindow.startsOn}T12:00:00Z`))
+              .replace(
+                "{end}",
+                packWindow.endsOn ? fmtFullDate(`${packWindow.endsOn}T12:00:00Z`) : "",
+              )}
           </p>
         )}
 

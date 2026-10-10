@@ -115,7 +115,11 @@ export async function PUT(req: Request) {
 
   if (!result.ok) {
     return NextResponse.json(
-      { error: result.code, until: result.until?.toISOString() },
+      {
+        error: result.code,
+        until: result.until?.toISOString(),
+        from: result.from?.toISOString(),
+      },
       { status: 400 },
     );
   }

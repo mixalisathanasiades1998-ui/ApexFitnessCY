@@ -1,9 +1,21 @@
 import { and, asc, desc, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, classSessions, creditBatches, creditLedger } from "@/db/schema";
+import {
+  bookings,
+  classSessions,
+  classTypes,
+  creditBatches,
+  creditLedger,
+  purchases,
+} from "@/db/schema";
 import type { CreditKind } from "./packs";
 import { windowAllows } from "./promo";
-import { studioDateKey, studioEndOfDay } from "./time";
+import {
+  studioAddDays,
+  studioDateKey,
+  studioEndOfDay,
+  studioStartOfDay,
+} from "./time";
 
 /**
  * What a class needs paying with.
@@ -272,7 +284,10 @@ export function lastClassDateFor(
     .filter(
       (b) =>
         kinds.includes(b.kind as CreditKind) &&
-        b.usableFrom === null &&
+        /* A paid pack with a chosen start date is still an ordinary pack: its
+           window runs to its own expiry. Only a gifted window (the opening
+           week) is left out, because it needs its own sentence. */
+        (b.usableFrom === null || b.source === "PURCHASE") &&
         b.usableTo !== null,
     );
 
@@ -565,6 +580,15 @@ export function grantCredits(args: {
   kind?: CreditKind;
   /** The most classes a day they may pay for. Null means no cap. */
   perDayLimit?: number | null;
+  /**
+   * The day the member chose for this pack to start, "YYYY-MM-DD" in Larnaca.
+   *
+   * When given, it replaces the automatic queueing below: the member has said
+   * when they want it, so the pack runs from that day for its validity, and
+   * its sessions can only book classes from that day on. Today or earlier
+   * means "from now", exactly as a pack without a start date. See `packWindow`.
+   */
+  startsOn?: string | null;
 }) {
   const {
     userId,
@@ -619,10 +643,41 @@ export function grantCredits(args: {
   const nowMs = Date.now();
   let chainAnchor: Date | null = null;
   let expiresAt: Date | null;
+  /* Set only by a chosen start date in the future. */
+  let startsFrom: Date | null = null;
+  let chosenStart: string | null = null;
+  let effectiveStart: string | null = null;
+  let topUp = false;
   if (args.expiresAt !== undefined) {
     /* An explicit expiry is a date the caller means — the joining promo passes
        one. Never chained, never moved. */
     expiresAt = args.expiresAt;
+  } else if (args.startsOn) {
+    /* The member chose the day. No queueing behind a running pack: they have
+       seen what they hold and picked a date, and second-guessing it here would
+       hand them a window they did not ask for. */
+    const kindNow = args.kind ?? "CLASS";
+    /* A hard start only for somebody with nothing running. With a pack of the
+       same kind still active, the new one is a top-up: its days count from the
+       chosen day, but its sessions can be booked straight away, alongside the
+       old ones — the studio's rule, and how queued packs always worked. */
+    const running = hasRunningPack(userId, kindNow, new Date(nowMs));
+    /* And a top-up is never counted from later than the day after the running
+       pack ends. Its sessions are usable now whatever day was picked, so a later
+       day would only be free days. Checked here, at the moment the sessions are
+       granted, and not only when the day was chosen: the member may have bought
+       another pack in between, on another tab. */
+    let chosenDay = args.startsOn;
+    if (running) {
+      const cap = suggestedStart(userId, kindNow, new Date(nowMs)).startsOn;
+      if (chosenDay > cap) chosenDay = cap;
+    }
+    const w = packWindow(chosenDay, validityDays, new Date(nowMs));
+    expiresAt = w.expiresAt;
+    startsFrom = running ? null : w.usableFrom;
+    topUp = running;
+    chosenStart = w.usableFrom ? w.startsOn : null;
+    effectiveStart = w.startsOn;
   } else if (validityDays && validityDays > 0) {
     let anchorMs = nowMs;
     if (source === "PURCHASE") {
@@ -686,13 +741,24 @@ export function grantCredits(args: {
       creditsRemaining: credits,
       source,
       expiresAt,
-      usableFrom: args.usableFrom ?? null,
+      usableFrom: args.usableFrom ?? startsFrom,
       usableTo,
       kind: args.kind ?? "CLASS",
       perDayLimit: args.perDayLimit ?? null,
     })
     .returning()
     .get();
+
+  /* The purchase keeps the day the pack's days are actually counted from. It can
+     differ from the day picked: a day that has passed by the time the payment
+     lands becomes today, and a top-up is capped as above. The desk's "move
+     start" moves from this day, so it has to be the true one. */
+  if (purchaseId && effectiveStart) {
+    db.update(purchases)
+      .set({ startsOn: effectiveStart })
+      .where(eq(purchases.id, purchaseId))
+      .run();
+  }
 
   /* When the pack was queued behind a running one, say so on the ledger line so
      the desk can see why the expiry is what it is rather than a month from
@@ -702,7 +768,13 @@ export function grantCredits(args: {
       ? `${note ? `${note} — ` : ""}Starts after the current pack (${studioDateKey(
           chainAnchor,
         )}), sessions expire ${studioDateKey(expiresAt)}`
-      : note;
+      : chosenStart
+        ? `${note ? `${note} — ` : ""}${
+            topUp ? `Days counted from ${chosenStart}, usable now` : `Starts ${chosenStart}`
+          }${
+            expiresAt ? `, sessions expire ${studioDateKey(expiresAt)}` : ""
+          }`
+        : note;
 
   db.insert(creditLedger)
     .values({
@@ -725,4 +797,249 @@ export async function getLedger(userId: string, limit = 40) {
     .where(eq(creditLedger.userId, userId))
     .orderBy(desc(creditLedger.createdAt))
     .limit(limit);
+}
+
+/* ------------------------------------------------ when a pack starts */
+
+/**
+ * How far ahead a member may start a pack, in days.
+ *
+ * A pack bought in October to start in March is a pack priced, and a timetable
+ * promised, five months before anybody knows what either will be. Thirty days
+ * covers "my current one runs out next month" with room to spare. The member's
+ * own suggested start is always allowed even when it is further out than this
+ * (somebody holding a quarterly pack that ends in seven weeks), so the limit
+ * never refuses the date the site itself proposed.
+ */
+export const START_AHEAD_DAYS = 30;
+
+/**
+ * Does this member hold a paid pack of this kind that has not expired?
+ *
+ * Decides whether a chosen start day is a hard start (nothing running: the
+ * sessions wait for that day) or only where the days are counted from (a pack
+ * running: the new sessions top up the balance and can be booked now).
+ * `exceptId` leaves one pack out, for the desk moving that pack's own start.
+ */
+export function hasRunningPack(
+  userId: string,
+  kind: CreditKind,
+  now = new Date(),
+  exceptId?: string,
+) {
+  return db
+    .select({ id: creditBatches.id })
+    .from(creditBatches)
+    .where(
+      and(
+        eq(creditBatches.userId, userId),
+        eq(creditBatches.source, "PURCHASE"),
+        eq(creditBatches.kind, kind),
+        gt(creditBatches.expiresAt, now),
+      ),
+    )
+    .all()
+    .some((b) => b.id !== exceptId);
+}
+
+/** A day key as an instant safely inside that day in Larnaca (noon UTC). */
+function dayKeyInstant(key: string) {
+  return new Date(`${key}T12:00:00Z`);
+}
+
+/** Is this a real calendar day written as "YYYY-MM-DD"? 2026-02-30 is not. */
+export function isDayKey(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const at = dayKeyInstant(value);
+  return !Number.isNaN(at.getTime()) && studioDateKey(at) === value;
+}
+
+/** A day key moved by whole calendar days in Larnaca. */
+export function addDays(key: string, days: number) {
+  return studioDateKey(studioAddDays(dayKeyInstant(key), days));
+}
+
+/**
+ * The window a pack covers if it starts on `startsOn`.
+ *
+ * One rule for every start day, so the date on the checkout is the date on the
+ * account: a pack of N days runs from its start day to the end of the day N
+ * days later. Bought today, that is exactly what it always was (10 October,
+ * thirty days, valid to 9 November). Started on the 15th, it runs to the end of
+ * 14 November.
+ *
+ * A start today or earlier means "from now": no lower bound on the classes it
+ * can book, which is the behaviour every pack had before members could choose.
+ * A start in the future sets `usableFrom` to midnight on that day, which is the
+ * same mechanism the opening-week offer used, so the booking rules already know
+ * how to honour it.
+ */
+export function packWindow(
+  startsOn: string,
+  validityDays: number | null,
+  now = new Date(),
+) {
+  const today = studioDateKey(now);
+  const start = isDayKey(startsOn) && startsOn > today ? startsOn : today;
+  const later = start > today;
+  return {
+    startsOn: start,
+    usableFrom: later ? studioStartOfDay(dayKeyInstant(start)) : null,
+    expiresAt:
+      validityDays && validityDays > 0
+        ? studioEndOfDay(dayKeyInstant(addDays(start, validityDays)))
+        : null,
+  };
+}
+
+export type StartSuggestion = {
+  /** The day the site suggests, "YYYY-MM-DD". */
+  startsOn: string;
+  /**
+   * Why that day, so the screen can say so in a sentence:
+   *   TODAY               nothing running, start now
+   *   AFTER_PACK          a pack is running with sessions left in it
+   *   AFTER_LAST_BOOKING  every session is used or booked; start after the last
+   */
+  reason: "TODAY" | "AFTER_PACK" | "AFTER_LAST_BOOKING";
+  /** What they hold now of this kind, for the overlap warning. */
+  current: { sessionsLeft: number; endsOn: string } | null;
+  /** The day of their last booked class, when that is what decided it. */
+  lastBookedOn: string | null;
+};
+
+/**
+ * The start day to suggest for a new pack of `kind`.
+ *
+ * The studio's rule, chosen so that buying early never wastes a day:
+ *
+ *   - nothing running: today;
+ *   - a pack running with sessions still unused: the day after it ends, so the
+ *     new days do not tick away while the old sessions are being used;
+ *   - a pack running but every session already used or booked: the day after
+ *     their last booked class, so there is no gap in which they cannot book.
+ *
+ * Only paid packs of the same kind count, exactly as for queueing: a class pack
+ * does not move a personal one, and a goodwill session from the desk is not "a
+ * pack". The member can always pick another day; this is only the default.
+ */
+export function suggestedStart(
+  userId: string,
+  kind: CreditKind = "CLASS",
+  now = new Date(),
+): StartSuggestion {
+  const today = studioDateKey(now);
+
+  const live = db
+    .select()
+    .from(creditBatches)
+    .where(
+      and(
+        eq(creditBatches.userId, userId),
+        eq(creditBatches.source, "PURCHASE"),
+        eq(creditBatches.kind, kind),
+        gt(creditBatches.expiresAt, now),
+      ),
+    )
+    .all();
+
+  if (live.length === 0) {
+    return { startsOn: today, reason: "TODAY", current: null, lastBookedOn: null };
+  }
+
+  /* A pack is running, so the new one is a top-up: its sessions can be booked
+     straight away, and only the end matters. Its days are counted from the day
+     after the running pack ends — the latest one, whatever is left in it — so
+     buying early never shortens what the member gets. This is the queueing the
+     studio always had (one day more generous: the new pack's days begin the day
+     after, rather than the last second of, the old one). */
+  const latest = live.reduce<Date>(
+    (m, b) => (b.expiresAt! > m ? b.expiresAt! : m),
+    live[0]!.expiresAt!,
+  );
+  const endsOn = studioDateKey(latest);
+  const sessionsLeft = live.reduce((n, b) => n + b.creditsRemaining, 0);
+  const after = addDays(endsOn, 1);
+  return {
+    startsOn: after > today ? after : today,
+    reason: after > today ? "AFTER_PACK" : "TODAY",
+    current: { sessionsLeft, endsOn },
+    lastBookedOn: null,
+  };
+}
+
+/** The days a member may choose from, and the one to preselect. */
+export function startChoices(
+  userId: string,
+  kind: CreditKind = "CLASS",
+  now = new Date(),
+) {
+  const today = studioDateKey(now);
+  const suggestion = suggestedStart(userId, kind, now);
+  const ahead = addDays(today, START_AHEAD_DAYS);
+  return {
+    ...suggestion,
+    min: today,
+    /* With a pack running, the new sessions are usable straight away, so the
+       latest day its days may count from is the day after the running one
+       ends. Anything later would be days for nothing. With nothing running,
+       up to START_AHEAD_DAYS ahead. */
+    max: suggestion.current
+      ? suggestion.startsOn
+      : suggestion.startsOn > ahead
+        ? suggestion.startsOn
+        : ahead,
+  };
+}
+
+/** Is `startsOn` a day this member may choose for a pack of `kind`? */
+export function startAllowed(
+  userId: string,
+  kind: CreditKind,
+  startsOn: unknown,
+  now = new Date(),
+): startsOn is string {
+  if (!isDayKey(startsOn)) return false;
+  const { min, max } = startChoices(userId, kind, now);
+  return startsOn >= min && startsOn <= max;
+}
+
+/**
+ * When a member's sessions cannot book a class only because their pack has not
+ * started yet: the first day one of them can, so the refusal can say "your pack
+ * starts on 15 October" instead of something vaguer.
+ */
+export function startsLaterFor(
+  userId: string,
+  kinds: CreditKind[],
+  classStartsAt: Date,
+  now = new Date(),
+): Date | null {
+  const later = db
+    .select()
+    .from(creditBatches)
+    .where(
+      and(
+        eq(creditBatches.userId, userId),
+        gt(creditBatches.creditsRemaining, 0),
+        or(isNull(creditBatches.expiresAt), gt(creditBatches.expiresAt, now)),
+      ),
+    )
+    .all()
+    .filter(
+      (b) =>
+        kinds.includes(b.kind as CreditKind) &&
+        /* Paid packs only. A gifted window (the opening-week offer) keeps its
+           own refusal, which explains the offer and links to the prices. */
+        b.source === "PURCHASE" &&
+        b.usableFrom !== null &&
+        b.usableFrom > classStartsAt,
+    );
+  if (later.length === 0) return null;
+  return later.reduce<Date>(
+    (m, b) => (b.usableFrom! < m ? b.usableFrom! : m),
+    later[0]!.usableFrom!,
+  );
 }

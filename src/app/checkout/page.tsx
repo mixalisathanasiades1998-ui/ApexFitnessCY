@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { CheckoutBody } from "@/components/checkout/CheckoutBody";
 import { currentUser, isVerified } from "@/lib/auth";
 import { getPackageBySlug } from "@/lib/catalogue";
-import { getCreditSummary } from "@/lib/credits";
+import { getCreditSummary, startChoices } from "@/lib/credits";
+import type { CreditKind } from "@/lib/packs";
 import { paymentModeSummary } from "@/lib/payments";
 
 export const metadata: Metadata = {
@@ -42,6 +43,12 @@ export default async function CheckoutPage({
 
   const wallet = await getCreditSummary(user.id);
   const payment = paymentModeSummary();
+  /* When the pack should start: the suggested day, the range the member may
+     choose from, and what they hold now so the page can explain the
+     suggestion. Worked out here, from the same rule the server enforces. */
+  const kind: CreditKind =
+    pkg.kind === "PERSONAL" || pkg.kind === "DUET" ? pkg.kind : "CLASS";
+  const start = startChoices(user.id, kind);
 
   return (
     <CheckoutBody
@@ -57,6 +64,7 @@ export default async function CheckoutPage({
       member={{ name: user.name, email: user.email }}
       balance={wallet.available}
       payment={payment}
+      start={start}
     />
   );
 }

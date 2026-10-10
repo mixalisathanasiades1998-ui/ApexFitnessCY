@@ -574,6 +574,7 @@ export async function notifyPurchased(
       providerRef: purchases.providerRef,
       invoiceNo: purchases.invoiceNo,
       expiresAt: creditBatches.expiresAt,
+      usableFrom: creditBatches.usableFrom,
     })
     .from(purchases)
     .innerJoin(users, eq(purchases.userId, users.id))
@@ -658,6 +659,7 @@ export async function notifyPurchased(
     amountCents: row.amountCents,
     currency: row.currency,
     expiresAt: row.expiresAt ?? null,
+    usableFrom: row.usableFrom ?? null,
     /* Written onto the purchase by fulfilPurchase a moment before this runs,
        which is the only reason it is here to read. */
     receiptUrl: row.receiptUrl,

@@ -521,6 +521,21 @@ export const en = {
     errExtendNothing: "No live pack to extend.",
     errExtendTooFar: "That date is too far ahead.",
     errExtendBadDate: "That is not a valid date.",
+    sellStart: "Pack starts",
+    sellStartHelp: "They can book classes from {start} until {end}.",
+    sellStartHelpTopUp:
+      "They already have a pack running, so these sessions can be booked straight away. The days count from {start}: valid until {end}.",
+    packsStarts: "starts",
+    packsMoveStart: "Move start to",
+    packsMoveStartDo: "Move start",
+    packsMoved: "{name}: pack now runs {start} to {end}.",
+    errStartBad: "That start day is outside the allowed range.",
+    errStartUsed:
+      "Sessions from this pack are already booked or used. Extend it instead.",
+    errStartNotPack: "Only a paid pack has a start day to move.",
+    errStartSame: "That is already its start day.",
+    errStartUnknown:
+      "This pack has no start day on record, so its start cannot be moved. Use Extend instead.",
     contact: "Contact details",
     contactHelp:
       "The member cannot change these themselves. Their email is also how they sign in.",
@@ -606,6 +621,20 @@ export const en = {
     closeDo: "Close this day",
     closeOpen: "Open it again",
     closedDays: "Days the studio is shut",
+    extendAllTitle: "Extend every active pack",
+    extendAllHelp:
+      "Adds the same number of days to every member's active pack, for example after the studio has been closed. Packs that have expired or have no sessions left are not changed. To extend one member only, use their page under Members.",
+    extendAllDays: "Days to add",
+    extendAllNote: "Reason, kept in each member's history (optional)",
+    extendAllCheck: "Check",
+    extendAllPreview:
+      "{days} days will be added to each active pack. Packs: {packs} · Members: {members}. This cannot be undone from here.",
+    extendAllDo: "Yes, extend them all",
+    extendAllCancel: "Cancel",
+    extendAllDone: "Done: every active pack extended by {days} days (packs: {packs}).",
+    extendAllNone: "There are no active packs to extend.",
+    extendAllBad: "Choose between 1 and 90 days.",
+    extendAllRepeat: "That extension has already been applied.",
     noClosures: "Nothing closed. The timetable is running as normal.",
     closedResult: "{classes} classes cancelled, {refunds} sessions refunded",
     affected: "Who was in those classes",
@@ -917,6 +946,8 @@ export const en = {
         "their email has never been confirmed. Confirm it on their page first.",
       TOO_LATE: "that class has already started.",
       SESSIONS_EXPIRE_FIRST: "their sessions expire before this class.",
+      PACK_STARTS_LATER:
+        "their pack starts after this class. Pick a class on or after its start day.",
       CREDITS_NOT_VALID_HERE: "their sessions cannot be used for this class.",
       NEEDS_PERSONAL_CREDIT: "that hour needs a Personal session.",
       NEEDS_DUET_CREDIT: "that hour needs a Duet session.",
@@ -1142,6 +1173,8 @@ export const en = {
     walletWindowed:
       "{n} of these is a free opening-week session, usable only for a class between {from} and {to}.",
     expiringOn: "expires",
+    walletStartsLater: "{n} start on {start} and can be booked until {end}.",
+    walletFromTo: "{from} – {to}",
     upcomingEmpty: "Nothing booked yet. The timetable is waiting.",
     historyTitle: "Past classes",
     historyEmpty: "No completed classes yet.",
@@ -1184,6 +1217,10 @@ export const en = {
        have worked, because a refusal that does not is a puzzle. */
     sessionsExpireFirst:
       "Your sessions run out before this class. The last date they can book is {date}. Top up and any date is open again.",
+    /* A pack the member chose to start later. Names the day, and what to do. */
+    packStartsLater:
+      "Your pack starts on {date}, so it can't be used for this class yet. Choose a class on or after {date}.",
+    startsLaterChip: "{n} from {date}",
     alreadyBooked: "You have already booked this class.",
     classFull: "This class is full.",
     tooLate: "Booking has closed for this class.",
@@ -1315,6 +1352,28 @@ export const en = {
     perClassNote: "per class",
     validityLabel: "Sessions valid for",
     validityValue: "{n} days",
+    startTitle: "When should your pack start?",
+    startToday: "Starts today. You can book classes until {end}.",
+    startLater:
+      "Starts on {start}. You can book classes from {start} until {end}.",
+    startWhyAfterPack:
+      "We suggest {date} because your current pack still has {n} until {end}, so no days go to waste.",
+    startWhyAfterBooking:
+      "We suggest {date}, the day after your last booked class on {last}.",
+    startOverlap:
+      "Your current pack runs until {end}. Choosing an earlier day makes the new pack end sooner.",
+    startWhyRunsUntil:
+      "We suggest {date}, the day after your current pack ends, so you get the full {days} days.",
+    startTopUp:
+      "Your new sessions can be used straight away, alongside the ones you have. The {days} days count from {start}, so you can book until {end}.",
+    countRow: "Days count from",
+    startRange: "You can choose any day from today to {max}.",
+    startSaving: "Saving your start date…",
+    startBad: "That start date isn't available. Please choose another.",
+    startStale:
+      "The dates on this page are out of date. Please reload the page and choose your start day again.",
+    startRow: "Starts",
+    endRow: "Book classes until",
     total: "Total",
     vat: "VAT included",
     changePack: "Choose a different pack",
@@ -1951,6 +2010,21 @@ export const el: typeof en = {
     errExtendNothing: "Δεν υπάρχει ενεργό πακέτο για παράταση.",
     errExtendTooFar: "Η ημερομηνία είναι πολύ μακριά.",
     errExtendBadDate: "Μη έγκυρη ημερομηνία.",
+    sellStart: "Έναρξη πακέτου",
+    sellStartHelp: "Μπορεί να κλείνει μαθήματα από {start} έως {end}.",
+    sellStartHelpTopUp:
+      "Έχει ήδη ενεργό πακέτο, οπότε αυτές οι συνεδρίες μπορούν να κλειστούν αμέσως. Οι ημέρες μετρούν από {start}: ισχύει έως {end}.",
+    packsStarts: "έναρξη",
+    packsMoveStart: "Νέα έναρξη",
+    packsMoveStartDo: "Αλλαγή έναρξης",
+    packsMoved: "{name}: το πακέτο τρέχει πλέον {start} έως {end}.",
+    errStartBad: "Η ημέρα έναρξης είναι εκτός επιτρεπτού εύρους.",
+    errStartUsed:
+      "Συνεδρίες αυτού του πακέτου έχουν ήδη κλειστεί ή χρησιμοποιηθεί. Δώστε παράταση αντί γι' αυτό.",
+    errStartNotPack: "Μόνο πληρωμένο πακέτο έχει ημέρα έναρξης για αλλαγή.",
+    errStartSame: "Αυτή είναι ήδη η ημέρα έναρξης.",
+    errStartUnknown:
+      "Αυτό το πακέτο δεν έχει καταγεγραμμένη ημέρα έναρξης, οπότε δεν μπορεί να μετακινηθεί. Χρησιμοποιήστε την Παράταση.",
     contact: "Στοιχεία επικοινωνίας",
     contactHelp:
       "Το μέλος δεν μπορεί να τα αλλάξει μόνο του. Το email είναι και ο τρόπος σύνδεσης.",
@@ -2029,6 +2103,20 @@ export const el: typeof en = {
     closeDo: "Κλείσε την ημέρα",
     closeOpen: "Άνοιξέ την ξανά",
     closedDays: "Ημέρες που το στούντιο είναι κλειστό",
+    extendAllTitle: "Παράταση όλων των ενεργών πακέτων",
+    extendAllHelp:
+      "Προσθέτει τις ίδιες ημέρες σε κάθε ενεργό πακέτο μέλους, για παράδειγμα αφού το στούντιο έμεινε κλειστό. Πακέτα που έληξαν ή δεν έχουν συνεδρίες δεν αλλάζουν. Για ένα μόνο μέλος, χρησιμοποιήστε τη σελίδα του στα Μέλη.",
+    extendAllDays: "Ημέρες προς προσθήκη",
+    extendAllNote: "Αιτία, μένει στο ιστορικό κάθε μέλους (προαιρετικό)",
+    extendAllCheck: "Έλεγχος",
+    extendAllPreview:
+      "Θα προστεθούν {days} ημέρες σε κάθε ενεργό πακέτο. Πακέτα: {packs} · Μέλη: {members}. Δεν αναιρείται από εδώ.",
+    extendAllDo: "Ναι, παράταση σε όλα",
+    extendAllCancel: "Ακύρωση",
+    extendAllDone: "Έγινε: κάθε ενεργό πακέτο παρατάθηκε κατά {days} ημέρες (πακέτα: {packs}).",
+    extendAllNone: "Δεν υπάρχουν ενεργά πακέτα για παράταση.",
+    extendAllBad: "Επιλέξτε από 1 έως 90 ημέρες.",
+    extendAllRepeat: "Αυτή η παράταση έχει ήδη γίνει.",
     noClosures: "Τίποτα κλειστό. Το πρόγραμμα τρέχει κανονικά.",
     closedResult:
       "{classes} μαθήματα ακυρώθηκαν, {refunds} συνεδρίες επιστράφηκαν",
@@ -2309,6 +2397,8 @@ export const el: typeof en = {
         "το email του δεν έχει επιβεβαιωθεί ποτέ. Επιβεβαίωσέ το από τη σελίδα του.",
       TOO_LATE: "το μάθημα έχει ήδη ξεκινήσει.",
       SESSIONS_EXPIRE_FIRST: "οι συνεδρίες του λήγουν πριν από αυτό το μάθημα.",
+      PACK_STARTS_LATER:
+        "το πακέτο του ξεκινά μετά από αυτό το μάθημα. Διάλεξε μάθημα από την ημέρα έναρξης και μετά.",
       CREDITS_NOT_VALID_HERE:
         "οι συνεδρίες του δεν μπορούν να χρησιμοποιηθούν σε αυτό το μάθημα.",
       NEEDS_PERSONAL_CREDIT: "αυτή η ώρα χρειάζεται Ατομική συνεδρία.",
@@ -2534,6 +2624,8 @@ export const el: typeof en = {
     walletWindowed:
       "{n} από αυτές είναι δωρεάν συνεδρία εγκαινίων και μπορεί να χρησιμοποιηθεί μόνο για μάθημα από {from} έως {to}.",
     expiringOn: "λήγει",
+    walletStartsLater: "{n} ξεκινούν στις {start} και κλείνονται έως {end}.",
+    walletFromTo: "{from} – {to}",
     upcomingEmpty: "Δεν έχεις κλείσει ακόμη. Το πρόγραμμα σε περιμένει.",
     historyTitle: "Προηγούμενα μαθήματα",
     historyEmpty: "Δεν υπάρχουν ολοκληρωμένα μαθήματα.",
@@ -2571,6 +2663,9 @@ export const el: typeof en = {
       "Η δωρεάν συνεδρία εγκαινίων δεν ισχύει για αυτό το μάθημα, γιατί αφορά μόνο την εβδομάδα των εγκαινίων. Διάλεξε μάθημα εκείνης της εβδομάδας, ή αγόρασε πακέτο για οποιαδήποτε ημερομηνία.",
     sessionsExpireFirst:
       "Οι συνεδρίες σου τελειώνουν πριν από αυτό το μάθημα. Η τελευταία ημερομηνία που μπορούν να κλείσουν είναι {date}. Ανανέωσε και ανοίγει ξανά κάθε ημερομηνία.",
+    packStartsLater:
+      "Το πακέτο σου ξεκινά στις {date}, οπότε δεν μπορεί να χρησιμοποιηθεί ακόμη για αυτό το μάθημα. Διάλεξε μάθημα από {date} και μετά.",
+    startsLaterChip: "{n} από {date}",
     alreadyBooked: "Έχεις ήδη κλείσει αυτό το μάθημα.",
     classFull: "Το μάθημα είναι πλήρες.",
     tooLate: "Οι κρατήσεις για αυτό το μάθημα έκλεισαν.",
@@ -2674,6 +2769,28 @@ export const el: typeof en = {
     perClassNote: "το μάθημα",
     validityLabel: "Οι συνεδρίες ισχύουν",
     validityValue: "{n} ημέρες",
+    startTitle: "Πότε να ξεκινήσει το πακέτο σου;",
+    startToday: "Ξεκινά σήμερα. Μπορείς να κλείνεις μαθήματα έως {end}.",
+    startLater:
+      "Ξεκινά στις {start}. Μπορείς να κλείνεις μαθήματα από {start} έως {end}.",
+    startWhyAfterPack:
+      "Προτείνουμε {date} γιατί το τρέχον πακέτο σου έχει ακόμη {n} έως {end}, ώστε να μη χαθεί καμία μέρα.",
+    startWhyAfterBooking:
+      "Προτείνουμε {date}, την επόμενη μέρα από το τελευταίο σου κλεισμένο μάθημα στις {last}.",
+    startOverlap:
+      "Το τρέχον πακέτο σου ισχύει έως {end}. Αν διαλέξεις νωρίτερη μέρα, το νέο πακέτο λήγει νωρίτερα.",
+    startWhyRunsUntil:
+      "Προτείνουμε {date}, την επόμενη μέρα από τη λήξη του τρέχοντος πακέτου σου, ώστε να έχεις όλες τις {days} ημέρες.",
+    startTopUp:
+      "Οι νέες συνεδρίες σου μπορούν να χρησιμοποιηθούν αμέσως, μαζί με όσες ήδη έχεις. Οι {days} ημέρες μετρούν από {start}, οπότε κλείνεις μαθήματα έως {end}.",
+    countRow: "Οι ημέρες μετρούν από",
+    startRange: "Μπορείς να διαλέξεις οποιαδήποτε μέρα από σήμερα έως {max}.",
+    startSaving: "Αποθήκευση ημερομηνίας έναρξης…",
+    startBad: "Αυτή η ημερομηνία έναρξης δεν είναι διαθέσιμη. Διάλεξε άλλη.",
+    startStale:
+      "Οι ημερομηνίες σε αυτή τη σελίδα δεν είναι πλέον επίκαιρες. Ανανέωσε τη σελίδα και διάλεξε ξανά ημέρα έναρξης.",
+    startRow: "Έναρξη",
+    endRow: "Κρατήσεις έως",
     total: "Σύνολο",
     vat: "ΦΠΑ συμπεριλαμβάνεται",
     changePack: "Διάλεξε άλλο πακέτο",

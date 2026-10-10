@@ -24,6 +24,8 @@ export async function POST(req: Request) {
     method?: "cash" | "card_at_desk" | "adjustment";
     note?: string;
     kind?: "CLASS" | "PERSONAL" | "DUET";
+    /** The day the pack starts, "YYYY-MM-DD". Only used on a sale. */
+    startsOn?: string;
   }>(req);
 
   if (!data?.userId || typeof data.credits !== "number") {
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
        malformed body cannot write a kind nothing knows how to spend. */
     kind:
       data.kind === "PERSONAL" || data.kind === "DUET" ? data.kind : "CLASS",
+    startsOn: typeof data.startsOn === "string" ? data.startsOn : undefined,
   });
 
   if (!result.ok) {

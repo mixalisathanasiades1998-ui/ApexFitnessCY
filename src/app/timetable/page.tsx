@@ -82,6 +82,20 @@ export default async function TimetablePage({
   ]);
 
   const now = new Date();
+  /* Sessions in a paid pack that starts on a later day: counted in the balance
+     above the timetable, so the page says when they can be used. */
+  const later = (summary?.batches ?? []).filter(
+    (b) => b.source === "PURCHASE" && b.usableFrom && b.usableFrom > now,
+  );
+  const startsLater =
+    later.length > 0
+      ? {
+          n: later.reduce((sum, b) => sum + b.creditsRemaining, 0),
+          from: later
+            .reduce((m, b) => (b.usableFrom! < m ? b.usableFrom! : m), later[0]!.usableFrom!)
+            .toISOString(),
+        }
+      : null;
   /* The days the studio has marked closed, read once. A closed day shows the
      "Studio closed" panel, exactly as a Sunday does — so its classes are kept
      out of the bookable list even on the rare occasion a stale SCHEDULED row is
@@ -170,6 +184,7 @@ export default async function TimetablePage({
         duetCredits={summary?.duetCredits ?? 0}
         soloCredits={summary?.soloCredits ?? 0}
         personalCredits={summary?.personalCredits ?? 0}
+        startsLater={startsLater}
         days={days}
         /* The picker's bounds: the first and last day anybody may book, which
            is a year wide even though `days` above is ninety. Passed as keys

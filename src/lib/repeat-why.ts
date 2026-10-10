@@ -68,6 +68,8 @@ const BUCKETS: Record<string, Bucket> = {
   SESSIONS_EXPIRE_FIRST: "expire",
   NO_CREDITS: "noCredits",
   CREDITS_NOT_VALID_HERE: "noCredits",
+  /* A pack that has not started yet cannot pay for those weeks either. */
+  PACK_STARTS_LATER: "other",
   CLASS_FULL: "full",
   TOO_LATE: "closed",
   PERSONAL_TOO_LATE: "closed",
