@@ -60,6 +60,9 @@ export const en = {
     tomorrow: "Tomorrow",
     all: "All",
     somethingWrong: "Something went wrong. Please try again.",
+    /* Under the pricing and checkout headings. {phone} becomes the studio's
+       number as a bold link that dials it. */
+    contactHelp: "If you have any issue, contact us at {phone}.",
     skip: "Skip",
   },
   home: {
@@ -1573,6 +1576,7 @@ export const el: typeof en = {
     tomorrow: "Αύριο",
     all: "Όλα",
     somethingWrong: "Κάτι πήγε λάθος. Δοκίμασε ξανά.",
+    contactHelp: "Για οποιοδήποτε θέμα, επικοινώνησε μαζί μας στο {phone}.",
     skip: "Παράλειψη",
   },
   home: {

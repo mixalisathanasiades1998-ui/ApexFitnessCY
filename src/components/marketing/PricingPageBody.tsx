@@ -1,7 +1,9 @@
 "use client";
 
+import { ContactHelp } from "@/components/marketing/ContactHelp";
 import { Faq } from "@/components/marketing/Faq";
 import { PricingGrid, type PackageCard } from "@/components/marketing/PricingGrid";
+import { Reveal } from "@/components/ui/Reveal";
 import { Section, SectionHead } from "@/components/ui/Section";
 import { useI18n } from "@/i18n/LanguageProvider";
 
@@ -23,6 +25,9 @@ export function PricingPageBody({
             title={t.pricingPage.title}
             body={t.pricingPage.body}
           />
+          <Reveal>
+            <ContactHelp className="mt-3 max-w-2xl" />
+          </Reveal>
           <div className="mt-14">
             <PricingGrid packages={packages} signedIn={signedIn} />
           </div>

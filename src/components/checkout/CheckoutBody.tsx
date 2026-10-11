@@ -1,5 +1,6 @@
 "use client";
 
+import { ContactHelp } from "@/components/marketing/ContactHelp";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -313,6 +314,7 @@ export function CheckoutBody({
           <h1 className="h-display text-[2.4rem] leading-[1.05] sm:text-5xl">
             {c.title}
           </h1>
+          <ContactHelp className="mt-5 max-w-2xl" />
         </Reveal>
 
         <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-20">
