@@ -36,6 +36,7 @@ import {
   personalBookedWords,
   personalCancelledWords,
   promoWords,
+  welcomeWords,
   purchasedWords,
   reminderWords,
   repeatBookedWords,
@@ -895,6 +896,48 @@ export async function notifyPromoGranted(
       expires: promo.expiresAt,
     }),
     { email: true, push: false, sms: false },
+  );
+}
+
+/**
+ * The welcome session, told to the new member: the in-app message, a push to
+ * any device they have already allowed, and the email.
+ *
+ * Push will usually reach nobody — somebody confirming their email this minute
+ * has not been asked for notification permission yet — but it costs nothing and
+ * it does reach a second device. The in-app copy is always written, so the
+ * message is waiting in their account either way.
+ */
+export async function notifyWelcomeGranted(
+  userId: string,
+  granted: { credits: number; expiresAt: Date },
+) {
+  const row = db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      notifyEmail: users.notifyEmail,
+      notifySms: users.notifySms,
+      locale: users.locale,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get();
+  if (!row) return 0;
+
+  return deliverPersonal(
+    {
+      ...row,
+      startsAt: new Date(),
+      classEn: "",
+      classEl: "",
+      classKind: "GROUP",
+      guestName: null,
+    },
+    welcomeWords(granted),
+    { email: true, push: true, sms: false },
   );
 }
 

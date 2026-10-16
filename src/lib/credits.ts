@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
@@ -74,6 +74,8 @@ export type CreditSummary = {
     /** Set when these sessions may only be spent on classes in a date range. */
     usableFrom: Date | null;
     usableTo: Date | null;
+    /** "WELCOME" for the free session a new account gets; else null. */
+    offer: string | null;
   }[];
   /** Soonest expiry among batches that still hold credits */
   nextExpiry: Date | null;
@@ -134,6 +136,7 @@ export async function getCreditSummary(
       perDayLimit: b.perDayLimit,
       usableFrom: b.usableFrom,
       usableTo: b.usableTo,
+      offer: b.offer,
     })),
     nextExpiry,
     nextExpiryCredits,
@@ -589,6 +592,8 @@ export function grantCredits(args: {
    * means "from now", exactly as a pack without a start date. See `packWindow`.
    */
   startsOn?: string | null;
+  /** Which offer this grant is ("WELCOME"); see lib/welcome.ts. */
+  offer?: string | null;
 }) {
   const {
     userId,
@@ -745,6 +750,7 @@ export function grantCredits(args: {
       usableTo,
       kind: args.kind ?? "CLASS",
       perDayLimit: args.perDayLimit ?? null,
+      offer: args.offer ?? null,
     })
     .returning()
     .get();
@@ -787,7 +793,235 @@ export function grantCredits(args: {
     })
     .run();
 
+  /* A group pack bought by a member who still holds their welcome session:
+     keep the welcome session for after the pack. See welcomeFollowsPack. */
+  if (source === "PURCHASE" && (args.kind ?? "CLASS") === "CLASS") {
+    /* In a savepoint of its own and never allowed to throw outward: this runs
+       inside the payment's transaction, and a fault in a free-session nicety
+       must never roll back a sale the member has paid for. If it fails, the
+       welcome session simply stays as it was. */
+    try {
+      db.transaction(() => welcomeFollowsPack(userId, batch, new Date(nowMs)));
+    } catch (e) {
+      console.error("[welcome] could not keep the welcome session for", userId, e);
+    }
+  }
+
   return batch;
+}
+
+/** How many days after a pack ends the welcome session stays usable. */
+export const WELCOME_FOLLOW_DAYS = 7;
+
+/**
+ * The welcome session follows the member's group pack.
+ *
+ * The problem it solves. Somebody joins on a Monday, is given one free session
+ * for 30 days, and buys a 4-session monthly pack the same day. They now hold
+ * five sessions, and both lots expire on the same day — so the fifth weekly
+ * Thursday falls after both, and one session they own can never be booked.
+ *
+ * The fix, run the moment the pack is granted:
+ *
+ *   1. If the welcome session is already booked on a class that has not
+ *      happened yet, that booking is moved onto the new pack (when the pack can
+ *      pay for that class), and the welcome session goes back to the balance
+ *      unused. The booking itself does not change: same class, same place.
+ *   2. Whatever is left of the welcome session is then kept until
+ *      WELCOME_FOLLOW_DAYS after the pack ends — never shortened.
+ *
+ * Spending always takes the session that expires soonest, so the pack is used
+ * first and the welcome session covers the week after it. The total balance is
+ * the same before and after; only which session pays for what changes. Every
+ * move is written to the ledger.
+ *
+ * Group packs only, because the welcome session only buys group classes.
+ */
+export function welcomeFollowsPack(
+  userId: string,
+  pack: {
+    id: string;
+    source: string;
+    kind: string;
+    expiresAt: Date | null;
+    usableFrom: Date | null;
+    usableTo: Date | null;
+    perDayLimit: number | null;
+  },
+  now = new Date(),
+) {
+  if (pack.source !== "PURCHASE" || pack.kind !== "CLASS" || !pack.expiresAt) {
+    return;
+  }
+
+  const welcomes = db
+    .select()
+    .from(creditBatches)
+    .where(
+      and(
+        eq(creditBatches.userId, userId),
+        eq(creditBatches.offer, "WELCOME"),
+        eq(creditBatches.kind, "CLASS"),
+        gt(creditBatches.expiresAt, now),
+      ),
+    )
+    .all();
+  if (welcomes.length === 0) return;
+
+  const target = studioEndOfDay(
+    studioAddDays(pack.expiresAt, WELCOME_FOLLOW_DAYS),
+  );
+  const until = studioDateKey(target);
+
+  for (const w of welcomes) {
+    /* The first group pack bought after the welcome session only, as agreed:
+       otherwise every renewal would push the free session on again and a
+       member who keeps renewing would never get to use it. */
+    const earlier = db
+      .select({ id: creditBatches.id })
+      .from(creditBatches)
+      .where(
+        and(
+          eq(creditBatches.userId, userId),
+          eq(creditBatches.source, "PURCHASE"),
+          eq(creditBatches.kind, "CLASS"),
+          gte(creditBatches.createdAt, w.createdAt),
+          ne(creditBatches.id, pack.id),
+        ),
+      )
+      .get();
+    if (earlier) continue;
+
+    /* 1. Upcoming classes this welcome session paid for, earliest first. */
+    const upcoming = db
+      .select({
+        id: bookings.id,
+        sessionId: bookings.sessionId,
+        startsAt: classSessions.startsAt,
+      })
+      .from(bookings)
+      .innerJoin(classSessions, eq(bookings.sessionId, classSessions.id))
+      .where(
+        and(
+          eq(bookings.userId, userId),
+          eq(bookings.creditBatchId, w.id),
+          eq(bookings.status, "CONFIRMED"),
+          gt(classSessions.startsAt, now),
+        ),
+      )
+      .orderBy(asc(classSessions.startsAt))
+      .all();
+
+    for (const bk of upcoming) {
+      /* The pack must be able to pay for this class: inside its dates, and
+         within its daily cap if it has one. Otherwise the booking stays where
+         it is — the pack starts later and covers the later weeks anyway. */
+      if (!windowAllows(pack, bk.startsAt)) continue;
+      if (
+        pack.perDayLimit !== null &&
+        bookingsOnStudioDay(userId, bk.startsAt, bk.sessionId) >=
+          pack.perDayLimit
+      ) {
+        continue;
+      }
+
+      /* Three writes that must all happen or none: the welcome session gets
+         its session back, the pack gives one, the booking points at the pack.
+         Each is conditional, and a refusal undoes this booking's swap. */
+      const swapped = (() => {
+        try {
+          return db.transaction(() => {
+            const back = db
+              .update(creditBatches)
+              .set({ creditsRemaining: sql`${creditBatches.creditsRemaining} + 1` })
+              .where(
+                and(
+                  eq(creditBatches.id, w.id),
+                  lt(creditBatches.creditsRemaining, creditBatches.creditsTotal),
+                ),
+              )
+              .run();
+            const took = db
+              .update(creditBatches)
+              .set({ creditsRemaining: sql`${creditBatches.creditsRemaining} - 1` })
+              .where(
+                and(eq(creditBatches.id, pack.id), gt(creditBatches.creditsRemaining, 0)),
+              )
+              .run();
+            const moved = db
+              .update(bookings)
+              .set({ creditBatchId: pack.id })
+              .where(and(eq(bookings.id, bk.id), eq(bookings.creditBatchId, w.id)))
+              .run();
+            if (back.changes === 0 || took.changes === 0 || moved.changes === 0) {
+              throw new Error("SWAP_REFUSED");
+            }
+            return true;
+          });
+        } catch {
+          return false;
+        }
+      })();
+      if (!swapped) continue;
+
+      const day = studioDateKey(bk.startsAt);
+      db.insert(creditLedger)
+        .values({
+          userId,
+          delta: -1,
+          reason: "BOOKING",
+          note: `Booking on ${day} moved onto the new pack, welcome session kept for later`,
+          batchId: pack.id,
+          bookingId: bk.id,
+        })
+        .run();
+      db.insert(creditLedger)
+        .values({
+          userId,
+          delta: 1,
+          reason: "WELCOME_KEPT",
+          note: `Booking on ${day} now paid by the pack`,
+          batchId: w.id,
+          bookingId: bk.id,
+        })
+        .run();
+    }
+
+    /* 2. Keep what is left until a week after the pack. */
+    const fresh = db
+      .select()
+      .from(creditBatches)
+      .where(eq(creditBatches.id, w.id))
+      .get();
+    if (
+      !fresh ||
+      fresh.creditsRemaining <= 0 ||
+      !fresh.expiresAt ||
+      fresh.expiresAt.getTime() >= target.getTime()
+    ) {
+      continue;
+    }
+    db.update(creditBatches)
+      .set({
+        expiresAt: target,
+        /* The welcome session has no narrower window of its own, so its class
+           window follows its expiry, exactly as a pack's does. */
+        ...(fresh.usableTo !== null && fresh.usableFrom === null
+          ? { usableTo: target }
+          : {}),
+      })
+      .where(eq(creditBatches.id, w.id))
+      .run();
+    db.insert(creditLedger)
+      .values({
+        userId,
+        delta: 0,
+        reason: "WELCOME_KEPT",
+        note: `Welcome session ${studioDateKey(fresh.expiresAt)} to ${until}, ${WELCOME_FOLLOW_DAYS} days after the pack`,
+        batchId: w.id,
+      })
+      .run();
+  }
 }
 
 export async function getLedger(userId: string, limit = 40) {

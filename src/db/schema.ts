@@ -162,6 +162,18 @@ export const users = sqliteTable(
     erasedAt: integer("erased_at", { mode: "timestamp" }),
     erasedBy: text("erased_by"),
 
+    /**
+     * The welcome offer this account was promised when it registered.
+     *
+     * Written at registration, read when the email code comes back. Kept on the
+     * account because the studio can switch the offer off or change it between
+     * the two moments, and somebody who signed up while it said "1 free session
+     * for 30 days" is owed exactly that. Null for every account that registered
+     * when no offer applied, which is every account before this existed.
+     */
+    welcomeCredits: integer("welcome_credits"),
+    welcomeDays: integer("welcome_days"),
+
     /* ---- optional profile ----
        Date of birth rather than an age: an age written down is wrong within a
        year, and the studio needs it for screening, not for a birthday card. */
@@ -707,6 +719,12 @@ export const creditBatches = sqliteTable(
      */
     usableFrom: integer("usable_from", { mode: "timestamp" }),
     usableTo: integer("usable_to", { mode: "timestamp" }),
+    /**
+     * Which offer granted this batch, if any. "WELCOME" for the free session a
+     * new account gets. Null for everything else, including every batch from
+     * before this existed. See lib/welcome.ts.
+     */
+    offer: text("offer"),
     createdAt: now().notNull(),
   },
   (t) => [index("credit_batches_user_idx").on(t.userId, t.expiresAt)],
@@ -1028,6 +1046,26 @@ export const pricingRules = sqliteTable(
   },
   (t) => [index("pricing_rules_active_idx").on(t.active)],
 );
+
+/**
+ * The welcome offer's settings, one row, edited in Admin → Pricing.
+ *
+ * Absent until the owner first saves the card: until then the defaults in
+ * lib/welcome.ts apply, so a fresh deploy behaves as agreed without anybody
+ * having to press anything.
+ */
+export const welcomeOffer = sqliteTable("welcome_offer", {
+  id: text("id").primaryKey(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull(),
+  credits: integer("credits").notNull(),
+  validityDays: integer("validity_days").notNull(),
+  /** Accounts created from this moment qualify. */
+  grantFrom: integer("grant_from", { mode: "timestamp" }).notNull(),
+  /** And up to this one. Null means no end. */
+  grantUntil: integer("grant_until", { mode: "timestamp" }),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  updatedBy: text("updated_by"),
+});
 
 /* ------------------------------------------------------------------- Types */
 

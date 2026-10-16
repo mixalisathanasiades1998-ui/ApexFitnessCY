@@ -1,3 +1,4 @@
+import { stampWelcome } from "@/lib/welcome";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -170,6 +171,11 @@ export async function POST(req: Request) {
     console.error("[verify] send threw for", user.email, e);
   }
 
+  /* Write the welcome offer onto the account as it stands right now, so a
+     change or a switch-off before they confirm their email does not take it
+     back. Granted at confirmation, not here — see below and lib/welcome.ts. */
+  stampWelcome(user);
+
   /* Signed in, but not yet allowed to do anything: the session identifies them
      so the verify screen knows whose code to check. Every route that acts on a
      member's behalf checks the stamp, not the cookie. */
@@ -188,9 +194,9 @@ export async function POST(req: Request) {
    * away, and every one of them sat in the studio's figures until it was.
    *
    * It moves to the verify route, which runs exactly once per account. Nothing
-   * is lost by the wait: the offer is decided by `promoForJoin(user.createdAt)`,
-   * so registering inside the window and confirming afterwards still qualifies.
-   * See lib/promo.ts.
+   * is lost by the wait: the offer is stamped on the account above, so
+   * registering while it is on and confirming afterwards still qualifies.
+   * See lib/welcome.ts.
    */
 
   return NextResponse.json({

@@ -72,6 +72,7 @@ export default async function AccountPage() {
           source: b.source,
           usableFrom: b.usableFrom?.toISOString() ?? null,
           usableTo: b.usableTo?.toISOString() ?? null,
+          offer: b.offer,
         })),
       }}
       notices={notices}

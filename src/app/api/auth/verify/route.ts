@@ -1,68 +1,30 @@
 import { NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
-import { creditBatches } from "@/db/schema";
 import { body, member } from "@/lib/api-guard";
 import { createSession } from "@/lib/auth";
-import { grantCredits } from "@/lib/credits";
-import { notifyNewMember, notifyPromoGranted } from "@/lib/messaging/events";
-import { promoForJoin } from "@/lib/promo";
+import { notifyNewMember, notifyWelcomeGranted } from "@/lib/messaging/events";
+import { grantWelcome } from "@/lib/welcome";
 import { challengeState, checkCode } from "@/lib/verify";
 
 /**
- * The opening offer, handed over the moment the address is proved.
+ * The welcome offer, handed over the moment the address is proved.
  *
- * This is where it belongs, and the reason is the one thing registration could
- * not know: that the person typing the address can read it. Granting at
- * registration meant a session and a congratulatory email for any address
- * somebody chose to type, including one belonging to a stranger, and for the
- * accounts the housekeeping sweep deletes seven days later for never confirming.
+ * This is where it belongs: registration could not know that the person typing
+ * the address can read it, and an unconfirmed account is deleted by the sweep
+ * after seven days. See lib/welcome.ts for what is granted and why.
  *
- * Three things make this safe to run inside a request:
- *
- *   - It runs once per account. `checkCode` returns `ALREADY` for an account
- *     that is verified, and that path returns before reaching here, so the
- *     transition from unverified to verified happens exactly once.
- *   - It is belt-and-braces idempotent anyway. Accounts verified before this
- *     moved already hold their batch, and the check below finds it. The
- *     condition is the batch's own spend window, which no other grant shares.
- *   - It can never fail the verification. Somebody who typed the right code is
- *     verified whatever happens to a promotional grant; a missing free session
- *     is ten seconds of the desk's time, a member locked out of their own
- *     account by a failed bonus is not.
+ * Safe to run inside this request: the unverified-to-verified transition happens
+ * exactly once (`checkCode` returns ALREADY otherwise), `grantWelcome` refuses a
+ * second batch anyway, and nothing here can fail the verification — somebody who
+ * typed the right code is verified whatever happens to a free session.
  */
-function grantJoiningPromo(user: { id: string; email: string; createdAt: Date }) {
-  const promo = promoForJoin(user.createdAt);
-  if (!promo) return;
+function grantJoiningWelcome(user: { id: string; email: string; createdAt: Date }) {
   try {
-    const already = db
-      .select({ n: sql<number>`count(*)` })
-      .from(creditBatches)
-      .where(
-        and(
-          eq(creditBatches.userId, user.id),
-          eq(creditBatches.source, "GRANT"),
-          eq(creditBatches.usableFrom, promo.spendFrom),
-          eq(creditBatches.usableTo, promo.spendUntil),
-        ),
-      )
-      .get();
-    if (already && already.n > 0) return;
-
-    grantCredits({
-      userId: user.id,
-      credits: promo.credits,
-      validityDays: null,
-      expiresAt: promo.expiresAt,
-      usableFrom: promo.spendFrom,
-      usableTo: promo.spendUntil,
-      source: "GRANT",
-      reason: "ADMIN_GRANT",
-      note: `${promo.name}: free session on joining`,
-    });
-    void notifyPromoGranted(user.id, promo).catch(() => {});
+    const granted = grantWelcome(user);
+    if (granted) {
+      void notifyWelcomeGranted(user.id, granted).catch(() => {});
+    }
   } catch (e) {
-    console.error("[promo] grant failed for", user.email, e);
+    console.error("[welcome] grant failed for", user.email, e);
   }
 }
 
@@ -102,7 +64,7 @@ export async function POST(req: Request) {
   /* The address is proved, so the offer can be honoured. Before the new cookie
      rather than after, so that a member who closes the tab the instant it
      succeeds still has it. */
-  grantJoiningPromo(gate.user);
+  grantJoiningWelcome(gate.user);
 
   /* Tell the studio a real, verified account now exists. Fired and not awaited,
      like the promo above: a member who typed the right code is verified whatever

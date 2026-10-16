@@ -1878,7 +1878,14 @@ async function main() {
   /* ---------------------------------------------------------------- 11 */
   console.log("\n11. The opening-week free session");
   {
-    const P = await import("../src/lib/promo");
+    const P0 = await import("../src/lib/promo");
+    /* A promo window that is always in the future, so this section tests the
+       window rule rather than the calendar: the opening week itself is long
+       past, and a check pinned to its dates fails for no reason. */
+    const spendFrom = new Date(Date.now() + 2 * 86_400_000);
+    const spendUntil = new Date(Date.now() + 9 * 86_400_000);
+    const P = P0;
+    const PW = { spendFrom, spendUntil, expiresAt: spendUntil };
     const { spendOneCredit, getAvailableCredits: bal } = await import(
       "../src/lib/credits"
     );
@@ -1898,37 +1905,37 @@ async function main() {
       userId: promoUser.id,
       credits: 1,
       validityDays: null,
-      expiresAt: P.PROMO.expiresAt,
-      usableFrom: P.PROMO.spendFrom,
-      usableTo: P.PROMO.spendUntil,
+      expiresAt: PW.expiresAt,
+      usableFrom: PW.spendFrom,
+      usableTo: PW.spendUntil,
       source: "GRANT",
       reason: "ADMIN_GRANT",
       note: "opening week",
     });
     check("the free session is in the balance", (await bal(promoUser.id)) === 1);
 
-    const inside = new Date(P.PROMO.spendFrom.getTime() + 36 * 3600_000);
-    const outside = new Date(P.PROMO.spendUntil.getTime() + 21 * 86_400_000);
-    const before = new Date(P.PROMO.spendFrom.getTime() - 3 * 86_400_000);
+    const inside = new Date(PW.spendFrom.getTime() + 36 * 3600_000);
+    const outside = new Date(PW.spendUntil.getTime() + 21 * 86_400_000);
+    const before = new Date(PW.spendFrom.getTime() - 3 * 86_400_000);
 
     check(
       "the window allows a class inside it",
       P.windowAllows(
-        { usableFrom: P.PROMO.spendFrom, usableTo: P.PROMO.spendUntil },
+        { usableFrom: PW.spendFrom, usableTo: PW.spendUntil },
         inside,
       ),
     );
     check(
       "and refuses one after it",
       !P.windowAllows(
-        { usableFrom: P.PROMO.spendFrom, usableTo: P.PROMO.spendUntil },
+        { usableFrom: PW.spendFrom, usableTo: PW.spendUntil },
         outside,
       ),
     );
     check(
       "and one before it",
       !P.windowAllows(
-        { usableFrom: P.PROMO.spendFrom, usableTo: P.PROMO.spendUntil },
+        { usableFrom: PW.spendFrom, usableTo: PW.spendUntil },
         before,
       ),
     );
@@ -1943,7 +1950,7 @@ async function main() {
     const stolen = spendOneCredit(
       promoUser.id,
       { note: "a class outside the promo week", classStartsAt: outside },
-      new Date(P.PROMO.spendFrom.getTime() - 86_400_000),
+      new Date(PW.spendFrom.getTime() - 86_400_000),
     );
     check("a free session cannot pay for a class outside the week", stolen === null, stolen);
     check("and is still in the balance afterwards", (await bal(promoUser.id)) === 1);
@@ -1952,7 +1959,7 @@ async function main() {
     const spent = spendOneCredit(
       promoUser.id,
       { note: "a class in the promo week", classStartsAt: inside },
-      new Date(P.PROMO.spendFrom.getTime() - 86_400_000),
+      new Date(PW.spendFrom.getTime() - 86_400_000),
     );
     check("inside the week it spends", spent !== null, spent);
     check("and the balance drops", (await bal(promoUser.id)) === 0);
@@ -1973,9 +1980,9 @@ async function main() {
       userId: both.id,
       credits: 1,
       validityDays: null,
-      expiresAt: P.PROMO.expiresAt,
-      usableFrom: P.PROMO.spendFrom,
-      usableTo: P.PROMO.spendUntil,
+      expiresAt: PW.expiresAt,
+      usableFrom: PW.spendFrom,
+      usableTo: PW.spendUntil,
       source: "GRANT",
       reason: "ADMIN_GRANT",
     });
@@ -1989,7 +1996,7 @@ async function main() {
     });
     check("they hold six sessions", (await bal(both.id)) === 6);
 
-    const atClass = new Date(P.PROMO.spendFrom.getTime() - 86_400_000);
+    const atClass = new Date(PW.spendFrom.getTime() - 86_400_000);
 
     /* A promo-week class must take the free one first: it expires soonest and it
        is valid, so the member gets the benefit rather than losing it. */
@@ -2554,7 +2561,7 @@ async function main() {
       userId: u.id,
       credits: 4,
       validityDays: null,
-      expiresAt: new Date(Date.now() + 10 * 864e5),
+      expiresAt: new Date(`${day(10)}T20:00:00Z`),
       source: "PURCHASE",
     });
     c = C.startChoices(u.id, "CLASS");
@@ -2569,7 +2576,7 @@ async function main() {
       userId: u.id,
       credits: 2,
       validityDays: null,
-      expiresAt: new Date(Date.now() + 25 * 864e5),
+      expiresAt: new Date(`${day(25)}T20:00:00Z`),
       source: "PURCHASE",
     });
     const g = groupAfter(2);
@@ -2634,7 +2641,7 @@ async function main() {
       userId: u.id,
       credits: 1,
       validityDays: null,
-      expiresAt: new Date(Date.now() + 9 * 864e5),
+      expiresAt: new Date(`${day(9)}T20:00:00Z`),
       source: "PURCHASE",
     });
     const topUp = grantCredits({
@@ -2664,7 +2671,7 @@ async function main() {
     }
 
     clear();
-    const oldEnd = new Date(Date.now() + 10 * 864e5);
+    const oldEnd = new Date(`${day(10)}T20:00:00Z`);
     grantCredits({
       userId: u.id,
       credits: 4,
@@ -2716,7 +2723,7 @@ async function main() {
       userId: u.id,
       credits: 2,
       validityDays: null,
-      expiresAt: new Date(Date.now() + 9 * 864e5),
+      expiresAt: new Date(`${day(9)}T20:00:00Z`),
       source: "PURCHASE",
     });
     const tp = db
@@ -2794,7 +2801,7 @@ async function main() {
       userId: u.id,
       credits: 2,
       validityDays: null,
-      expiresAt: new Date(Date.now() + 5 * 864e5),
+      expiresAt: new Date(`${day(5)}T20:00:00Z`),
       source: "PURCHASE",
     });
     c = C.startChoices(u.id, "CLASS");
@@ -2998,6 +3005,264 @@ async function main() {
     db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
     db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
     db.delete(users).where(eq(users.id, u.id)).run();
+  }
+
+  console.log("\n17. The welcome offer");
+  /**
+   * New accounts get free group sessions when they confirm their email, set
+   * from Admin → Pricing. What they were promised at registration is kept even
+   * if the offer changes before they confirm. A group pack bought while the
+   * welcome session is unused, or booked on a class still to come, keeps the
+   * welcome session until a week after the pack — the five-Thursdays problem.
+   */
+  {
+    const W = await import("../src/lib/welcome");
+    const C = await import("../src/lib/credits");
+    const { creditBatches, bookings: bk, classTypes, welcomeOffer, purchases } =
+      await import("../src/db/schema");
+    const { studioDateKey } = await import("../src/lib/time");
+    const { asc } = await import("drizzle-orm");
+    const key = (d: Date | null) => (d ? studioDateKey(d) : null);
+    const today = studioDateKey(new Date());
+    const day = (n: number) => C.addDays(today, n);
+    const get = (id: string) =>
+      db.select().from(creditBatches).where(eq(creditBatches.id, id)).get()!;
+
+    /* Settings: the agreed defaults until the card is saved. */
+    db.delete(welcomeOffer).run();
+    const def = W.getWelcomeSettings();
+    check(
+      "defaults: on, 1 session, 30 days, from 19 October 2026, no end",
+      def.enabled &&
+        def.credits === 1 &&
+        def.validityDays === 30 &&
+        key(def.grantFrom) === "2026-10-19" &&
+        def.grantUntil === null,
+      def,
+    );
+    check(
+      "an account created before the start date does not qualify",
+      W.welcomeForJoin(new Date("2026-10-18T20:00:00Z")) === null,
+    );
+    check(
+      "an account created on the start day qualifies",
+      W.welcomeForJoin(new Date("2026-10-19T08:00:00Z"))?.credits === 1,
+    );
+    check(
+      "bad settings are refused",
+      !W.saveWelcomeSettings({ enabled: true, credits: 0, validityDays: 30, grantFrom: new Date(), grantUntil: null, staffName: "Suite" }).ok &&
+        !W.saveWelcomeSettings({ enabled: true, credits: 1, validityDays: 0, grantFrom: new Date(), grantUntil: null, staffName: "Suite" }).ok &&
+        !W.saveWelcomeSettings({ enabled: true, credits: 1, validityDays: 30, grantFrom: new Date(), grantUntil: new Date(Date.now() - 864e5), staffName: "Suite" }).ok,
+    );
+    /* Open it from yesterday for the rest of this section. */
+    const opened = W.saveWelcomeSettings({
+      enabled: true,
+      credits: 1,
+      validityDays: 30,
+      grantFrom: new Date(Date.now() - 864e5),
+      grantUntil: null,
+      staffName: "Suite",
+    });
+    check("the owner can save the settings", opened.ok);
+
+    const made: string[] = [];
+    const newUser = async (tag: string) => {
+      const u = db
+        .insert(users)
+        .values({
+          email: `welcome-${tag}-${Date.now()}@apex.test`,
+          name: `Welcome ${tag}`,
+          passwordHash: await hashPassword("x".repeat(10)),
+          emailVerifiedAt: new Date(),
+        })
+        .returning()
+        .get();
+      made.push(u.id);
+      return u;
+    };
+
+    /* Granted once, group classes only, 30 days to the end of the day. */
+    const a = await newUser("a");
+    W.stampWelcome(a);
+    const g = W.grantWelcome(a);
+    const wb = db
+      .select()
+      .from(creditBatches)
+      .where(and(eq(creditBatches.userId, a.id), eq(creditBatches.offer, "WELCOME")))
+      .get();
+    check(
+      "confirming the email grants 1 group session for 30 days",
+      g?.credits === 1 && !!wb && wb.kind === "CLASS" && key(wb.expiresAt) === day(30) && wb.usableFrom === null,
+      wb,
+    );
+    check("a second confirmation grants nothing more", W.grantWelcome(a) === null);
+    check(
+      "the welcome session cannot pay for a personal appointment",
+      C.spendOneCredit(a.id, { kinds: ["PERSONAL", "DUET"] }) === null,
+    );
+
+    /* Promised at registration, kept through a switch-off. */
+    const b2 = await newUser("b");
+    W.stampWelcome(b2);
+    W.saveWelcomeSettings({ enabled: false, credits: 1, validityDays: 30, grantFrom: new Date(Date.now() - 864e5), grantUntil: null, staffName: "Suite" });
+    check("registered while on, confirmed after it was switched off: still granted", W.grantWelcome(b2)?.credits === 1);
+    const c3 = await newUser("c");
+    W.stampWelcome(c3);
+    check("registered while it is off: nothing", W.grantWelcome(c3) === null);
+    W.saveWelcomeSettings({ enabled: true, credits: 2, validityDays: 20, grantFrom: new Date(Date.now() - 864e5), grantUntil: null, staffName: "Suite" });
+    check(
+      "a later change does not alter what an earlier sign-up was promised",
+      W.grantWelcome(c3) === null,
+    );
+    const d4 = await newUser("d");
+    W.stampWelcome(d4);
+    const g4 = W.grantWelcome(d4);
+    check("a new sign-up gets the new numbers", g4?.credits === 2 && key(g4.expiresAt) === day(20), g4);
+    W.saveWelcomeSettings({ enabled: true, credits: 1, validityDays: 30, grantFrom: new Date(Date.now() - 864e5), grantUntil: null, staffName: "Suite" });
+
+    /* Follow the pack: an unused welcome session is kept until a week after. */
+    const e5 = await newUser("e");
+    W.stampWelcome(e5);
+    const we = W.grantWelcome(e5)!;
+    const pack5 = grantCredits({ userId: e5.id, credits: 4, validityDays: 30, source: "PURCHASE", startsOn: today });
+    const wb5 = db.select().from(creditBatches).where(and(eq(creditBatches.userId, e5.id), eq(creditBatches.offer, "WELCOME"))).get()!;
+    check(
+      "a pack bought: the unused welcome session is kept until 7 days after the pack",
+      key(wb5.expiresAt) === C.addDays(key(pack5.expiresAt)!, 7) &&
+        key(wb5.usableTo) === key(wb5.expiresAt) &&
+        key(we.expiresAt) === day(30),
+      { welcome: key(wb5.expiresAt), pack: key(pack5.expiresAt) },
+    );
+
+    /* The five Thursdays: one weekly class, five weeks, welcome + 4-pack. */
+    const hasRoom = (id: string) => {
+      const cap = db.select({ c: classSessions.capacity }).from(classSessions).where(eq(classSessions.id, id)).get()!.c;
+      const n = db.select({ n: sql<number>`count(*)` }).from(bk).where(and(eq(bk.sessionId, id), eq(bk.status, "CONFIRMED"))).get()!.n;
+      return n < cap;
+    };
+    const groupOn = (dayKey: string, hhmm: string | null) =>
+      db
+        .select({ id: classSessions.id, at: classSessions.startsAt })
+        .from(classSessions)
+        .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+        .where(and(eq(classTypes.kind, "GROUP"), eq(classSessions.status, "SCHEDULED")))
+        .orderBy(asc(classSessions.startsAt))
+        .all()
+        .filter(
+          (x) =>
+            studioDateKey(x.at) === dayKey &&
+            hasRoom(x.id) &&
+            (hhmm === null ||
+              new Intl.DateTimeFormat("en-GB", { timeZone: STUDIO.timezone, hour: "2-digit", minute: "2-digit" }).format(x.at) === hhmm),
+        );
+    let weekly: { id: string; at: Date }[] = [];
+    for (let start = 2; start < 9 && weekly.length < 5; start++) {
+      const first = groupOn(day(start), null)[0];
+      if (!first) continue;
+      const hhmm = new Intl.DateTimeFormat("en-GB", { timeZone: STUDIO.timezone, hour: "2-digit", minute: "2-digit" }).format(first.at);
+      const run = [first];
+      for (let k = 1; k < 5; k++) {
+        const next = groupOn(day(start + 7 * k), hhmm)[0];
+        if (!next) break;
+        run.push(next);
+      }
+      if (run.length === 5) weekly = run;
+    }
+    if (weekly.length === 5) {
+      /* Book the first class with the welcome session, then buy the pack. */
+      const f6 = await newUser("f");
+      W.stampWelcome(f6);
+      W.grantWelcome(f6);
+      const first = bookClass(f6.id, weekly[0]!.id);
+      check("the welcome session books the first week", first.ok, first);
+      const welcomeId = db.select().from(creditBatches).where(and(eq(creditBatches.userId, f6.id), eq(creditBatches.offer, "WELCOME"))).get()!.id;
+      check("it was paid by the welcome session", first.ok && first.creditBatchId === welcomeId);
+      const balBefore = await getAvailableCredits(f6.id);
+      const pack6 = grantCredits({ userId: f6.id, credits: 4, validityDays: 30, source: "PURCHASE", startsOn: today });
+      const booking = db.select().from(bk).where(eq(bk.id, first.ok ? first.bookingId : "")).get()!;
+      check("the upcoming booking moved onto the pack", booking.creditBatchId === pack6.id && booking.status === "CONFIRMED");
+      check("the welcome session is back, unused", get(welcomeId).creditsRemaining === 1);
+      check("the pack paid for it", get(pack6.id).creditsRemaining === 3);
+      check("balance is the pack minus nothing: 4 = 0 + 4", (await getAvailableCredits(f6.id)) === balBefore + 4);
+      check("the welcome session now lasts until 7 days after the pack", key(get(welcomeId).expiresAt) === C.addDays(key(pack6.expiresAt)!, 7));
+      let all = true;
+      for (const w of weekly.slice(1)) {
+        const r = bookClass(f6.id, w.id);
+        if (!r.ok) {
+          all = false;
+          console.log("    week refused", studioDateKey(w.at), r);
+        }
+      }
+      check("all five weekly classes are booked", all);
+      check("nothing left over", (await getAvailableCredits(f6.id)) === 0);
+      const ledger = db.select({ n: sql<number>`coalesce(sum(delta),0)` }).from(creditLedger).where(eq(creditLedger.userId, f6.id)).get()!.n;
+      const remain = db.select({ n: sql<number>`coalesce(sum(credits_remaining),0)` }).from(creditBatches).where(eq(creditBatches.userId, f6.id)).get()!.n;
+      check("ledger still adds up", ledger === remain, { ledger, remain });
+
+      /* Cancelling the moved booking refunds the pack that now pays for it. */
+      const cancel = cancelBooking(f6.id, booking.id);
+      check(
+        "cancelling the moved booking returns the session to the pack",
+        cancel.ok && get(pack6.id).creditsRemaining === 1 && get(welcomeId).creditsRemaining === 0,
+        { cancel, pack: get(pack6.id).creditsRemaining, welcome: get(welcomeId).creditsRemaining },
+      );
+
+      /* A pack that starts after the booked class: the booking stays put. */
+      const h8 = await newUser("h");
+      W.stampWelcome(h8);
+      W.grantWelcome(h8);
+      const hb = bookClass(h8.id, weekly[0]!.id);
+      const later = C.addDays(studioDateKey(weekly[0]!.at), 2);
+      const pack8 = grantCredits({ userId: h8.id, credits: 4, validityDays: 30, source: "PURCHASE", startsOn: later });
+      const hbRow = db.select().from(bk).where(eq(bk.id, hb.ok ? hb.bookingId : "")).get()!;
+      check(
+        "a pack starting after the booked class leaves the booking on the welcome session",
+        hb.ok && hbRow.creditBatchId !== pack8.id && get(pack8.id).creditsRemaining === 4,
+      );
+      for (const id of [f6.id, h8.id]) db.delete(bk).where(eq(bk.userId, id)).run();
+    } else {
+      console.log("    (skipped the five-week checks: no weekly run of classes in this database)");
+    }
+
+    /* Only the first group pack moves it: a renewal does not push it again. */
+    const k11 = await newUser("k");
+    W.stampWelcome(k11);
+    W.grantWelcome(k11);
+    const firstPack = grantCredits({ userId: k11.id, credits: 4, validityDays: 30, source: "PURCHASE", startsOn: today });
+    const afterFirst = key(db.select().from(creditBatches).where(and(eq(creditBatches.userId, k11.id), eq(creditBatches.offer, "WELCOME"))).get()!.expiresAt);
+    grantCredits({ userId: k11.id, credits: 4, validityDays: 30, source: "PURCHASE" });
+    const afterSecond = key(db.select().from(creditBatches).where(and(eq(creditBatches.userId, k11.id), eq(creditBatches.offer, "WELCOME"))).get()!.expiresAt);
+    check(
+      "a second pack leaves the welcome session where the first pack put it",
+      afterFirst === C.addDays(key(firstPack.expiresAt)!, 7) && afterSecond === afterFirst,
+      { afterFirst, afterSecond },
+    );
+
+    /* A personal pack does not move the welcome session. */
+    const i9 = await newUser("i");
+    W.stampWelcome(i9);
+    const wi = W.grantWelcome(i9)!;
+    grantCredits({ userId: i9.id, credits: 1, validityDays: 60, source: "PURCHASE", kind: "PERSONAL", startsOn: today });
+    const wi2 = db.select().from(creditBatches).where(and(eq(creditBatches.userId, i9.id), eq(creditBatches.offer, "WELCOME"))).get()!;
+    check("a personal pack leaves the welcome session as it was", key(wi2.expiresAt) === key(wi.expiresAt));
+
+    /* Members without a welcome session: a pack does exactly what it did. */
+    const j10 = await newUser("j");
+    const plain = grantCredits({ userId: j10.id, credits: 4, validityDays: 30, source: "PURCHASE", startsOn: today });
+    check(
+      "no welcome session: the pack and the ledger are unchanged",
+      key(plain.expiresAt) === day(30) &&
+        db.select().from(creditLedger).where(eq(creditLedger.userId, j10.id)).all().length === 1,
+    );
+
+    for (const id of made) {
+      db.delete(bk).where(eq(bk.userId, id)).run();
+      db.delete(creditLedger).where(eq(creditLedger.userId, id)).run();
+      db.delete(creditBatches).where(eq(creditBatches.userId, id)).run();
+      db.delete(purchases).where(eq(purchases.userId, id)).run();
+      db.delete(users).where(eq(users.id, id)).run();
+    }
+    db.delete(welcomeOffer).run();
   }
 
   console.log(

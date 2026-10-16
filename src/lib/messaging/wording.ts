@@ -640,6 +640,51 @@ export function promoWords(a: {
 }
 
 /**
+ * The welcome session, told to a new member the moment they confirm their email.
+ *
+ * Says the three things they need: it is already in the balance, it is for group
+ * classes, and the last day it can be used. Nothing about the pack it may later
+ * follow — that is a kindness that happens on its own, not a rule to learn.
+ */
+export function welcomeWords(a: { credits: number; expiresAt: Date }): Bilingual {
+  const dayEn = new Intl.DateTimeFormat("en-GB", {
+    timeZone: STUDIO.timezone,
+    day: "numeric",
+    month: "long",
+  }).format(a.expiresAt);
+  const dayEl = new Intl.DateTimeFormat("el-GR", {
+    timeZone: STUDIO.timezone,
+    day: "numeric",
+    month: "long",
+  }).format(a.expiresAt);
+  const one = a.credits === 1;
+  return {
+    en: {
+      subject: one
+        ? "Your welcome session is ready"
+        : `Your ${a.credits} welcome sessions are ready`,
+      body:
+        `Welcome to APEX pilates. ${one ? "A free welcome session is" : `${a.credits} free welcome sessions are`} ` +
+        `already in your balance, on the studio.\n\n` +
+        `You can use ${one ? "it" : "them"} for any group class until ${dayEn}. ` +
+        `Book from the timetable whenever you are ready.`,
+      url: "/timetable",
+    },
+    el: {
+      subject: one
+        ? "Η συνεδρία καλωσορίσματος σας είναι έτοιμη"
+        : `Οι ${a.credits} συνεδρίες καλωσορίσματος σας είναι έτοιμες`,
+      body:
+        `Καλώς ήρθατε στο APEX pilates. ${one ? "Μια δωρεάν συνεδρία καλωσορίσματος βρίσκεται" : `${a.credits} δωρεάν συνεδρίες καλωσορίσματος βρίσκονται`} ` +
+        `ήδη στο υπόλοιπό σας, με την ευγενική προσφορά του στούντιο.\n\n` +
+        `Μπορείτε να ${one ? "τη" : "τις"} χρησιμοποιήσετε σε οποιοδήποτε ομαδικό μάθημα ` +
+        `έως τις ${dayEl}. Κλείστε θέση από το πρόγραμμα όποτε είστε έτοιμοι.`,
+      url: "/timetable",
+    },
+  };
+}
+
+/**
  * Sessions the desk added for free, told to the member.
  *
  * No price and no invoice, because nothing was paid: a comped or corrected

@@ -45,6 +45,9 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "pilates_level", ddl: "text" },
     { name: "pilates_since", ddl: "text" },
     { name: "health_condition", ddl: "text" },
+    /* The welcome offer promised at registration. See schema.ts. */
+    { name: "welcome_credits", ddl: "integer" },
+    { name: "welcome_days", ddl: "integer" },
   ],
   instructors: [
     { name: "photo_url", ddl: "text" },
@@ -74,6 +77,8 @@ const COLUMNS: Record<string, Column[]> = {
        See the columns in schema.ts for why a kind rather than a window. */
     { name: "kind", ddl: "text default 'CLASS' not null" },
     { name: "per_day_limit", ddl: "integer" },
+    /* Which offer granted the batch ("WELCOME"); null for all others. */
+    { name: "offer", ddl: "text" },
   ],
   credit_packages: [
     { name: "kind", ddl: "text default 'CLASS' not null" },
@@ -101,6 +106,19 @@ const COLUMNS: Record<string, Column[]> = {
 };
 
 const TABLES: { name: string; ddl: string }[] = [
+  {
+    name: "welcome_offer",
+    ddl: `create table welcome_offer (
+            id text primary key not null,
+            enabled integer not null,
+            credits integer not null,
+            validity_days integer not null,
+            grant_from integer not null,
+            grant_until integer,
+            updated_at integer not null,
+            updated_by text
+          )`,
+  },
   {
     name: "user_avatars",
     ddl: `create table user_avatars (

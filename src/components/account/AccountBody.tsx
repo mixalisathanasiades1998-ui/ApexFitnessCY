@@ -63,6 +63,8 @@ type Props = {
       usableTo: string | null;
       expiresAt: string | null;
       source: string;
+      /** "WELCOME" for the free session a new account gets. */
+      offer?: string | null;
     }[];
   };
   classesTaken: number;
@@ -107,6 +109,13 @@ const REASON: Record<string, { en: string; el: string }> = {
     el: "Ενημέρωση ημερομηνιών πακέτου από το στούντιο",
   },
   EXPIRY: { en: "Credits expired", el: "Λήξη credits" },
+  WELCOME: { en: "Welcome session", el: "Συνεδρία καλωσορίσματος" },
+  /* The welcome session kept for after a newly bought pack: a booking moved
+     onto the pack, or its last day moved later. See welcomeFollowsPack. */
+  WELCOME_KEPT: {
+    en: "Welcome session kept for after your pack",
+    el: "Η συνεδρία καλωσορίσματος κρατήθηκε για μετά το πακέτο",
+  },
 };
 
 export function AccountBody(props: Props) {
@@ -390,6 +399,11 @@ export function AccountBody(props: Props) {
   );
   const windowedCredits = windowed.reduce((n, b) => n + b.creditsRemaining, 0);
 
+  /* The welcome session, said in words: what it buys and its last day. */
+  const welcome = props.wallet.batches.filter(
+    (b) => b.offer === "WELCOME" && b.creditsRemaining > 0 && b.expiresAt,
+  );
+
   const isStaff = props.user.role === "STAFF" || props.user.role === "ADMIN";
 
   return (
@@ -501,6 +515,17 @@ export function AccountBody(props: Props) {
                       .replace("{to}", fmtDayMonth(windowed[0].usableTo!))}
                   </p>
                 )}
+
+                {welcome.map((b) => (
+                  <p
+                    key={b.id}
+                    className="mt-6 rounded-2xl bg-cream/10 px-4 py-3 text-[12px] leading-relaxed text-cream/80"
+                  >
+                    {t.account.walletWelcome
+                      .replace("{n}", fmtSessions(b.creditsRemaining))
+                      .replace("{end}", fmtFullDate(b.expiresAt!))}
+                  </p>
+                ))}
 
                 {startingLater.map((b) => (
                   <p

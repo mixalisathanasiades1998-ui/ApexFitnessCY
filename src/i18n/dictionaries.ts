@@ -529,6 +529,7 @@ export const en = {
     sellStartHelpTopUp:
       "They already have a pack running, so these sessions can be booked straight away. The days count from {start}: valid until {end}.",
     packsStarts: "starts",
+    packsWelcome: "Welcome session",
     packsMoveStart: "Move start to",
     packsMoveStartDo: "Move start",
     packsMoved: "{name}: pack now runs {start} to {end}.",
@@ -814,6 +815,28 @@ export const en = {
     priceNow: "now",
     /* Pricing tab: the three sections and their forms. */
     packsSectionTitle: "Packs",
+    welcomeTitle: "Welcome offer",
+    welcomeHelp:
+      "Free group sessions for every new account, given when they confirm their email. Changes apply to new sign-ups only: sessions already given are never changed or taken back.",
+    welcomeEnabled: "Offer is on",
+    welcomeCredits: "Free sessions",
+    welcomeDays: "Valid for (days)",
+    welcomeFrom: "Accounts created from",
+    welcomeUntil: "Until (optional)",
+    welcomeUntilBlank: "Leave empty to run with no end date.",
+    welcomeSave: "Save welcome offer",
+    welcomeSaved: "Welcome offer saved.",
+    welcomeLive:
+      "On: accounts created from {from}{until} get {n} free group session(s), valid for {days} days.",
+    welcomeLiveUntil: " to {until}",
+    welcomeOff: "Off: new accounts get no free session.",
+    welcomeFollow:
+      "If a member buys a group pack while their welcome session is unused, or booked on a class that has not happened yet, it is kept until 7 days after the pack ends.",
+    welcomeServerOff:
+      "Switched off on the server (PROMO_ENABLED=false in Render's environment). Remove that setting for this card to take effect.",
+    welcomeBadCredits: "Choose between 1 and 5 free sessions.",
+    welcomeBadDays: "Choose between 1 and 365 days.",
+    welcomeBadDates: "The end date must be on or after the start date.",
     promoSectionTitle: "Promo codes",
     offersSectionTitle: "Offers",
     packsManageHelp:
@@ -1176,6 +1199,8 @@ export const en = {
     walletWindowed:
       "{n} of these is a free opening-week session, usable only for a class between {from} and {to}.",
     expiringOn: "expires",
+    walletWelcome:
+      "Includes your welcome session ({n}), for any group class until {end}.",
     walletStartsLater: "{n} start on {start} and can be booked until {end}.",
     walletFromTo: "{from} – {to}",
     upcomingEmpty: "Nothing booked yet. The timetable is waiting.",
@@ -1214,7 +1239,7 @@ export const en = {
     noCredits: "You have no sessions left.",
     noCreditsCta: "Buy a session pack",
     creditsNotValidHere:
-      "Your free opening-week session cannot be used for this class, because it is only for the opening week. Pick a class in that week, or buy a pack to book any date.",
+      "The sessions you hold cannot be used for this class. Buy a group class pack to book it.",
     /* The other window refusal, and by far the commoner one: an ordinary pack
        whose own expiry falls before the class. Names the last date that would
        have worked, because a refusal that does not is a puzzle. */
@@ -2019,6 +2044,7 @@ export const el: typeof en = {
     sellStartHelpTopUp:
       "Έχει ήδη ενεργό πακέτο, οπότε αυτές οι συνεδρίες μπορούν να κλειστούν αμέσως. Οι ημέρες μετρούν από {start}: ισχύει έως {end}.",
     packsStarts: "έναρξη",
+    packsWelcome: "Συνεδρία καλωσορίσματος",
     packsMoveStart: "Νέα έναρξη",
     packsMoveStartDo: "Αλλαγή έναρξης",
     packsMoved: "{name}: το πακέτο τρέχει πλέον {start} έως {end}.",
@@ -2273,6 +2299,28 @@ export const el: typeof en = {
     priceNone: "Καμία προσφορά. Όλα τα πακέτα στην κανονική τιμή.",
     priceNow: "τώρα",
     packsSectionTitle: "Πακέτα",
+    welcomeTitle: "Προσφορά καλωσορίσματος",
+    welcomeHelp:
+      "Δωρεάν ομαδικές συνεδρίες για κάθε νέο λογαριασμό, που δίνονται όταν επιβεβαιωθεί το email. Οι αλλαγές ισχύουν μόνο για νέες εγγραφές: συνεδρίες που έχουν ήδη δοθεί δεν αλλάζουν και δεν αφαιρούνται.",
+    welcomeEnabled: "Η προσφορά είναι ενεργή",
+    welcomeCredits: "Δωρεάν συνεδρίες",
+    welcomeDays: "Ισχύς (ημέρες)",
+    welcomeFrom: "Λογαριασμοί από",
+    welcomeUntil: "Έως (προαιρετικό)",
+    welcomeUntilBlank: "Αφήστε το κενό για να ισχύει χωρίς ημερομηνία λήξης.",
+    welcomeSave: "Αποθήκευση προσφοράς",
+    welcomeSaved: "Η προσφορά καλωσορίσματος αποθηκεύτηκε.",
+    welcomeLive:
+      "Ενεργή: οι λογαριασμοί που δημιουργούνται από {from}{until} παίρνουν {n} δωρεάν ομαδική συνεδρία/ες, με ισχύ {days} ημερών.",
+    welcomeLiveUntil: " έως {until}",
+    welcomeOff: "Ανενεργή: οι νέοι λογαριασμοί δεν παίρνουν δωρεάν συνεδρία.",
+    welcomeFollow:
+      "Αν ένα μέλος αγοράσει ομαδικό πακέτο ενώ η συνεδρία καλωσορίσματος δεν έχει χρησιμοποιηθεί, ή είναι κλεισμένη σε μάθημα που δεν έχει γίνει ακόμη, διατηρείται έως 7 ημέρες μετά τη λήξη του πακέτου.",
+    welcomeServerOff:
+      "Απενεργοποιημένη από τον server (PROMO_ENABLED=false στο περιβάλλον του Render). Αφαιρέστε αυτή τη ρύθμιση για να ισχύσει η κάρτα.",
+    welcomeBadCredits: "Επιλέξτε από 1 έως 5 δωρεάν συνεδρίες.",
+    welcomeBadDays: "Επιλέξτε από 1 έως 365 ημέρες.",
+    welcomeBadDates: "Η ημερομηνία λήξης πρέπει να είναι ίδια ή μετά την ημερομηνία έναρξης.",
     promoSectionTitle: "Κωδικοί έκπτωσης",
     offersSectionTitle: "Προσφορές",
     packsManageHelp:
@@ -2628,6 +2676,8 @@ export const el: typeof en = {
     walletWindowed:
       "{n} από αυτές είναι δωρεάν συνεδρία εγκαινίων και μπορεί να χρησιμοποιηθεί μόνο για μάθημα από {from} έως {to}.",
     expiringOn: "λήγει",
+    walletWelcome:
+      "Περιλαμβάνει τη συνεδρία καλωσορίσματος ({n}), για οποιοδήποτε ομαδικό μάθημα έως {end}.",
     walletStartsLater: "{n} ξεκινούν στις {start} και κλείνονται έως {end}.",
     walletFromTo: "{from} – {to}",
     upcomingEmpty: "Δεν έχεις κλείσει ακόμη. Το πρόγραμμα σε περιμένει.",
@@ -2664,7 +2714,7 @@ export const el: typeof en = {
     noCredits: "Δεν έχεις άλλες συνεδρίες.",
     noCreditsCta: "Αγόρασε πακέτο συνεδριών",
     creditsNotValidHere:
-      "Η δωρεάν συνεδρία εγκαινίων δεν ισχύει για αυτό το μάθημα, γιατί αφορά μόνο την εβδομάδα των εγκαινίων. Διάλεξε μάθημα εκείνης της εβδομάδας, ή αγόρασε πακέτο για οποιαδήποτε ημερομηνία.",
+      "Οι συνεδρίες που έχεις δεν μπορούν να χρησιμοποιηθούν για αυτό το μάθημα. Αγόρασε πακέτο ομαδικών μαθημάτων για να το κλείσεις.",
     sessionsExpireFirst:
       "Οι συνεδρίες σου τελειώνουν πριν από αυτό το μάθημα. Η τελευταία ημερομηνία που μπορούν να κλείσουν είναι {date}. Ανανέωσε και ανοίγει ξανά κάθε ημερομηνία.",
     packStartsLater:

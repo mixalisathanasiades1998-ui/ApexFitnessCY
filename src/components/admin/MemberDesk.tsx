@@ -79,6 +79,8 @@ type Detail = {
     usableFrom: string | null;
     /** The day its days are counted from, when on record; else null. */
     countsFrom?: string | null;
+    /** "WELCOME" for a new account's free session. */
+    offer?: string | null;
   }[];
   payments: {
     id: string;
@@ -729,7 +731,9 @@ export function MemberDesk({
               <ul className="space-y-4">
                 {member.batches.map((b) => {
                   const kindLabel =
-                    b.kind === "PERSONAL"
+                    b.offer === "WELCOME"
+                      ? d.packsWelcome
+                      : b.kind === "PERSONAL"
                       ? d.sellKindPersonal
                       : b.kind === "DUET"
                         ? d.sellKindDuet

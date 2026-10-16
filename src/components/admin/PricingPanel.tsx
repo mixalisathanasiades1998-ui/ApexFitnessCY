@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { WelcomeOfferCard } from "@/components/admin/WelcomeOfferCard";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
@@ -596,6 +597,9 @@ export function PricingPanel({
           ))}
         </ul>
       </div>
+
+      {/* ================================================= WELCOME OFFER */}
+      <WelcomeOfferCard onNotice={onNotice} panel={panel} heading={heading} />
 
       {/* ================================================= PROMO CODES */}
       <div className={panel} data-desk-panel="promo">

@@ -1172,6 +1172,8 @@ check(
   rExtendAll.status === 403,
   rExtendAll.status,
 );
+const rWelcome = await req("/api/admin/welcome");
+check("reception is refused the welcome offer settings", rWelcome.status === 403, rWelcome.status);
 
 /* Back to the owner, unlocked, so the rest of the suite runs as before. */
 await req("/api/auth/login", {
@@ -1182,6 +1184,40 @@ await req("/api/admin/unlock", {
   method: "POST",
   body: { password: "ownerdev123" },
 });
+
+console.log("\n11e. Welcome offer settings");
+{
+  const w = await req("/api/admin/welcome");
+  check("the owner reads the welcome offer", w.status === 200 && typeof w.json?.enabled === "boolean", w.status);
+  const bad = await req("/api/admin/welcome", {
+    method: "POST",
+    body: { enabled: true, credits: 9, validityDays: 30, grantFrom: "2026-10-19", grantUntil: null },
+  });
+  check("6+ free sessions is refused", bad.status === 400 && bad.json?.error === "BAD_CREDITS", bad.json);
+  const badDates = await req("/api/admin/welcome", {
+    method: "POST",
+    body: { enabled: true, credits: 1, validityDays: 30, grantFrom: "2026-10-19", grantUntil: "2026-10-01" },
+  });
+  check("an end before the start is refused", badDates.status === 400, badDates.json);
+  /* Saved back exactly as it was, so the rest of the suite sees no change. */
+  const day = (iso) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Nicosia", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  const same = await req("/api/admin/welcome", {
+    method: "POST",
+    body: {
+      enabled: w.json.enabled,
+      credits: w.json.credits,
+      validityDays: w.json.validityDays,
+      grantFrom: day(w.json.grantFrom),
+      grantUntil: w.json.grantUntil ? day(w.json.grantUntil) : null,
+    },
+  });
+  check(
+    "the owner saves it and reads back the same",
+    same.status === 200 && same.json.credits === w.json.credits && day(same.json.grantFrom) === day(w.json.grantFrom),
+    same.json,
+  );
+}
 
 console.log("\n12. Contact form");
 const contact = await req("/api/contact", {
