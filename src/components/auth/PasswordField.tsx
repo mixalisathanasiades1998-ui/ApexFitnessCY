@@ -26,6 +26,7 @@ export function PasswordField({
   hint,
   value,
   onChange,
+  autoFocus,
 }: {
   id: string;
   name?: string;
@@ -35,6 +36,7 @@ export function PasswordField({
   hint?: string;
   value?: string;
   onChange?: (v: string) => void;
+  autoFocus?: boolean;
 }) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
@@ -54,6 +56,7 @@ export function PasswordField({
           autoComplete={autoComplete}
           minLength={minLength}
           required
+          autoFocus={autoFocus}
           className="input pr-12"
           {...(controlled
             ? { value, onChange: (e) => onChange?.(e.target.value) }

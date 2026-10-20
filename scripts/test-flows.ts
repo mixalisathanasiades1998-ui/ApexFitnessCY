@@ -3265,6 +3265,81 @@ async function main() {
     db.delete(welcomeOffer).run();
   }
 
+  console.log("\n18. Active members on the analytics");
+  /**
+   * Three cards: members holding a live session, members at 0 with a class
+   * still booked, and active = the two together (nobody is in both).
+   */
+  {
+    const A = await import("../src/lib/admin");
+    const { creditBatches, bookings: bk, classTypes } = await import("../src/db/schema");
+    const { asc } = await import("drizzle-orm");
+    const before = await A.studioStats();
+    check(
+      "active members is the sum of the two cards",
+      before.activeMembers === before.membersWithSessions + before.membersBookedOnly,
+      before,
+    );
+    const u = db
+      .insert(users)
+      .values({
+        email: `active-${Date.now()}@apex.test`,
+        name: "Active Card",
+        passwordHash: await hashPassword("x".repeat(10)),
+        emailVerifiedAt: new Date(),
+      })
+      .returning()
+      .get();
+    grantCredits({ userId: u.id, credits: 1, validityDays: 30, source: "PURCHASE" });
+    const s1 = await A.studioStats();
+    check(
+      "holding a session: counted with sessions, not as booked-only",
+      s1.membersWithSessions === before.membersWithSessions + 1 &&
+        s1.membersBookedOnly === before.membersBookedOnly &&
+        s1.activeMembers === before.activeMembers + 1,
+      s1,
+    );
+    const target = db
+      .select({ id: classSessions.id, cap: classSessions.capacity })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(
+        and(
+          eq(classTypes.kind, "GROUP"),
+          eq(classSessions.status, "SCHEDULED"),
+          gt(classSessions.startsAt, new Date(Date.now() + 3 * 864e5)),
+        ),
+      )
+      .orderBy(asc(classSessions.startsAt))
+      .all()
+      .find(
+        (x) =>
+          db.select({ n: sql<number>`count(*)` }).from(bk).where(and(eq(bk.sessionId, x.id), eq(bk.status, "CONFIRMED"))).get()!.n < x.cap,
+      );
+    const booked = target ? bookClass(u.id, target.id) : null;
+    const s2 = await A.studioStats();
+    check(
+      "balance 0 with a class booked ahead: moves to booked-only, still active",
+      !!booked?.ok &&
+        s2.membersWithSessions === before.membersWithSessions &&
+        s2.membersBookedOnly === before.membersBookedOnly + 1 &&
+        s2.activeMembers === before.activeMembers + 1,
+      { booked, s2 },
+    );
+    if (booked?.ok) cancelBooking(u.id, booked.bookingId);
+    db.update(creditBatches).set({ creditsRemaining: 0 }).where(eq(creditBatches.userId, u.id)).run();
+    const s3 = await A.studioStats();
+    check(
+      "no session and nothing booked: not active",
+      s3.activeMembers === before.activeMembers && s3.membersBookedOnly === before.membersBookedOnly,
+      s3,
+    );
+    db.delete(bk).where(eq(bk.userId, u.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
+    db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
+    db.delete(users).where(eq(users.id, u.id)).run();
+  }
+
   console.log(
     `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
   );

@@ -25,6 +25,8 @@ type Stats = {
   members: number;
   newMembers: number;
   membersWithSessions: number;
+  membersBookedOnly: number;
+  activeMembers: number;
   bookings: number;
   bookingPeople: number;
   cancellations: number;
@@ -167,8 +169,9 @@ export function StatsRow({ initial }: { initial: Stats }) {
         * sessions, and what it took in money.
         */}
       <div className={cn("mt-6 space-y-4", busy && "opacity-60 transition-opacity")}>
-        {/* 1. The membership. */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* 1. The membership: everybody, then who is active and why. Active
+               is the two cards after it added together — nobody is in both. */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi
             label={d.kMembers}
             value={String(stats.members)}
@@ -179,9 +182,19 @@ export function StatsRow({ initial }: { initial: Stats }) {
             }
           />
           <Kpi
+            label={d.kActiveAll}
+            value={String(stats.activeMembers)}
+            sub={d.kActiveAllSub}
+          />
+          <Kpi
             label={d.kActive}
             value={String(stats.membersWithSessions)}
             sub={d.kActiveSub}
+          />
+          <Kpi
+            label={d.kBookedOnly}
+            value={String(stats.membersBookedOnly)}
+            sub={d.kBookedOnlySub}
           />
         </div>
 

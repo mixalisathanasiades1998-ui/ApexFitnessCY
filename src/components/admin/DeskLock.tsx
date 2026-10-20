@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordField } from "@/components/auth/PasswordField";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LanguageToggle } from "@/components/site/LanguageToggle";
@@ -129,17 +130,16 @@ export function DeskLock({ name }: { name?: string }) {
                 </>
               )}
 
-              <label className="label" htmlFor="desk-password">
-                {knownStaff ? d.lockedField : t.common.password}
-              </label>
-              <input
+              {/* With the eye, like every other password box on the site, so
+                  the owner or reception can check what they typed before a
+                  wrong attempt counts against them. Hidden by default. */}
+              <PasswordField
                 id="desk-password"
-                type="password"
+                label={knownStaff ? d.lockedField : t.common.password}
                 autoComplete="current-password"
                 autoFocus={knownStaff}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input"
+                onChange={setPassword}
               />
 
               {error && (

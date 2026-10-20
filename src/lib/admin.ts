@@ -33,8 +33,15 @@ export type StudioStats = {
   /** Every account, and how many of them arrived inside the period. */
   members: number;
   newMembers: number;
-  /** Members holding at least one live session — the studio's active list. */
+  /** Members holding at least one live session. */
   membersWithSessions: number;
+  /**
+   * Members with no session left but at least one class booked still to come:
+   * they have spent everything, and they are still coming.
+   */
+  membersBookedOnly: number;
+  /** The two above together — nobody is in both, so it is their sum. */
+  activeMembers: number;
   /**
    * Places filled in classes that ran inside the period.
    *
@@ -292,6 +299,37 @@ export async function studioStats(
       .get()?.n ?? 0;
 
   /**
+   * Members whose balance is 0 but who still have a class booked ahead.
+   *
+   * Counted from the same two facts as the cards beside it — a live session
+   * (unspent, unexpired) and a confirmed booking in a scheduled class still to
+   * come — so the three figures always agree: "active" is everybody with
+   * either, and nobody is counted twice.
+   */
+  const now = new Date();
+  const hasLiveSession = sql`exists (
+    select 1 from credit_batches cb
+     where cb.user_id = ${bookings.userId}
+       and cb.credits_remaining > 0
+       and (cb.expires_at is null or cb.expires_at > ${Math.floor(now.getTime() / 1000)})
+  )`;
+  const membersBookedOnly =
+    db
+      .select({ n: sql<number>`count(distinct ${bookings.userId})` })
+      .from(bookings)
+      .innerJoin(classSessions, eq(bookings.sessionId, classSessions.id))
+      .where(
+        and(
+          realMember(bookings.userId),
+          eq(bookings.status, "CONFIRMED"),
+          gte(classSessions.startsAt, now),
+          eq(classSessions.status, "SCHEDULED"),
+          sql`not ${hasLiveSession}`,
+        ),
+      )
+      .get()?.n ?? 0;
+
+  /**
    * Places filled in the classes that ran in the period.
    *
    * Joined to the class and filtered on **its** date, not on when the booking
@@ -440,6 +478,8 @@ export async function studioStats(
     members: Number(memberCount),
     newMembers: Number(newMembers),
     membersWithSessions: Number(membersWithSessions),
+    membersBookedOnly: Number(membersBookedOnly),
+    activeMembers: Number(membersWithSessions) + Number(membersBookedOnly),
     bookings: Number(bookingCount),
     bookingPeople: Number(bookingPeople),
     cancellations: Number(cancelledCount),

@@ -36,6 +36,8 @@ export function AdminBody({
     members: number;
     newMembers: number;
     membersWithSessions: number;
+    membersBookedOnly: number;
+    activeMembers: number;
     bookings: number;
     bookingPeople: number;
     cancellations: number;
