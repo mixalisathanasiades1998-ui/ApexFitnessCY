@@ -138,6 +138,7 @@ export function repeatWeekly(args: {
       id: classSessions.id,
       startsAt: classSessions.startsAt,
       classTypeId: classSessions.classTypeId,
+      templateId: classSessions.templateId,
       kind: classTypes.kind,
     })
     .from(classSessions)
@@ -164,7 +165,11 @@ export function repeatWeekly(args: {
   const until = studioAddDays(seed.startsAt, (args.weeks - 1) * 7 + 1);
 
   const candidates = db
-    .select({ id: classSessions.id, startsAt: classSessions.startsAt })
+    .select({
+      id: classSessions.id,
+      startsAt: classSessions.startsAt,
+      templateId: classSessions.templateId,
+    })
     .from(classSessions)
     .where(
       and(
@@ -177,6 +182,10 @@ export function repeatWeekly(args: {
     .orderBy(asc(classSessions.startsAt))
     .all()
     .filter((s) => {
+      /* The same weekly slot, whatever time the studio has moved it to in a
+         given week. A class with no slot behind it falls back to the same
+         weekday and minute. */
+      if (seed.templateId) return s.templateId === seed.templateId;
       const p = studioParts(s.startsAt);
       return (
         studioDayOfWeek(s.startsAt) === weekday &&

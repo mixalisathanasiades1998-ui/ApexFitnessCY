@@ -561,6 +561,10 @@ export async function daySessions(day = new Date()) {
     /* The id as well as the name, so the desk's picker knows which of its
        options is the one already chosen. */
     instructorId: s.instructorId,
+    /* Set when this one class was moved to another time: what it was. */
+    movedFrom: s.movedFrom,
+    /* Whether it belongs to a weekly slot, so "every week" can be offered. */
+    weekly: Boolean(s.templateId),
     attendees: roster
       .filter((r) => r.b.sessionId === s.id)
       .map((r) => ({

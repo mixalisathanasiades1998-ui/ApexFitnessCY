@@ -32,6 +32,7 @@ import {
   contactStudioWords,
   forEmail,
   instructorChangedWords,
+  classMovedWords,
   leadWords,
   personalBookedWords,
   personalCancelledWords,
@@ -76,7 +77,8 @@ const SENDS: Record<
   | "reminder"
   | "appointment"
   | "instructor"
-  | "nightly",
+  | "nightly"
+  | "moved",
   { email: boolean; push: boolean; sms: boolean }
 > = {
   /**
@@ -135,6 +137,13 @@ const SENDS: Record<
    * cannot opt out of, alongside a class being moved or cancelled.
    */
   instructor: { email: false, push: true, sms: false },
+
+  /**
+   * A class moved to another time by the studio. All three: it changes when the
+   * member has to be at the door, and they may have arranged their day around
+   * the old time. The email is the copy that survives outside the app.
+   */
+  moved: { email: true, push: true, sms: false },
 
   /**
    * The nightly note about tomorrow, at 23:30.
@@ -991,6 +1000,70 @@ export async function notifyInstructorChanged(
     console.log(
       `[rota] ${change.from} to ${change.to} on ${sessionId}, ${told} member(s) told by ${change.by}`,
     );
+  }
+  return told;
+}
+
+/**
+ * Members whose booked classes the studio moved to another time.
+ *
+ * One message per member, listing every one of their classes that moved. Never
+ * throws: the classes have already moved by the time this runs, and a slow mail
+ * server must not make a saved change look like a failed one.
+ */
+export async function notifyClassMoved(
+  moved: { userId: string; bookingId: string; from: Date; to: Date }[],
+  opts: { weeklyFrom?: Date; by: string },
+) {
+  const byUser = new Map<string, { from: Date; to: Date }[]>();
+  for (const m of moved) {
+    const list = byUser.get(m.userId) ?? [];
+    list.push({ from: m.from, to: m.to });
+    byUser.set(m.userId, list);
+  }
+
+  let told = 0;
+  for (const [userId, moves] of byUser) {
+    try {
+      const row = db
+        .select({
+          email: users.email,
+          notifyEmail: users.notifyEmail,
+          locale: users.locale,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .get();
+      if (!row) continue;
+      const cls = db
+        .select({ en: classTypes.nameEn, el: classTypes.nameEl })
+        .from(bookings)
+        .innerJoin(classSessions, eq(bookings.sessionId, classSessions.id))
+        .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+        .where(eq(bookings.id, moved.find((m) => m.userId === userId)!.bookingId))
+        .get();
+      const words = classMovedWords({
+        classEn: cls?.en ?? "class",
+        classEl: cls?.el || cls?.en || "μάθημα",
+        moves,
+        weeklyFrom: opts.weeklyFrom,
+      });
+      inbox(userId, words);
+      if (SENDS.moved.push) {
+        await pushToUser(userId, say(words, row.locale)).catch(() => 0);
+      }
+      if (SENDS.moved.email && row.notifyEmail && row.email) {
+        await emailTransport()
+          .send(row.email, forEmail(words))
+          .catch(() => null);
+      }
+      told++;
+    } catch (err) {
+      console.error("[move] could not tell", userId, err);
+    }
+  }
+  if (told > 0) {
+    console.log(`[move] ${told} member(s) told of a time change by ${opts.by}`);
   }
   return told;
 }

@@ -522,6 +522,12 @@ export const classSessions = sqliteTable(
     /** SCHEDULED | CANCELLED */
     status: text("status").notNull().default("SCHEDULED"),
     note: text("note"),
+    /**
+     * The time this class was at before the desk moved just this one, or null.
+     * A class moved on its own keeps its own time even when the whole weekly
+     * slot is moved later. See lib/class-move.ts.
+     */
+    movedFrom: integer("moved_from", { mode: "timestamp" }),
     createdAt: now().notNull(),
   },
   (t) => [
@@ -558,6 +564,13 @@ export const bookings = sqliteTable(
      * somebody to bring a friend.
      */
     guestName: text("guest_name"),
+    /**
+     * When the studio moved this booking's class to another time, or null.
+     * A booking that was moved can be cancelled for free right up to the start:
+     * the member agreed to the old time, not the new one. A booking made after
+     * the move follows the ordinary 12-hour rule.
+     */
+    movedAt: integer("moved_at", { mode: "timestamp" }),
     createdAt: now().notNull(),
     cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
   },
@@ -565,6 +578,32 @@ export const bookings = sqliteTable(
     uniqueIndex("bookings_user_session_idx").on(t.userId, t.sessionId),
     index("bookings_session_status_idx").on(t.sessionId, t.status),
   ],
+);
+
+/**
+ * A weekly slot moved to another time, from a given day on.
+ *
+ * The weekly timetable is written in code (lib/rota.ts) and the templates are
+ * reset to it on every start, so a time change saved on a template would be
+ * undone by the next deploy. A move lives here instead and is applied on top:
+ * the class generator and the move itself read it. The latest move whose
+ * `effectiveFrom` has come wins for a given week. See lib/class-move.ts.
+ */
+export const slotMoves = sqliteTable(
+  "slot_moves",
+  {
+    id: id(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => classTemplates.id, { onDelete: "cascade" }),
+    /** Minutes from midnight the slot moves to. 05:50 = 350. */
+    toMinutes: integer("to_minutes").notNull(),
+    /** First day it applies, "YYYY-MM-DD" in the studio's calendar. */
+    effectiveFrom: text("effective_from").notNull(),
+    createdBy: text("created_by"),
+    createdAt: now().notNull(),
+  },
+  (t) => [index("slot_moves_template_idx").on(t.templateId)],
 );
 
 /* -------------------------------------------------------- Money & credits */

@@ -1241,6 +1241,107 @@ export function instructorChangedWords(a: {
   };
 }
 
+/**
+ * A class the studio moved to another time, told to somebody booked on it.
+ *
+ * One message per member, however many of their classes moved: a weekly change
+ * can move six of somebody's bookings at once, and six messages saying the same
+ * thing is how a studio trains people to ignore it. Says what moved, that their
+ * place is kept, and the one thing they can do about it.
+ */
+export function classMovedWords(a: {
+  classEn: string;
+  classEl: string;
+  /** Each of this member's bookings that moved, old and new start. */
+  moves: { from: Date; to: Date }[];
+  /** Set when the whole weekly slot moved, from this day on. */
+  weeklyFrom?: Date;
+}): Bilingual {
+  const clock = (d: Date, lang: "en" | "el") =>
+    new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+      timeZone: STUDIO.timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+  const dayOnly = (d: Date, lang: "en" | "el") =>
+    new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+      timeZone: STUDIO.timezone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(d);
+  const sorted = [...a.moves].sort((x, y) => x.to.getTime() - y.to.getTime());
+  const first = sorted[0]!;
+  /* The slot's usual time: a later week's, since the first may be a class
+     that had been moved on its own before. */
+  const usual = sorted[sorted.length - 1]!;
+  const many = sorted.length > 1;
+
+  if (!a.weeklyFrom) {
+    return {
+      en: {
+        subject: "Your class has a new time",
+        body:
+          `Your ${a.classEn} on ${dayOnly(first.to, "en")} moves from ` +
+          `${clock(first.from, "en")} to ${clock(first.to, "en")}.\n\n` +
+          `Your place is kept. If the new time doesn't suit you, you can cancel ` +
+          `for free until the class starts, and your session comes back.`,
+        url: "/account",
+      },
+      el: {
+        subject: "Νέα ώρα για το μάθημά σας",
+        body:
+          `Το μάθημά σας ${a.classEl} (${dayOnly(first.to, "el")}) μεταφέρεται ` +
+          `από τις ${clock(first.from, "el")} στις ${clock(first.to, "el")}.\n\n` +
+          `Η θέση σας παραμένει. Αν η νέα ώρα δεν σας βολεύει, μπορείτε να ` +
+          `ακυρώσετε δωρεάν μέχρι να ξεκινήσει το μάθημα, και η συνεδρία σας ` +
+          `επιστρέφει.`,
+        url: "/account",
+      },
+    };
+  }
+
+  const weekdayEn = new Intl.DateTimeFormat("en-GB", {
+    timeZone: STUDIO.timezone,
+    weekday: "long",
+  }).format(first.to);
+  const weekdayEl = new Intl.DateTimeFormat("el-GR", {
+    timeZone: STUDIO.timezone,
+    weekday: "long",
+  }).format(first.to);
+  const datesEn = sorted.map((m) => dayOnly(m.to, "en")).join(", ");
+  const datesEl = sorted.map((m) => dayOnly(m.to, "el")).join(", ");
+  return {
+    en: {
+      subject: "Your class has a new time",
+      body:
+        `The ${weekdayEn} ${clock(usual.from, "en")} ${a.classEn} moves to ` +
+        `${clock(first.to, "en")} every week from ${dateWords(a.weeklyFrom, "en")}.\n\n` +
+        (many
+          ? `Your ${sorted.length} booked classes moved with it: ${datesEn}. Your places are kept.`
+          : `Your booking on ${datesEn} moved with it. Your place is kept.`) +
+        `\n\nIf the new time doesn't suit you, you can cancel ` +
+        `${many ? "any of them" : "it"} for free until the class starts, and your session comes back.`,
+      url: "/account",
+    },
+    el: {
+      subject: "Νέα ώρα για το μάθημά σας",
+      body:
+        `Το μάθημα ${a.classEl} κάθε ${weekdayEl} στις ${clock(usual.from, "el")} ` +
+        `μεταφέρεται στις ${clock(first.to, "el")} κάθε εβδομάδα από ` +
+        `${dateWords(a.weeklyFrom, "el")}.\n\n` +
+        (many
+          ? `Οι ${sorted.length} κρατήσεις σας μεταφέρθηκαν μαζί του: ${datesEl}. Οι θέσεις σας παραμένουν.`
+          : `Η κράτησή σας ${datesEl} μεταφέρθηκε μαζί του. Η θέση σας παραμένει.`) +
+        `\n\nΑν η νέα ώρα δεν σας βολεύει, μπορείτε να ακυρώσετε ` +
+        `${many ? "όποια θέλετε" : "την κράτηση"} δωρεάν μέχρι να ξεκινήσει το μάθημα, ` +
+        `και η συνεδρία σας επιστρέφει.`,
+      url: "/account",
+    },
+  };
+}
+
 /* ------------------------------------------------------------- for the inbox */
 
 /**

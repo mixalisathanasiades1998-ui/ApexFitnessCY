@@ -57,6 +57,10 @@ type SessionRow = {
   level: string;
   instructor: string | null;
   instructorId: string | null;
+  /** The time this class was at before it was moved on its own. */
+  movedFrom?: string | null;
+  /** Part of a weekly slot, so it can be moved every week. */
+  weekly?: boolean;
   attendees: Attendee[];
 };
 
@@ -99,7 +103,14 @@ const REPEAT_RUNS = [
   { months: 9, weeks: 39 },
 ] as const;
 
-export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
+export function BookingsPanel({
+  onNotice,
+  owner = false,
+}: {
+  onNotice: (s: string) => void;
+  /** Moving a class's time is the owner's, like the rest of the timetable. */
+  owner?: boolean;
+}) {
   const { t, locale, fmtTime, fmtLongDate, fmtDayMonth, fmtSessions } =
     useI18n();
   const d = t.desk;
@@ -171,6 +182,64 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
     session: SessionRow;
     level: string;
   } | null>(null);
+
+  /* The class whose time is being changed, and the time typed so far. */
+  const [moving, setMoving] = useState<SessionRow | null>(null);
+  const [moveTo, setMoveTo] = useState("");
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  /** "HH:MM" in the studio's time, for the time box. */
+  function clockOf(iso: string) {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Nicosia",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+  }
+
+  async function moveClassTime(s: SessionRow, scope: "ONE" | "WEEKLY") {
+    setMoveError(null);
+    if (!/^\d{2}:\d{2}$/.test(moveTo) || Number(moveTo.slice(3)) % 5 !== 0) {
+      setMoveError(d.moveErrors.BAD_TIME);
+      return;
+    }
+    setBusy(s.id);
+    try {
+      const res = await fetch("/api/admin/session/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: s.id, newStart: moveTo, scope }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        clashAt?: string | null;
+        moved?: number;
+        members?: number;
+      };
+      if (!res.ok) {
+        const code = (data.error ?? "") as keyof typeof d.moveErrors;
+        setMoveError(
+          code === "CLASH" && data.clashAt
+            ? d.moveErrors.CLASH.replace("{time}", fmtTime(data.clashAt))
+            : (d.moveErrors[code] ?? t.common.somethingWrong),
+        );
+        return;
+      }
+      setMoving(null);
+      onNotice(
+        (scope === "WEEKLY" ? d.movedWeekly : d.movedOne)
+          .replace("{time}", moveTo)
+          .replace("{n}", String(data.moved ?? 0))
+          .replace("{members}", String(data.members ?? 0)),
+      );
+      await load(day);
+    } catch {
+      setMoveError(t.common.somethingWrong);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const load = useCallback(async (date: string) => {
     setSessions(null);
@@ -365,7 +434,8 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
         { method: "DELETE" },
       );
       if (!res.ok) {
-        onNotice(t.common.somethingWrong);
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        onNotice(data.error === "CLASH" ? d.reopenClash : t.common.somethingWrong);
         return;
       }
       onNotice(d.classReopened);
@@ -914,6 +984,11 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                   <div>
                     <p className="font-display text-2xl text-mocha-600 lining-nums tabular-nums">
                       {fmtTime(s.startsAt)} – {fmtTime(s.endsAt)}
+                      {s.movedFrom && (
+                        <span className="ml-3 align-middle rounded-full bg-mocha-100 px-2 py-0.5 font-sans text-[10px] uppercase tracking-widest text-mocha-500">
+                          {d.movedFromTag.replace("{time}", fmtTime(s.movedFrom))}
+                        </span>
+                      )}
                     </p>
                     <p className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-clay">
                       {s.kind === "PERSONAL" && (
@@ -961,6 +1036,25 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
                     <p className="text-[11px] uppercase tracking-widest text-clay lining-nums tabular-nums">
                       {live.length}/{s.capacity}
                     </p>
+                    {/* Move this class, or its weekly slot, to another time.
+                        Owner only; group classes still ahead. */}
+                    {owner &&
+                      s.status !== "CANCELLED" &&
+                      s.kind !== "PERSONAL" &&
+                      new Date(s.startsAt).getTime() > Date.now() && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy === s.id}
+                          onClick={() => {
+                            setMoving(s);
+                            setMoveTo(clockOf(s.startsAt));
+                            setMoveError(null);
+                          }}
+                        >
+                          {d.changeTime}
+                        </Button>
+                      )}
                     {/* Off the timetable and everyone refunded. Ghost and set
                         apart, because it is the one control on this row that
                         acts on the whole class at once. Not offered on a class
@@ -1208,6 +1302,59 @@ export function BookingsPanel({ onNotice }: { onNotice: (s: string) => void }) {
       {/* One class, or the whole recurring slot from today on. Neither is a
           default worth guessing — the desk is either fixing one date or changing
           the timetable. */}
+      {moving && (
+        <ConfirmDialog
+          title={d.moveTitle.replace("{slot}", slotLabel(moving.startsAt))}
+          body={
+            <div>
+              <label className="block">
+                <span className="label">{d.moveNewTime}</span>
+                <input
+                  type="time"
+                  step={300}
+                  value={moveTo}
+                  onChange={(e) => {
+                    setMoveTo(e.target.value);
+                    setMoveError(null);
+                  }}
+                  className="input lining-nums tabular-nums"
+                />
+              </label>
+              <p className="mt-3 text-[13px] leading-relaxed text-mocha-500">
+                {d.moveHelp}
+              </p>
+              {moveError && (
+                <p role="alert" className="mt-3 text-[13px] text-red-700">
+                  {moveError}
+                </p>
+              )}
+            </div>
+          }
+          cancelLabel={t.common.back}
+          onClose={() => setMoving(null)}
+          actions={[
+            ...(moving.weekly
+              ? [
+                  {
+                    label: d.moveWeekly.replace(
+                      "{date}",
+                      fmtDayMonth(new Date(moving.startsAt)),
+                    ),
+                    busy: busy === moving.id,
+                    onClick: () => void moveClassTime(moving, "WEEKLY"),
+                  },
+                ]
+              : []),
+            {
+              label: d.moveOne,
+              variant: "outline" as const,
+              busy: busy === moving.id,
+              onClick: () => void moveClassTime(moving, "ONE"),
+            },
+          ]}
+        />
+      )}
+
       {levelling && (
         <ConfirmDialog
           title={d.setLevelTitle.replace(

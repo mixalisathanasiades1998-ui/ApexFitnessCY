@@ -129,6 +129,7 @@ export default async function TimetablePage({
          their language before booking. */
       instructorLanguages: s.instructor?.languages ?? [],
       myBookingId: s.myBookingId ?? null,
+      myBookingMoved: s.myBookingMoved,
     }));
 
   /* Sent once, keyed by slug, instead of repeated on all ~230 classes. */

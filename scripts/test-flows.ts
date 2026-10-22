@@ -3370,6 +3370,132 @@ async function main() {
     );
   }
 
+  console.log("\n20. Changing a class's time");
+  {
+    const M = await import("../src/lib/class-move");
+    const { generateSessions } = await import("../src/lib/schedule");
+    const { bookings: bk, classTypes, slotMoves, bookingReminders } = await import("../src/db/schema");
+    const { studioDateKey, studioAddDays } = await import("../src/lib/time");
+    const { asc } = await import("drizzle-orm");
+    const clock = (d: Date) =>
+      new Intl.DateTimeFormat("en-GB", { timeZone: STUDIO.timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+
+    check("5-minute times are accepted", M.parseClock("05:50") === 350 && M.parseClock("17:35") === 1055);
+    check("other times are refused", M.parseClock("05:52") === null && M.parseClock("24:00") === null && M.parseClock("5:50") === null);
+
+    /* A weekday with a 06:00 and a 07:00 class, two weeks out, nobody booked. */
+    const groups = db
+      .select({ s: classSessions })
+      .from(classSessions)
+      .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
+      .where(and(eq(classTypes.kind, "GROUP"), eq(classSessions.status, "SCHEDULED"), gt(classSessions.startsAt, new Date(Date.now() + 9 * 864e5))))
+      .orderBy(asc(classSessions.startsAt))
+      .all()
+      .map((r) => r.s);
+    const six = groups.find((g) => clock(g.startsAt) === "06:00" && g.templateId && groups.some((h) => studioDateKey(h.startsAt) === studioDateKey(g.startsAt) && clock(h.startsAt) === "07:00"))!;
+    const seven = groups.find((h) => studioDateKey(h.startsAt) === studioDateKey(six.startsAt) && clock(h.startsAt) === "07:00")!;
+    const snapshot = db.select().from(classSessions).where(eq(classSessions.templateId, six.templateId!)).all();
+
+    const u = db.insert(users).values({ email: `move-${Date.now()}@apex.test`, name: "Move Tester", passwordHash: await hashPassword("x".repeat(10)), emailVerifiedAt: new Date(), reminderMinutes: 60 }).returning().get();
+    grantCredits({ userId: u.id, credits: 4, validityDays: 60, source: "PURCHASE" });
+    const b1 = bookClass(u.id, six.id);
+    check("a member is booked on the 06:00", b1.ok, b1);
+
+    const clash = M.moveClass({ sessionId: seven.id, newStart: "06:30", scope: "ONE", staffName: "Suite" });
+    check("moving the 07:00 onto the 06:00 is refused (one room)", !clash.ok && clash.code === "CLASH", clash);
+    check("a 5-minute grid is enforced", (() => { const r = M.moveClass({ sessionId: six.id, newStart: "05:52", scope: "ONE", staffName: "Suite" }); return !r.ok && r.code === "BAD_TIME"; })());
+    check("the same time is refused", (() => { const r = M.moveClass({ sessionId: six.id, newStart: "06:00", scope: "ONE", staffName: "Suite" }); return !r.ok && r.code === "NOT_CHANGED"; })());
+
+    const one = M.moveClass({ sessionId: six.id, newStart: "05:50", scope: "ONE", staffName: "Suite" });
+    const moved = db.select().from(classSessions).where(eq(classSessions.id, six.id)).get()!;
+    check("only this class: 06:00 becomes 05:50–06:40", one.ok && clock(moved.startsAt) === "05:50" && clock(moved.endsAt) === "06:40" && clock(moved.movedFrom!) === "06:00", one);
+    const bRow = db.select().from(bk).where(eq(bk.id, b1.ok ? b1.bookingId : "")).get()!;
+    check("the booking moved with it and is marked", bRow.status === "CONFIRMED" && bRow.movedAt !== null);
+    check("the member is reported for a message", one.ok && one.members >= 1 && !!one.movedFor?.some((m) => m.userId === u.id), one);
+    const rem = db.select().from(bookingReminders).where(eq(bookingReminders.bookingId, bRow.id)).get();
+    check("the reminder moved with the class", !!rem && clock(rem.dueAt) === "04:50", rem && clock(rem.dueAt));
+    const other = db.select().from(classSessions).where(and(eq(classSessions.templateId, six.templateId!), gt(classSessions.startsAt, moved.startsAt))).orderBy(asc(classSessions.startsAt)).get()!;
+    check("the following week is still at 06:00", clock(other.startsAt) === "06:00");
+
+    generateSessions(8, new Date());
+    const sameDay = db.select().from(classSessions).where(eq(classSessions.templateId, six.templateId!)).all().filter((x) => studioDateKey(x.startsAt) === studioDateKey(six.startsAt));
+    check("generating the timetable again does not put a second class at 06:00", sameDay.length === 1, sameDay.map((x) => clock(x.startsAt)));
+
+    const late = new Date(moved.startsAt.getTime() - 3600e3);
+    const c = cancelBooking(u.id, bRow.id, late);
+    check("a moved booking can be cancelled for free an hour before", c.ok && c.refunded, c);
+    const rb = bookClass(u.id, six.id);
+    const c2 = cancelBooking(u.id, rb.ok ? rb.bookingId : "", late);
+    check("booked again after the move: the ordinary 12-hour rule applies", rb.ok && !c2.ok && c2.code === "TOO_LATE_TO_CANCEL", c2);
+    cancelBooking(u.id, rb.ok ? rb.bookingId : "", new Date(), { forfeit: true });
+
+    /* Every week from the next week on. */
+    const nextWeek = other;
+    const b2 = bookClass(u.id, nextWeek.id);
+    const weekly = M.moveClass({ sessionId: nextWeek.id, newStart: "06:10", scope: "WEEKLY", staffName: "Suite" });
+    const after = db.select().from(classSessions).where(and(eq(classSessions.templateId, six.templateId!), eq(classSessions.status, "SCHEDULED"))).all();
+    const fromDay = studioDateKey(nextWeek.startsAt);
+    check(
+      "every week: that week and all after it start at 06:10",
+      weekly.ok && after.filter((x) => studioDateKey(x.startsAt) >= fromDay).every((x) => clock(x.startsAt) === "06:10"),
+      after.map((x) => `${studioDateKey(x.startsAt)} ${clock(x.startsAt)}`),
+    );
+    check("the class moved on its own keeps its own time", clock(db.select().from(classSessions).where(eq(classSessions.id, six.id)).get()!.startsAt) === "05:50");
+    check("the booking that week moved with it", b2.ok && db.select().from(bk).where(eq(bk.id, b2.bookingId)).get()!.movedAt !== null);
+    check("the weekly change is saved for later weeks", !!db.select().from(slotMoves).where(eq(slotMoves.templateId, six.templateId!)).get());
+    /* A class three weeks on, taken away and generated again. */
+    const last = after
+      .filter((x) => studioDateKey(x.startsAt) > fromDay)
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+      .find((x) => !db.select().from(bk).where(eq(bk.sessionId, x.id)).get())!;
+    db.delete(classSessions).where(eq(classSessions.id, last.id)).run();
+    generateSessions(8, new Date());
+    const regen = db.select().from(classSessions).where(eq(classSessions.templateId, six.templateId!)).all().find((x) => studioDateKey(x.startsAt) === studioDateKey(last.startsAt));
+    check("a week generated later is created at 06:10", !!regen && clock(regen.startsAt) === "06:10", { regen: regen && clock(regen.startsAt), last: studioDateKey(last.startsAt) });
+
+    /* A newer weekly move from an earlier week replaces a later-dated one, so
+       weeks generated later follow the newest decision. */
+    const wk3 = db
+      .select()
+      .from(classSessions)
+      .where(and(eq(classSessions.templateId, six.templateId!), eq(classSessions.status, "SCHEDULED")))
+      .all()
+      .filter((x) => studioDateKey(x.startsAt) > fromDay && x.id !== last.id)
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[1]!;
+    const m3 = M.moveClass({ sessionId: wk3.id, newStart: "06:00", scope: "WEEKLY", staffName: "Suite" });
+    const m2 = M.moveClass({ sessionId: nextWeek.id, newStart: "06:05", scope: "WEEKLY", staffName: "Suite" });
+    const far = studioDateKey(new Date(Date.now() + 300 * 864e5));
+    const tplMin = db.select().from(classSessions).where(eq(classSessions.id, six.id)).get()!;
+    void tplMin;
+    const minsFar = M.slotMinutesOn(M.loadSlotMoves(), six.templateId!, 360, far);
+    check("a newer move from an earlier week wins for every later week", m3.ok && m2.ok && minsFar === 365, { m3, m2, minsFar });
+
+    /* Restoring a cancelled class onto a time another class moved to is refused. */
+    const { cancelSession, restoreSession } = await import("../src/lib/closures");
+    const sevenRow = db.select().from(classSessions).where(eq(classSessions.id, seven.id)).get()!;
+    const cs = cancelSession({ sessionId: seven.id });
+    const moveOnto = M.moveClass({ sessionId: six.id, newStart: "07:00", scope: "ONE", staffName: "Suite" });
+    const back = restoreSession({ sessionId: seven.id });
+    check("a cancelled class cannot come back on top of a class moved to its time", cs.ok && moveOnto.ok && !back.ok && back.code === "CLASH", { cs, moveOnto, back });
+    db.update(classSessions).set({ status: sevenRow.status }).where(eq(classSessions.id, seven.id)).run();
+
+    /* Put everything back as it was. */
+    db.delete(slotMoves).where(eq(slotMoves.templateId, six.templateId!)).run();
+    for (const orig of snapshot) {
+      db.update(classSessions).set({ startsAt: orig.startsAt, endsAt: orig.endsAt, movedFrom: null }).where(eq(classSessions.id, orig.id)).run();
+    }
+    const lastOrig = snapshot.find((x) => x.id === last.id);
+    if (regen && lastOrig && !snapshot.some((x) => x.id === regen.id)) {
+      db.update(classSessions).set({ startsAt: lastOrig.startsAt, endsAt: lastOrig.endsAt }).where(eq(classSessions.id, regen.id)).run();
+    }
+    db.delete(bk).where(eq(bk.userId, u.id)).run();
+    db.delete(creditLedger).where(eq(creditLedger.userId, u.id)).run();
+    const { creditBatches } = await import("../src/db/schema");
+    db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
+    db.delete(users).where(eq(users.id, u.id)).run();
+    void studioAddDays;
+  }
+
   console.log(
     `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
   );

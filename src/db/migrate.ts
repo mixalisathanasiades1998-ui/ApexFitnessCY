@@ -97,8 +97,16 @@ const COLUMNS: Record<string, Column[]> = {
   /* The class level, added after launch. Nullable, reads as ALL when absent, so
      every existing class stays "All levels" until the desk says otherwise. */
   class_templates: [{ name: "level", ddl: "text" }],
-  class_sessions: [{ name: "level", ddl: "text" }],
-  bookings: [{ name: "guest_name", ddl: "text" }],
+  class_sessions: [
+    { name: "level", ddl: "text" },
+    /* The time a one-off moved class was at. See lib/class-move.ts. */
+    { name: "moved_from", ddl: "integer" },
+  ],
+  bookings: [
+    { name: "guest_name", ddl: "text" },
+    /* Set when the studio moved the booked class; cancel free to the start. */
+    { name: "moved_at", ddl: "integer" },
+  ],
   notices: [
     { name: "channels", ddl: "text default '' not null" },
     { name: "user_id", ddl: "text references users(id) on delete cascade" },
@@ -108,6 +116,17 @@ const COLUMNS: Record<string, Column[]> = {
 };
 
 const TABLES: { name: string; ddl: string }[] = [
+  {
+    name: "slot_moves",
+    ddl: `create table slot_moves (
+            id text primary key not null,
+            template_id text not null references class_templates(id) on delete cascade,
+            to_minutes integer not null,
+            effective_from text not null,
+            created_by text,
+            created_at integer not null
+          )`,
+  },
   {
     name: "welcome_offer",
     ddl: `create table welcome_offer (
@@ -285,6 +304,10 @@ const TABLES: { name: string; ddl: string }[] = [
 ];
 
 const INDEXES: { name: string; ddl: string }[] = [
+  {
+    name: "slot_moves_template_idx",
+    ddl: "create index slot_moves_template_idx on slot_moves (template_id)",
+  },
   {
     name: "email_verifications_user_idx",
     ddl: "create unique index email_verifications_user_idx on email_verifications (user_id)",

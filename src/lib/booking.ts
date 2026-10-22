@@ -249,6 +249,8 @@ export function bookClass(
           cancelledAt: null,
           createdAt: now,
           guestName: guest,
+          /* A fresh booking at the class's current time: the ordinary rules. */
+          movedAt: null,
         })
         .where(eq(bookings.id, existing.id))
         .run();
@@ -380,9 +382,14 @@ export function cancelBooking(
     /* An appointment closes to cancellation on the same line it closes to
        booking, at the end of the previous day. See lib/personal.ts: once an
        instructor has been called in, that hour is worked either way. */
-    const open = personal
-      ? isPersonalCancellable(session.s.startsAt, now)
-      : isFreeCancellation(session.s.startsAt, now);
+    /* A class the studio moved to another time is free to cancel right up to
+       the start, for the members who were booked when it moved: they agreed to
+       the old time, not this one. See lib/class-move.ts. */
+    const open =
+      booking.movedAt !== null ||
+      (personal
+        ? isPersonalCancellable(session.s.startsAt, now)
+        : isFreeCancellation(session.s.startsAt, now));
     /* Past the window and not confirmed: refused, as it always was. The screen
        turns this code into the confirmation that unlocks the branch below. */
     if (!open && !opts.forfeit) {
@@ -445,6 +452,8 @@ export type SessionView = {
   instructor: { name: string; languages: TeachingLanguage[] } | null;
   /** Set when a user id is supplied */
   myBookingId?: string | null;
+  /** True when the studio moved that booking's class: free to cancel to the start. */
+  myBookingMoved: boolean;
 };
 
 /**
@@ -487,6 +496,17 @@ export async function listSessions(opts: {
             limit 1
           )`
         : sql<string | null>`null`,
+      /* Whether that booking's class was moved by the studio, so the screen
+         offers the free cancel the server will give. */
+      mineMoved: opts.userId
+        ? sql<number | null>`(
+            select case when b.moved_at is not null then 1 else 0 end from bookings b
+            where b.session_id = ${classSessions.id}
+              and b.user_id = ${opts.userId}
+              and b.status != 'CANCELLED'
+            limit 1
+          )`
+        : sql<number | null>`null`,
     })
     .from(classSessions)
     .innerJoin(classTypes, eq(classSessions.classTypeId, classTypes.id))
@@ -504,7 +524,7 @@ export async function listSessions(opts: {
     )
     .orderBy(asc(classSessions.startsAt));
 
-  return rows.map(({ s, ct, inst, booked, mine }) => ({
+  return rows.map(({ s, ct, inst, booked, mine, mineMoved }) => ({
     id: s.id,
     startsAt: s.startsAt,
     endsAt: s.endsAt,
@@ -528,6 +548,7 @@ export async function listSessions(opts: {
       ? { name: inst.name, languages: parseLanguages(inst.languages) }
       : null,
     myBookingId: mine ?? null,
+    myBookingMoved: Number(mineMoved ?? 0) === 1,
   }));
 }
 
@@ -568,8 +589,9 @@ export async function listMyBookings(userId: string) {
        hours before, so the date shown to the member is the date the rule
        actually uses. Two different rules meant two different dates, and the one
        on screen has to be the one the Cancel button obeys. */
-    freeCancellationUntil:
-      ct.kind === "PERSONAL"
+    freeCancellationUntil: b.movedAt
+      ? s.startsAt
+      : ct.kind === "PERSONAL"
         ? personalBookingClosesAt(s.startsAt)
         : new Date(
             s.startsAt.getTime() - FREE_CANCELLATION_HOURS * 60 * 60 * 1000,

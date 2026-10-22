@@ -51,6 +51,8 @@ export type ScheduleSession = {
   /** Languages the instructor teaches in ("el", "en", "ru"). */
   instructorLanguages?: string[];
   myBookingId: string | null;
+  /** The studio moved this class after the member booked it: free to cancel to the start. */
+  myBookingMoved?: boolean;
 };
 
 /** endsAt is startsAt plus the class type's length, so it is not sent per class. */
@@ -395,7 +397,9 @@ export function ScheduleClient({
      end of the previous day, a class twelve hours before it starts. Getting
      this wrong would offer a Cancel button the API then refuses. */
   const canCancelPicked = picked
-    ? pickedPersonal
+    ? picked.myBookingMoved
+      ? new Date(picked.startsAt).getTime() > Date.now()
+      : pickedPersonal
       ? isPersonalCancellable(new Date(picked.startsAt))
       : new Date(picked.startsAt).getTime() - Date.now() >
         FREE_CANCELLATION_HOURS * 3600_000
@@ -448,6 +452,7 @@ export function ScheduleClient({
                   booked: x.booked + 1,
                   spotsLeft: Math.max(0, x.spotsLeft - 1),
                   myBookingId: data.bookingId!,
+                  myBookingMoved: false,
                 }
               : x,
           ),
@@ -696,6 +701,7 @@ export function ScheduleClient({
                   booked: Math.max(0, x.booked - 1),
                   spotsLeft: Math.min(x.capacity, x.spotsLeft + 1),
                   myBookingId: null,
+                  myBookingMoved: false,
                 }
               : x,
           ),

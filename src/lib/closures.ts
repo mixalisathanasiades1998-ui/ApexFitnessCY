@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
@@ -304,9 +304,11 @@ export function reopenDay(day: string) {
        their sessions and book again if they still want the slot — quietly
        reinstating a booking somebody has been told is cancelled would be
        worse than asking them to rebook. */
-    const restored = db
-      .update(classSessions)
-      .set({ status: "SCHEDULED" })
+    /* One at a time, earliest first, skipping any that would now share the
+       room with a class already back — see overlapsScheduled. */
+    const cancelled = db
+      .select()
+      .from(classSessions)
       .where(
         and(
           gte(classSessions.startsAt, start),
@@ -314,9 +316,19 @@ export function reopenDay(day: string) {
           eq(classSessions.status, "CANCELLED"),
         ),
       )
-      .run();
+      .orderBy(asc(classSessions.startsAt))
+      .all();
+    let restored = 0;
+    for (const s of cancelled) {
+      if (overlapsScheduled(s.id, s.startsAt, s.endsAt)) continue;
+      restored += db
+        .update(classSessions)
+        .set({ status: "SCHEDULED" })
+        .where(eq(classSessions.id, s.id))
+        .run().changes;
+    }
 
-    return { day, reopened: true, classesRestored: restored.changes };
+    return { day, reopened: true, classesRestored: restored };
   });
 }
 
@@ -439,8 +451,30 @@ export function cancelSession(args: {
   });
 }
 
+/**
+ * Whether a class at these times would share the room with another scheduled
+ * class. A cancelled class can have had another moved onto its time (see
+ * lib/class-move.ts), so putting it back must check, as moving does.
+ */
+function overlapsScheduled(id: string, startsAt: Date, endsAt: Date) {
+  return Boolean(
+    db
+      .select({ id: classSessions.id })
+      .from(classSessions)
+      .where(
+        and(
+          eq(classSessions.status, "SCHEDULED"),
+          lt(classSessions.startsAt, endsAt),
+          gt(classSessions.endsAt, startsAt),
+          ne(classSessions.id, id),
+        ),
+      )
+      .get(),
+  );
+}
+
 export type RestoreSessionResult =
-  | { ok: false; code: "NOT_FOUND" | "NOT_CANCELLED" }
+  | { ok: false; code: "NOT_FOUND" | "NOT_CANCELLED" | "CLASH" }
   | { ok: true; sessionId: string };
 
 /**
@@ -467,6 +501,9 @@ export function restoreSession(args: {
     if (!session) return { ok: false, code: "NOT_FOUND" };
     if (session.status !== "CANCELLED") {
       return { ok: false, code: "NOT_CANCELLED" };
+    }
+    if (overlapsScheduled(session.id, session.startsAt, session.endsAt)) {
+      return { ok: false, code: "CLASH" };
     }
 
     db.update(classSessions)

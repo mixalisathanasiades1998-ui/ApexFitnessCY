@@ -1,4 +1,5 @@
 import { and, eq, gte } from "drizzle-orm";
+import { loadSlotMoves, slotMinutesOn } from "./class-move";
 import { openingSummary } from "./rota";
 import { db } from "@/db";
 import {
@@ -74,6 +75,24 @@ export function generateSessions(
     db.select({ day: studioClosures.day }).from(studioClosures).all().map((c) => c.day),
   );
 
+  /* Weekly time changes made from the console, applied on top of the code
+     rota. See lib/class-move.ts. */
+  const moves = loadSlotMoves();
+
+  /* One class per slot per day. Checked by day rather than by exact time,
+     because a class the desk moved to another time is still that day's class
+     for its slot: looking for it at the old time would not find it and would
+     put a second one there. */
+  const taken = new Set(
+    db
+      .select({ templateId: classSessions.templateId, startsAt: classSessions.startsAt })
+      .from(classSessions)
+      .where(gte(classSessions.startsAt, studioAddDays(start, -1)))
+      .all()
+      .filter((r) => r.templateId)
+      .map((r) => `${r.templateId}|${studioDateKey(r.startsAt)}`),
+  );
+
   db.transaction(() => {
     for (let i = 0; i < days; i++) {
       const dayInstant = studioAddDays(start, i);
@@ -84,13 +103,19 @@ export function generateSessions(
 
       for (const tpl of templates) {
         if (tpl.dayOfWeek !== dow) continue;
+        const dayKey = studioDateKey(dayInstant);
+        if (taken.has(`${tpl.id}|${dayKey}`)) {
+          skipped++;
+          continue;
+        }
 
+        const minutes = slotMinutesOn(moves, tpl.id, tpl.startMinutes, dayKey);
         const startsAt = studioWallTimeToInstant(
           p.year,
           p.month,
           p.day,
-          Math.floor(tpl.startMinutes / 60),
-          tpl.startMinutes % 60,
+          Math.floor(minutes / 60),
+          minutes % 60,
         );
 
         if (startsAt.getTime() < from.getTime()) {
@@ -119,6 +144,7 @@ export function generateSessions(
         if (row) {
           created++;
           createdIds.push(row.id);
+          taken.add(`${tpl.id}|${dayKey}`);
         } else skipped++;
       }
     }

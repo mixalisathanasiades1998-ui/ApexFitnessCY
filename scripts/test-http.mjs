@@ -1174,6 +1174,11 @@ check(
 );
 const rWelcome = await req("/api/admin/welcome");
 check("reception is refused the welcome offer settings", rWelcome.status === 403, rWelcome.status);
+const rMove = await req("/api/admin/session/move", {
+  method: "POST",
+  body: { sessionId: "x", newStart: "06:10", scope: "ONE" },
+});
+check("reception is refused changing a class time", rMove.status === 403, rMove.status);
 
 /* Back to the owner, unlocked, so the rest of the suite runs as before. */
 await req("/api/auth/login", {
@@ -1217,6 +1222,20 @@ console.log("\n11e. Welcome offer settings");
     same.status === 200 && same.json.credits === w.json.credits && day(same.json.grantFrom) === day(w.json.grantFrom),
     same.json,
   );
+}
+
+console.log("\n11f. Changing a class time");
+{
+  const bad = await req("/api/admin/session/move", {
+    method: "POST",
+    body: { sessionId: "x", newStart: "06:10", scope: "SOMETIMES" },
+  });
+  check("an unknown choice is refused", bad.status === 400, bad.status);
+  const missing = await req("/api/admin/session/move", {
+    method: "POST",
+    body: { sessionId: "not-a-class", newStart: "06:10", scope: "ONE" },
+  });
+  check("a class that does not exist is a 404", missing.status === 404, missing.status);
 }
 
 console.log("\n12. Contact form");

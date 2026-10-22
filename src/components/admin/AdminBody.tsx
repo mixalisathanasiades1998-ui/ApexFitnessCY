@@ -188,7 +188,9 @@ export function AdminBody({
             </p>
           )}
 
-          {tab === "today" && <BookingsPanel onNotice={setNotice} />}
+          {tab === "today" && (
+            <BookingsPanel onNotice={setNotice} owner={owner} />
+          )}
           {tab === "members" && (
             <MemberDesk onNotice={setNotice} owner={owner} />
           )}
