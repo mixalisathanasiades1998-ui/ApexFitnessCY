@@ -919,6 +919,7 @@ export const en = {
       "A path on the site starting with / (for a shipped portrait) or a full https:// address. Leave empty for the studio mark.",
     teamBioEn: "Bio (English)",
     teamBioEl: "Bio (Greek)",
+    teamLanguages: "Teaches in",
     teamBioFallback:
       "Left empty, readers of this language see the English bio.",
     teamHide: "Hide",
@@ -2406,6 +2407,7 @@ export const el: typeof en = {
       "Μια διαδρομή στον ιστότοπο που ξεκινά με / ή μια πλήρης διεύθυνση https://. Άφησέ το κενό για το σήμα του στούντιο.",
     teamBioEn: "Βιογραφικό (Αγγλικά)",
     teamBioEl: "Βιογραφικό (Ελληνικά)",
+    teamLanguages: "Διδάσκει σε",
     teamBioFallback:
       "Αν μείνει κενό, οι αναγνώστες αυτής της γλώσσας βλέπουν το αγγλικό βιογραφικό.",
     teamHide: "Απόκρυψη",

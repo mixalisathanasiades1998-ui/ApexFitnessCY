@@ -1,5 +1,6 @@
 "use client";
 
+import { LanguageFlags } from "@/components/ui/LanguageFlags";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -47,6 +48,8 @@ export type ScheduleSession = {
   /** This class's level: ALL | BEGINNER | INTERMEDIATE | ADVANCED. */
   level: string;
   instructor: string | null;
+  /** Languages the instructor teaches in ("el", "en", "ru"). */
+  instructorLanguages?: string[];
   myBookingId: string | null;
 };
 
@@ -1143,12 +1146,21 @@ export function ScheduleClient({
                 >
                   <div className="flex flex-col gap-6">
                     <div>
-                      <p className="font-display text-4xl lining-nums tabular-nums text-mocha-600">
-                        {fmtTime(picked.startsAt)}
-                        <span className="ml-2 align-middle text-base text-clay">
-                          {fmtTime(endOf(picked, types))}
-                        </span>
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                        <p className="font-display text-4xl lining-nums tabular-nums text-mocha-600">
+                          {fmtTime(picked.startsAt)}
+                          <span className="ml-2 align-middle text-base text-clay">
+                            {fmtTime(endOf(picked, types))}
+                          </span>
+                        </p>
+                        {/* The languages this class's instructor teaches in. */}
+                        {picked.instructor && (picked.instructorLanguages?.length ?? 0) > 0 && (
+                          <LanguageFlags
+                            languages={picked.instructorLanguages!}
+                            size="md"
+                          />
+                        )}
+                      </div>
                       <p className="mt-3 text-[17px] text-mocha-600">
                         {el
                           ? types[picked.type].nameEl

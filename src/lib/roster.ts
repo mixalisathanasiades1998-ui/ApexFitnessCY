@@ -27,6 +27,8 @@ export type RosterMember = {
   bioEl: string;
   photoUrl: string;
   sortOrder: number;
+  /** Languages taught, "el,en,ru". Only fills an instructor that has none. */
+  languages: string;
 };
 
 export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
@@ -38,6 +40,7 @@ export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
       "Η Evelina κρατά τα πρωινά, και τα θέλει ήρεμα και δυνατά. Ήρεμη, ακριβής και διακριτικά απαιτητική, ρυθμίζει τα ελατήρια και τον ρυθμό σου ώστε κάθε μάθημα να σε συναντά εκεί ακριβώς που βρίσκεσαι.",
     photoUrl: "/team/evelina-ch.jpg",
     sortOrder: 1,
+    languages: "el,en",
   },
   {
     name: "Anna P.",
@@ -47,6 +50,7 @@ export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
       "Η Anna διδάσκει με ζεστασιά και κοφτερό μάτι στη λεπτομέρεια. Είτε είναι το πρώτο σου μάθημα είτε το πεντηκοστό, βρίσκει τη μία οδηγία που κάνει την κίνηση να «κουμπώσει», και φεύγεις με καλύτερη στάση σώματος απ' ό,τι ήρθες.",
     photoUrl: "/team/anna-p.jpg",
     sortOrder: 2,
+    languages: "el,en,ru",
   },
   {
     name: "Stephani Ch.",
@@ -56,6 +60,7 @@ export const INSTRUCTOR_ROSTER: readonly RosterMember[] = [
       "Η Stephani μετατρέπει τα βασικά σε κάτι που ανυπομονείς να ζήσεις. Σταθερή, ενθαρρυντική και γεμάτη ενέργεια, χτίζει τον έλεγχο που σε ακολουθεί έξω από το reformer, σε όλη σου την εβδομάδα.",
     photoUrl: "/team/stephani-ch.jpg",
     sortOrder: 3,
+    languages: "el,en",
   },
 ] as const;
 
@@ -83,8 +88,13 @@ export function reconcileRoster(): Map<string, string> {
       "select id, edited_at from instructors where name = ? limit 1",
     );
     const insert = sqlite.prepare(
-      `insert into instructors (id, name, bio_en, bio_el, photo_url, active, sort_order)
-       values (?, ?, ?, ?, ?, 1, ?)`,
+      `insert into instructors (id, name, bio_en, bio_el, photo_url, active, sort_order, languages)
+       values (?, ?, ?, ?, ?, 1, ?, ?)`,
+    );
+    /* Languages are filled in only where none are set, whether or not the desk
+       has edited the row: an empty value is a gap, a set one is the studio's. */
+    const fillLanguages = sqlite.prepare(
+      "update instructors set languages = ? where id = ? and languages is null",
     );
     /* The roster refreshes bio and photo only on a row the desk has not touched.
        Once the Team tab edits an instructor it stamps edited_at, and from then
@@ -104,9 +114,12 @@ export function reconcileRoster(): Map<string, string> {
         /* A roster name missing from the table is inserted; anyone already
            there is left in place. */
         const id = crypto.randomUUID();
-        insert.run(id, m.name, m.bioEn, m.bioEl, m.photoUrl, m.sortOrder);
-      } else if (row.edited_at == null) {
-        update.run(m.photoUrl, m.sortOrder, m.bioEn, m.bioEl, row.id);
+        insert.run(id, m.name, m.bioEn, m.bioEl, m.photoUrl, m.sortOrder, m.languages);
+      } else {
+        if (row.edited_at == null) {
+          update.run(m.photoUrl, m.sortOrder, m.bioEn, m.bioEl, row.id);
+        }
+        fillLanguages.run(m.languages, row.id);
       }
     }
 

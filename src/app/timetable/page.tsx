@@ -125,6 +125,9 @@ export default async function TimetablePage({
          rest of the same class type stays All levels. */
       level: s.level,
       instructor: s.instructor?.name ?? null,
+      /* Shown as flags beside the time, so a member can see who teaches in
+         their language before booking. */
+      instructorLanguages: s.instructor?.languages ?? [],
       myBookingId: s.myBookingId ?? null,
     }));
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { LanguageFlags } from "@/components/ui/LanguageFlags";
+import { parseLanguages } from "@/lib/languages";
 import Image from "next/image";
 import { Technogym } from "@/components/home/HomeSections";
 import { ButtonLink } from "@/components/ui/Button";
@@ -15,6 +17,8 @@ export type TeamMember = {
   bioEn: string;
   bioEl: string;
   photoUrl: string | null;
+  /** "el,en,ru" as stored. */
+  languages?: string | null;
 };
 
 /**
@@ -150,7 +154,10 @@ export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
                       </div>
                     )}
                     <div className="flex flex-1 flex-col p-7">
-                      <h3 className="h-display text-2xl">{m.name}</h3>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h3 className="h-display text-2xl">{m.name}</h3>
+                        <LanguageFlags languages={parseLanguages(m.languages)} />
+                      </div>
                       <p className="mt-3 text-sm leading-relaxed text-mocha-500">
                         {/* Greek bio when the site is in Greek and it is not
                             empty; otherwise the English one, so a desk-added

@@ -1,3 +1,4 @@
+import { parseLanguages, type TeachingLanguage } from "./languages";
 import { and, asc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -441,7 +442,7 @@ export type SessionView = {
     /** GROUP or PERSONAL. Decides the cutoff and what can pay for it. */
     kind: string;
   };
-  instructor: { name: string } | null;
+  instructor: { name: string; languages: TeachingLanguage[] } | null;
   /** Set when a user id is supplied */
   myBookingId?: string | null;
 };
@@ -523,7 +524,9 @@ export async function listSessions(opts: {
       descEl: ct.descEl,
       kind: ct.kind,
     },
-    instructor: inst ? { name: inst.name } : null,
+    instructor: inst
+      ? { name: inst.name, languages: parseLanguages(inst.languages) }
+      : null,
     myBookingId: mine ?? null,
   }));
 }

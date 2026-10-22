@@ -308,6 +308,12 @@ export const instructors = sqliteTable("instructors", {
    * now owns it. Null on every instructor the roster still governs.
    */
   editedAt: integer("edited_at", { mode: "timestamp" }),
+  /**
+   * The languages this instructor teaches in, as a short list: "el,en,ru".
+   * Shown as flags on the timetable and the studio page. Null reads as Greek
+   * and English. See lib/languages.ts.
+   */
+  languages: text("languages"),
 });
 
 /**

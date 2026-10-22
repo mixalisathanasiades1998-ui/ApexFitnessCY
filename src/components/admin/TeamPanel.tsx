@@ -1,5 +1,7 @@
 "use client";
 
+import { LanguageFlags } from "@/components/ui/LanguageFlags";
+import { DEFAULT_LANGUAGES, LANGUAGE_NAMES, TEACHING_LANGUAGES } from "@/lib/languages";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +26,7 @@ type Member = {
   photoUrl: string | null;
   active: boolean;
   sortOrder: number;
+  languages: string[];
 };
 
 type Form = {
@@ -31,9 +34,16 @@ type Form = {
   photoUrl: string;
   bioEn: string;
   bioEl: string;
+  languages: string[];
 };
 
-const EMPTY: Form = { name: "", photoUrl: "", bioEn: "", bioEl: "" };
+const EMPTY: Form = {
+  name: "",
+  photoUrl: "",
+  bioEn: "",
+  bioEl: "",
+  languages: [...DEFAULT_LANGUAGES],
+};
 
 export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
   const { t } = useI18n();
@@ -178,6 +188,7 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
       photoUrl: m.photoUrl ?? "",
       bioEn: m.bioEn,
       bioEl: m.bioEl,
+      languages: m.languages ?? [...DEFAULT_LANGUAGES],
     });
   }
 
@@ -255,6 +266,42 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
                   </span>
                 )}
               </label>
+              {/* The languages they teach in: shown as flags beside their
+                  classes on the timetable and on the studio page. */}
+              <div className="sm:col-span-2">
+                <span className="label">{d.teamLanguages}</span>
+                <div className="mt-1 flex flex-wrap gap-3">
+                  {TEACHING_LANGUAGES.map((l) => {
+                    const on = form.languages.includes(l);
+                    return (
+                      <label
+                        key={l}
+                        className={`flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-[13px] transition-colors ${
+                          on
+                            ? "border-mocha-500 bg-mocha-50 text-mocha-700"
+                            : "border-mocha-200 text-mocha-500"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-mocha-600"
+                          checked={on}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              languages: e.target.checked
+                                ? [...form.languages, l]
+                                : form.languages.filter((x) => x !== l),
+                            })
+                          }
+                        />
+                        <LanguageFlags languages={[l]} />
+                        {LANGUAGE_NAMES[l].native}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               <label className="block">
                 <span className="label">{d.teamBioEn}</span>
                 <textarea
@@ -319,6 +366,7 @@ export function TeamPanel({ onNotice }: { onNotice: (s: string) => void }) {
                 )}
                 <span className="text-[14px] text-mocha-600">
                   {m.name}
+                  <LanguageFlags languages={m.languages ?? []} className="ml-3 align-middle" />
                   {!m.active && (
                     <span className="ml-2 rounded-full bg-clay/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-clay">
                       {d.teamHide}

@@ -54,6 +54,8 @@ const COLUMNS: Record<string, Column[]> = {
     /* Set when the desk edits an instructor from the Team tab; the roster sync
        then leaves that row's bio and photo alone. See lib/team.ts. */
     { name: "edited_at", ddl: "integer" },
+    /* Languages taught, "el,en,ru". See lib/languages.ts. */
+    { name: "languages", ddl: "text" },
   ],
   purchases: [
     { name: "provider_ref", ddl: "text" },
@@ -418,6 +420,24 @@ export function ensureSchema(conn: Database.Database): string[] {
       )
       .run().changes;
     if (n > 0) applied.push(`users.email_verified_at backfilled for ${n}`);
+  }
+
+  /**
+   * Teaching languages, filled in once, the boot the column arrives.
+   *
+   * Every instructor teaches in Greek and English; Anna also teaches in Russian.
+   * Only rows still empty are touched, and only in that one boot, so anything
+   * the desk sets afterwards from the Team tab is never overwritten.
+   */
+  if (applied.includes("instructors.languages")) {
+    const n = conn
+      .prepare(
+        `update instructors
+            set languages = case when name = 'Anna P.' then 'el,en,ru' else 'el,en' end
+          where languages is null`,
+      )
+      .run().changes;
+    if (n > 0) applied.push(`instructors.languages set on ${n}`);
   }
 
   /**

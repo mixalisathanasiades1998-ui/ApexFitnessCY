@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     bioEn?: string;
     bioEl?: string;
     photoUrl?: string;
+    languages?: unknown;
   }>(req);
 
   const result = addTeamMember({
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     bioEn: d?.bioEn,
     bioEl: d?.bioEl,
     photoUrl: d?.photoUrl,
+    languages: d?.languages,
   });
   if (!result.ok) {
     return NextResponse.json({ error: result.code }, { status: 400 });
@@ -55,6 +57,7 @@ export async function PATCH(req: Request) {
     bioEl?: string;
     photoUrl?: string;
     active?: boolean;
+    languages?: unknown;
   }>(req);
   if (!d?.id) return NextResponse.json({ error: "BAD_REQUEST" }, { status: 400 });
 
@@ -64,6 +67,7 @@ export async function PATCH(req: Request) {
   if (d.bioEl !== undefined) patch.bioEl = d.bioEl;
   if (d.photoUrl !== undefined) patch.photoUrl = d.photoUrl;
   if (d.active !== undefined) patch.active = d.active;
+  if (d.languages !== undefined) patch.languages = d.languages;
 
   const result = updateTeamMember(d.id, patch);
   if (!result.ok) {

@@ -1,6 +1,13 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { classSessions, classTemplates, instructors } from "@/db/schema";
+import {
+  cleanLanguages,
+  DEFAULT_LANGUAGES,
+  parseLanguages,
+  serializeLanguages,
+  type TeachingLanguage,
+} from "./languages";
 import { INSTRUCTOR_PHOTOS } from "./packs";
 
 /**
@@ -23,6 +30,7 @@ export type TeamMember = {
   photoUrl: string | null;
   active: boolean;
   sortOrder: number;
+  languages: TeachingLanguage[];
 };
 
 /** A portrait address the studio may keep: a site path, or an https URL. */
@@ -43,6 +51,7 @@ function view(r: typeof instructors.$inferSelect): TeamMember {
     photoUrl: r.photoUrl ?? INSTRUCTOR_PHOTOS[r.name] ?? null,
     active: r.active,
     sortOrder: r.sortOrder,
+    languages: parseLanguages(r.languages),
   };
 }
 
@@ -62,6 +71,7 @@ export type TeamInput = {
   bioEn?: string;
   bioEl?: string;
   photoUrl?: string;
+  languages?: unknown;
 };
 
 export type TeamResult =
@@ -100,6 +110,9 @@ export function addTeamMember(input: TeamInput): TeamResult {
       photoUrl: cleanPhoto(input.photoUrl) || null,
       active: true,
       sortOrder: (last?.sortOrder ?? 0) + 1,
+      languages: serializeLanguages(
+        cleanLanguages(input.languages) ?? DEFAULT_LANGUAGES,
+      ),
       editedAt: new Date(),
     })
     .returning()
@@ -113,6 +126,7 @@ export type TeamPatch = {
   bioEl?: string;
   photoUrl?: string;
   active?: boolean;
+  languages?: unknown;
 };
 
 export function updateTeamMember(id: string, patch: TeamPatch): TeamResult {
@@ -149,6 +163,9 @@ export function updateTeamMember(id: string, patch: TeamPatch): TeamResult {
           ? cleanPhoto(patch.photoUrl) || null
           : row.photoUrl,
       active: patch.active ?? row.active,
+      ...(cleanLanguages(patch.languages)
+        ? { languages: serializeLanguages(cleanLanguages(patch.languages)!) }
+        : {}),
       editedAt: new Date(),
     })
     .where(eq(instructors.id, id))

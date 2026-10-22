@@ -3340,6 +3340,36 @@ async function main() {
     db.delete(users).where(eq(users.id, u.id)).run();
   }
 
+  console.log("\n19. Languages each instructor teaches in");
+  {
+    const L = await import("../src/lib/languages");
+    const T = await import("../src/lib/team");
+    const { instructors } = await import("../src/db/schema");
+    const { reconcileRoster } = await import("../src/lib/roster");
+    const { listSessions } = await import("../src/lib/booking");
+    check("nothing stored reads as Greek and English", L.parseLanguages(null).join() === "el,en");
+    check("a stored list is cleaned and ordered", L.parseLanguages(" RU,en,xx,en ").join() === "en,ru");
+    check("an empty list stays empty", L.parseLanguages("").length === 0);
+    check("only a list is accepted from the desk", L.cleanLanguages("el") === null && L.cleanLanguages(["ru", "fr", "el"])!.join() === "el,ru");
+    reconcileRoster();
+    const lang = (n: string) =>
+      db.select({ l: instructors.languages }).from(instructors).where(eq(instructors.name, n)).get()?.l;
+    check("Anna teaches in Greek, English and Russian", lang("Anna P.") === "el,en,ru", lang("Anna P."));
+    check("Evelina and Stephani in Greek and English", lang("Evelina Ch.") === "el,en" && lang("Stephani Ch.") === "el,en");
+    const anna = T.listTeam().find((m) => m.name === "Anna P.")!;
+    const saved = T.updateTeamMember(anna.id, { languages: ["en", "el"] });
+    reconcileRoster();
+    check("the desk's change is kept, the roster does not put it back", saved.ok && lang("Anna P.") === "el,en");
+    T.updateTeamMember(anna.id, { languages: ["el", "en", "ru"] });
+    const rows = await listSessions({ from: new Date(), to: new Date(Date.now() + 14 * 864e5), userId: null });
+    const annaClass = rows.find((r) => r.instructor?.name === "Anna P.");
+    check(
+      "the timetable carries the instructor's languages",
+      !annaClass || annaClass.instructor!.languages.join() === "el,en,ru",
+      annaClass?.instructor,
+    );
+  }
+
   console.log(
     `\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`,
   );
