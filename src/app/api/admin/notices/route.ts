@@ -9,7 +9,12 @@ import {
   type Segment,
 } from "@/lib/messaging/deliver";
 import { pushReady } from "@/lib/messaging/push";
-import { MAX_SEGMENTS, smsBodyFor, smsCost } from "@/lib/messaging/segments";
+import {
+  MAX_SEGMENTS,
+  smsBodyFor,
+  smsCost,
+  smsRussianFor,
+} from "@/lib/messaging/segments";
 import { CHANNELS, type Channel } from "@/lib/messaging/types";
 import { createNotice, deleteNotice, noticeHistory } from "@/lib/notices";
 
@@ -110,6 +115,8 @@ export async function POST(req: Request) {
     bodyEn?: string;
     titleEl?: string;
     bodyEl?: string;
+    titleRu?: string;
+    bodyRu?: string;
     important?: boolean;
     audience?: string;
     channels?: string[];
@@ -120,6 +127,7 @@ export async function POST(req: Request) {
     smsLang?: string;
     smsEn?: string;
     smsEl?: string;
+    smsRu?: string;
   }>(req);
 
   const title = (data?.titleEn ?? "").trim();
@@ -155,7 +163,17 @@ export async function POST(req: Request) {
   const smsText = {
     en: (data?.smsEn ?? "").trim() || undefined,
     el: (data?.smsEl ?? "").trim() || undefined,
+    ru: (data?.smsRu ?? "").trim() || undefined,
   };
+  /* The Russian version, used only when both halves were written — a subject
+     with no body is not a message. Members reading in Russian get English
+     otherwise, exactly as before Russian existed. */
+  const titleRu = (data?.titleRu ?? "").trim();
+  const bodyRu = (data?.bodyRu ?? "").trim();
+  if (titleRu.length > 120 || bodyRu.length > 2000) {
+    return NextResponse.json({ error: "TOO_LONG" }, { status: 400 });
+  }
+  const ru = titleRu && bodyRu ? { subject: titleRu, body: bodyRu } : undefined;
 
   /* The guard that stops an expensive mistake.
      Checked here and not only in the screen, because the screen is a suggestion
@@ -171,7 +189,11 @@ export async function POST(req: Request) {
         : undefined,
       smsText,
     );
-    const cost = smsCost(preview);
+    /* The Russian text is billed too, so it is held to the same ceiling. */
+    const russian = smsRussianFor(ru, smsText.ru);
+    const cost = [smsCost(preview), ...(russian ? [smsCost(russian)] : [])].reduce(
+      (a, b) => (b.segments > a.segments ? b : a),
+    );
     if (cost.segments > MAX_SEGMENTS) {
       return NextResponse.json(
         {
@@ -190,6 +212,8 @@ export async function POST(req: Request) {
     bodyEn: text,
     titleEl: (data?.titleEl ?? "").trim(),
     bodyEl: (data?.bodyEl ?? "").trim(),
+    titleRu: ru ? titleRu : "",
+    bodyRu: ru ? bodyRu : "",
     important: Boolean(data?.important),
     audience,
     channels,
@@ -214,6 +238,7 @@ export async function POST(req: Request) {
           data?.titleEl && data?.bodyEl
             ? { subject: data.titleEl.trim(), body: data.bodyEl.trim() }
             : undefined,
+        ru: ru ? { ...ru, url: "/account?tab=notifications" } : undefined,
         includeTest: Boolean(data?.includeTest),
         segment,
         smsLang,

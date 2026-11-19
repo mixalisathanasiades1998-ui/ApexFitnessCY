@@ -19,6 +19,7 @@ import { sendPush, subscriptionsFor } from "./push";
 import { smsTransport, toE164 } from "./sms";
 import type { Attachment, Channel, Outgoing } from "./types";
 import { STUDIO_OPS_EMAIL } from "@/lib/personal";
+import { ruText } from "@/lib/ru-catalog";
 import {
   studioAddDays,
   studioDateKey,
@@ -245,11 +246,11 @@ function factsFor(bookingId: string): BookingFacts | null {
 }
 
 /**
- * The member's own account copy, in both languages.
+ * The member's own account copy, in all three languages.
  *
- * Both are stored so the site can show whichever the member is reading it in —
- * it already knows that, and a bilingual card in a list would be twice as tall
- * for no gain.
+ * All three are stored so the site can show whichever the member is reading it
+ * in — it already knows that, and a card in two languages would be twice as
+ * tall for no gain.
  *
  * Never throws outward: this is called from a booking that has already
  * succeeded, and a failure to write a courtesy message must not surface as a
@@ -262,6 +263,8 @@ function inbox(userId: string, words: Bilingual) {
       bodyEn: words.en.body,
       titleEl: words.el.subject,
       bodyEl: words.el.body,
+      titleRu: words.ru.subject,
+      bodyRu: words.ru.body,
       userId,
       staffId: null,
     });
@@ -496,6 +499,7 @@ async function tellStudioPaid(a: {
       memberPhone: a.memberPhone,
       methodEn: till.en,
       methodEl: till.el,
+      methodRu: till.ru,
       credits: a.credits,
       amountCents: a.amountCents,
       currency: a.currency,
@@ -531,15 +535,15 @@ async function tellStudioPaid(a: {
 function tillWords(provider: string) {
   switch (provider) {
     case "stripe":
-      return { en: "Card online", el: "Κάρτα online" };
+      return { en: "Card online", el: "Κάρτα online", ru: "Картой онлайн" };
     case "cash":
-      return { en: "Cash at the studio", el: "Μετρητά στο στούντιο" };
+      return { en: "Cash at the studio", el: "Μετρητά στο στούντιο", ru: "Наличными в студии" };
     case "card_at_desk":
-      return { en: "Card at the studio", el: "Κάρτα στο στούντιο" };
+      return { en: "Card at the studio", el: "Κάρτα στο στούντιο", ru: "Картой в студии" };
     case "test":
-      return { en: "Test payment", el: "Δοκιμαστική πληρωμή" };
+      return { en: "Test payment", el: "Δοκιμαστική πληρωμή", ru: "Тестовый платёж" };
     default:
-      return { en: provider, el: provider };
+      return { en: provider, el: provider, ru: provider };
   }
 }
 
@@ -689,6 +693,7 @@ export async function notifyPurchased(
     ? {
         en: { ...words.en, attachments },
         el: { ...words.el, attachments },
+        ru: { ...words.ru, attachments },
       }
     : words;
 
@@ -1045,6 +1050,7 @@ export async function notifyClassMoved(
       const words = classMovedWords({
         classEn: cls?.en ?? "class",
         classEl: cls?.el || cls?.en || "μάθημα",
+        classRu: cls?.en ? ruText(cls.en) : "занятие",
         moves,
         weeklyFrom: opts.weeklyFrom,
       });
@@ -1054,7 +1060,7 @@ export async function notifyClassMoved(
       }
       if (SENDS.moved.email && row.notifyEmail && row.email) {
         await emailTransport()
-          .send(row.email, forEmail(words))
+          .send(row.email, forEmail(words, row.locale))
           .catch(() => null);
       }
       told++;
@@ -1099,22 +1105,20 @@ export async function sendVerificationCode(
    */
   userId?: string,
 ) {
+  /* The one place the language has to be read rather than carried: this is
+     called from the register route and the resend route, and neither of them
+     has a user row in hand — only an address and an id. Read before the email
+     now, because the email is in their language too. */
+  const mine = userId ? localeOf({ id: userId }) : localeOf({ email: to });
+
   const res = await emailTransport().send(
     to,
-    forEmail(verifyWords({ code, minutes })),
+    forEmail(verifyWords({ code, minutes }), mine?.locale),
   );
 
   if (userId) {
     const heads_up = verifySentWords({ minutes });
     inbox(userId, heads_up);
-    /* The one place the language has to be read rather than carried: this is
-       called from the register route and the resend route, and neither of them
-       has a user row in hand — only an address and an id. */
-    const mine = db
-      .select({ locale: users.locale })
-      .from(users)
-      .where(eq(users.id, userId))
-      .get();
     /* Almost always reaches nobody, and that is fine. A member registering has
        not been asked for notification permission yet, so there is no device to
        send to; this earns its keep on a resend, and on the second device of
@@ -1141,7 +1145,30 @@ export async function sendPasswordReset(
   link: string,
   minutes: number,
 ) {
-  return emailTransport().send(to, forEmail(resetWords({ link, minutes })));
+  /* The address belongs to an account — the route only sends to one it found
+     — so the letter is in that member's language. */
+  const mine = localeOf({ email: to });
+  return emailTransport().send(
+    to,
+    forEmail(resetWords({ link, minutes }), mine?.locale),
+  );
+}
+
+/**
+ * The language of an account, by id or by address, for the two sends that are
+ * handed only an address. Never throws: a failed read means the English and
+ * Greek letter, which is what everybody got before.
+ */
+function localeOf(by: { id: string } | { email: string }) {
+  try {
+    return db
+      .select({ locale: users.locale })
+      .from(users)
+      .where("id" in by ? eq(users.id, by.id) : eq(users.email, by.email))
+      .get();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -1161,14 +1188,14 @@ async function deliverPersonal(
      their photograph. */
   inbox(f.userId, words);
 
-  /* The phone and the text in the member's own language; the email carries
-     both, so it is not asked. */
+  /* The phone and the text in the member's own language. The email carries
+     two, and which two depends on the language too — see forEmail. */
   const mine = say(words, f.locale);
 
   let reached = sends.push ? await pushToUser(f.userId, mine) : 0;
 
   if (sends.email && f.notifyEmail && f.email) {
-    const res = await emailTransport().send(f.email, forEmail(words));
+    const res = await emailTransport().send(f.email, forEmail(words, f.locale));
     if (res.ok) reached++;
   }
   if (sends.sms && f.notifySms) {
@@ -1245,7 +1272,10 @@ export async function runDueReminders(now = new Date()) {
     if (SENDS.reminder.push) pushed += await pushToUser(r.userId, mine);
 
     if (use("email") && r.userEmail) {
-      const res = await emailTransport().send(r.userEmail, forEmail(words));
+      const res = await emailTransport().send(
+        r.userEmail,
+        forEmail(words, r.userLocale),
+      );
       if (res.ok) emailed++;
     }
     if (use("sms")) {
@@ -1412,6 +1442,8 @@ export async function runNightlyDigest(now = new Date()) {
         bodyEn: words.en.body,
         titleEl: words.el.subject,
         bodyEl: words.el.body,
+        titleRu: words.ru.subject,
+        bodyRu: words.ru.body,
         channels: SENDS.nightly.push ? ["push"] : [],
         segment: stamp,
         userId,

@@ -135,7 +135,7 @@ export function DeskBar({
 
         <div className="hidden shrink-0 items-center gap-3 lg:flex">
           <span className="text-[11px] text-clay">{staffName}</span>
-          <LanguageToggle />
+          <LanguageToggle desk />
           {/* One press to leave the desk properly: the console locks and the
               session ends, so the next person at this shared machine is asked
               who they are rather than just asked to prove they are the last
@@ -214,7 +214,7 @@ export function DeskBar({
               <span className="truncate text-[11px] text-clay">
                 {staffName}
               </span>
-              <LanguageToggle />
+              <LanguageToggle desk />
             </div>
 
             <div className="my-1.5 h-px bg-mocha-200/70" />

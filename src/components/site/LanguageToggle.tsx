@@ -1,15 +1,23 @@
 "use client";
 
 import { useI18n } from "@/i18n/LanguageProvider";
+import { DESK_LOCALES, LOCALE_LABEL, LOCALES } from "@/i18n/dictionaries";
 import { cn } from "@/lib/utils";
 
-/** `tone="dark"` for use on the brown sections and in the footer. */
+/**
+ * `tone="dark"` for use on the brown sections and in the footer.
+ *
+ * `desk` for the reception console, which is English and Greek only — Russian
+ * is offered on the members' side of the site, not in the console.
+ */
 export function LanguageToggle({
   className,
   tone = "light",
+  desk = false,
 }: {
   className?: string;
   tone?: "light" | "dark";
+  desk?: boolean;
 }) {
   const { locale, setLocale } = useI18n();
 
@@ -23,13 +31,14 @@ export function LanguageToggle({
       role="group"
       aria-label="Language"
     >
-      {(["en", "el"] as const).map((l) => {
+      {(desk ? DESK_LOCALES : LOCALES).map((l) => {
         const active = locale === l;
         return (
           <button
             key={l}
             onClick={() => setLocale(l)}
             aria-pressed={active}
+            lang={l}
             className={cn(
               "rounded-full px-2.5 py-1 transition-all duration-500 ease-silk",
               active && tone === "dark" && "bg-cream text-mocha-700",
@@ -38,7 +47,7 @@ export function LanguageToggle({
               !active && tone === "light" && "text-clay hover:text-mocha-600",
             )}
           >
-            {l === "en" ? "EN" : "ΕΛ"}
+            {LOCALE_LABEL[l]}
           </button>
         );
       })}

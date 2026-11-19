@@ -4,8 +4,9 @@ import { noticeDeliveries, users } from "@/db/schema";
 import { emailTransport } from "./email";
 import { sendPush, subscriptionsFor } from "./push";
 import { smsTransport, toE164 } from "./sms";
-import { smsBodyFor, smsCost } from "./segments";
-import { forEmail } from "./wording";
+import { smsBodyFor, smsCost, smsRussianFor } from "./segments";
+import { forEmailParts } from "./wording";
+import { asLocale, type Locale } from "@/i18n/dictionaries";
 import type { Channel, ChannelReport, Outgoing } from "./types";
 
 /**
@@ -81,7 +82,7 @@ type Recipient = {
   phone: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
-  locale: "en" | "el";
+  locale: Locale;
 };
 
 /**
@@ -196,10 +197,11 @@ export function recipientsFor(
     phone: u.phone,
     notifyEmail: u.notifyEmail,
     notifySms: u.notifySms,
-    /* Whichever language they read the site in. Anything that is not exactly
-       "el" — including null, on an account that has never touched the switch —
-       is English, which is the language the studio is administered in. */
-    locale: u.locale === "el" ? ("el" as const) : ("en" as const),
+    /* Whichever language they read the site in. Anything that is not one of
+       the site's languages — including null, on an account that has never
+       touched the switch — is English, the language the studio is
+       administered in. */
+    locale: asLocale(u.locale),
   }));
 }
 
@@ -263,6 +265,15 @@ export function reachOf(audience: Audience, includeTest = false, segment: Segmen
 
   return {
     people: people.length,
+    /**
+     * How many of them read the site in Russian, and how many of those an SMS
+     * would reach — so the desk can see whether a Russian version is worth
+     * writing, and what the Russian text message will cost.
+     */
+    russian: people.filter((p) => p.locale === "ru").length,
+    smsRussian: people.filter(
+      (p, i) => p.locale === "ru" && reachable[i].sms,
+    ).length,
     push: reachable.filter((r) => r.push).length,
     email: reachable.filter((r) => r.email).length,
     sms: reachable.filter((r) => r.sms).length,
@@ -329,6 +340,8 @@ export async function deliverNotice(args: {
   channels: Channel[];
   en: Outgoing;
   el?: Outgoing;
+  /** Optional Russian version, for members who read the site in Russian. */
+  ru?: Outgoing;
   /** Send to accounts marked as tests as well. Off unless asked for. */
   includeTest?: boolean;
   /** Narrow it further by what members have done. See Segment. */
@@ -342,7 +355,7 @@ export async function deliverNotice(args: {
    */
   smsLang?: "en" | "el" | "both";
   /** A short hand-written version, when the notice is too long to text. */
-  smsText?: { en?: string; el?: string };
+  smsText?: { en?: string; el?: string; ru?: string };
 }): Promise<ChannelReport[]> {
   const people = recipientsFor(
     args.audience,
@@ -373,11 +386,15 @@ export async function deliverNotice(args: {
        * the common case for a hurried "closed tomorrow": a Greek member is
        * better served by an English notice than by nothing at all.
        */
-      const greek = new Set(
-        people.filter((p) => p.locale === "el").map((p) => p.id),
-      );
+      const localeOf = new Map(people.map((p) => [p.id, p.locale]));
       for (const sub of subs) {
-        const text = greek.has(sub.userId) ? (args.el ?? args.en) : args.en;
+        const l = localeOf.get(sub.userId);
+        const text =
+          l === "el"
+            ? (args.el ?? args.en)
+            : l === "ru"
+              ? (args.ru ?? args.en)
+              : args.en;
         const res = await sendPush(sub, text);
         if (res.ok) {
           report.sent++;
@@ -394,17 +411,26 @@ export async function deliverNotice(args: {
 
     if (channel === "email") {
       const t = emailTransport();
-      /* Both languages, in one email, signed in each. The desk types the Greek
-         version or it does not; when it has, every member gets both and nobody
-         has to have been asked which they read. Composed once rather than per
-         recipient — it is the same letter four hundred times. */
-      const letter = forEmail(args.en, args.el);
+      /* English and Greek in one email, signed in each, for everybody — the
+         desk types the Greek version or it does not. A member who reads the
+         site in Russian gets Russian above the English instead, when the desk
+         wrote a Russian version; otherwise the same letter as everyone else.
+         One letter per language, composed once, not once per recipient. */
+      const letters = new Map<Locale, Outgoing>();
+      const letterFor = (l: Locale) => {
+        let letter = letters.get(l);
+        if (!letter) {
+          letter = forEmailParts({ en: args.en, el: args.el, ru: args.ru }, l);
+          letters.set(l, letter);
+        }
+        return letter;
+      };
       for (const p of people) {
         if (!p.notifyEmail || !p.email) {
           report.skipped++;
           continue;
         }
-        const res = await t.send(p.email, letter);
+        const res = await t.send(p.email, letterFor(p.locale));
         if (res.ok) report.sent++;
         else {
           report.failed++;
@@ -424,13 +450,19 @@ export async function deliverNotice(args: {
         args.el,
         args.smsText,
       );
+      /* Members who read the site in Russian get the Russian text when the
+         desk wrote one — a hand-written SMS or the Russian version of the
+         notice — and the text above when it did not. */
+      const russianText = smsRussianFor(args.ru, args.smsText?.ru);
       const cost = smsCost(text);
+      const ruCost = russianText ? smsCost(russianText) : null;
       /* Recorded on the report so the desk sees what it actually sent, in the
          units it is billed in. "Sent 187" and "187 messages" are different
          numbers whenever the text ran past one segment, and the second one is
-         the one on the bill. */
-      report.segments = cost.segments;
-      report.encoding = cost.encoding;
+         the one on the bill. With a Russian text as well, the larger of the
+         two, so the report never understates a message. */
+      report.segments = Math.max(cost.segments, ruCost?.segments ?? 0);
+      report.encoding = ruCost && ruCost.segments > cost.segments ? ruCost.encoding : cost.encoding;
 
       for (const p of people) {
         const number = p.notifySms ? toE164(p.phone) : null;
@@ -440,7 +472,10 @@ export async function deliverNotice(args: {
         }
         /* No subject line: a text message has no room for one, and the studio's
            name is already the sender in the recipient's inbox. */
-        const res = await t.send(number, { subject: args.en.subject, body: text });
+        const res = await t.send(number, {
+          subject: args.en.subject,
+          body: p.locale === "ru" && russianText ? russianText : text,
+        });
         if (res.ok) report.sent++;
         else {
           report.failed++;

@@ -1,5 +1,7 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
+import { INTL_LOCALE } from "@/i18n/dictionaries";
 import { LanguageFlags } from "@/components/ui/LanguageFlags";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -91,11 +93,11 @@ const REPEAT_RUNS = [
   { months: 9, weeks: 39 },
 ] as const;
 
-const LEVEL: Record<string, { en: string; el: string }> = {
-  ALL: { en: "All levels", el: "Όλα τα επίπεδα" },
-  BEGINNER: { en: "Beginner", el: "Αρχάριοι" },
-  INTERMEDIATE: { en: "Intermediate", el: "Μεσαίο" },
-  ADVANCED: { en: "Advanced", el: "Προχωρημένοι" },
+const LEVEL: Record<string, { en: string; el: string; ru: string }> = {
+  ALL: { en: "All levels", el: "Όλα τα επίπεδα", ru: "Все уровни" },
+  BEGINNER: { en: "Beginner", el: "Αρχάριοι", ru: "Начальный" },
+  INTERMEDIATE: { en: "Intermediate", el: "Μεσαίο", ru: "Средний" },
+  ADVANCED: { en: "Advanced", el: "Προχωρημένοι", ru: "Продвинутый" },
 };
 
 export function ScheduleClient({
@@ -160,7 +162,6 @@ export function ScheduleClient({
     fmtSpots,
   } = useI18n();
   const router = useRouter();
-  const el = locale === "el";
 
   const [sessions, setSessions] = useState(initial);
   const [balance, setBalance] = useState(credits);
@@ -260,7 +261,7 @@ export function ScheduleClient({
    */
   const joinDates = useMemo(() => {
     try {
-      const lf = new Intl.ListFormat(el ? "el" : "en-GB", {
+      const lf = new Intl.ListFormat(INTL_LOCALE[locale], {
         style: "long",
         type: "conjunction",
       });
@@ -269,7 +270,7 @@ export function ScheduleClient({
       /* An engine without ListFormat still gets a readable list. */
       return (parts: string[]) => parts.join(", ");
     }
-  }, [el]);
+  }, [locale]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, ScheduleSession[]>();
@@ -1046,7 +1047,7 @@ export function ScheduleClient({
                nothing scheduled shows the plain "no classes" line. */
             const c = closedDays.get(activeDay);
             const reason =
-              (locale === "el" ? c?.reasonEl : c?.reasonEn)?.trim() ||
+              pickText(locale, c?.reasonEn, c?.reasonEl).trim() ||
               c?.reasonEn?.trim() ||
               c?.reasonEl?.trim();
             const isClosed =
@@ -1168,9 +1169,11 @@ export function ScheduleClient({
                         )}
                       </div>
                       <p className="mt-3 text-[17px] text-mocha-600">
-                        {el
-                          ? types[picked.type].nameEl
-                          : types[picked.type].nameEn}
+                        {pickText(
+                          locale,
+                          types[picked.type].nameEn,
+                          types[picked.type].nameEl,
+                        )}
                       </p>
                       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-clay">
                         {pickedPersonal ? (
@@ -1179,9 +1182,7 @@ export function ScheduleClient({
                           </span>
                         ) : (
                           <span className="uppercase tracking-widest">
-                            {el
-                              ? (LEVEL[picked.level]?.el ?? picked.level)
-                              : (LEVEL[picked.level]?.en ?? picked.level)}
+                            {LEVEL[picked.level]?.[locale] ?? picked.level}
                           </span>
                         )}
                         {picked.instructor && (

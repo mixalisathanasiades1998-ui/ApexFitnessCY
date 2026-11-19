@@ -1833,13 +1833,13 @@ async function main() {
     /* A desk notice the writer signed themselves must not be signed twice. That
        is what it looked like in a real inbox: "Best regards, Apex Pilates Team"
        followed by "Best regards, APEX pilates Team". */
-    const handSigned = W.forEmail(
-      {
+    const handSigned = W.forEmailParts({
+      en: {
         subject: "Hello Testing",
         body: "Hello we are testing,\n\nBest regards,\nApex Pilates Team",
       },
-      { subject: "Γεια σας", body: "Γειααα,\n\nΚανουμε τεστινγ." },
-    );
+      el: { subject: "Γεια σας", body: "Γειααα,\n\nΚανουμε τεστινγ." },
+    });
     check(
       "a notice the writer signed is not signed again",
       (handSigned.body.match(/Best regards/gi) ?? []).length === 1,
@@ -3494,6 +3494,113 @@ async function main() {
     db.delete(creditBatches).where(eq(creditBatches.userId, u.id)).run();
     db.delete(users).where(eq(users.id, u.id)).run();
     void studioAddDays;
+  }
+
+  console.log("\n21. Russian");
+  /**
+   * Russian is a members' language: the public site, the account and every
+   * message. These are the places where a third language could quietly fall
+   * back to English or to Greek.
+   */
+  {
+    const D = await import("../src/i18n/dictionaries");
+    const W = await import("../src/lib/messaging/wording");
+    const C = await import("../src/lib/ru-catalog");
+    const N = await import("../src/lib/notices");
+
+    check("ru is one of the site's languages", D.LOCALES.includes("ru" as never));
+    check(
+      "a stored or posted value is read as a language the site has",
+      D.asLocale("ru") === "ru" && D.asLocale("el") === "el" &&
+        D.asLocale("xx") === "en" && D.asLocale(null) === "en",
+    );
+    check(
+      "the console stays English or Greek for a Russian reader",
+      D.deskLocale("ru") === "en" && D.deskLocale("el") === "el",
+    );
+    check(
+      "the Russian dictionary has every key the English one has",
+      JSON.stringify(Object.keys(D.ru).sort()) === JSON.stringify(Object.keys(D.en).sort()),
+    );
+    check(
+      "and its public pages are actually Russian",
+      /[а-яё]/i.test(D.ru.nav.timetable + D.ru.home.hero.primary + D.ru.booking.bookNow),
+      [D.ru.nav.timetable, D.ru.home.hero.primary],
+    );
+    check(
+      "the date picker borrowed from the desk is Russian too",
+      /[а-яё]/i.test(D.ru.desk.pickDay),
+    );
+
+    const words = W.bookedWords({
+      classEn: "Reformer Flow",
+      classEl: "Reformer Flow",
+      startsAt: new Date("2026-11-21T16:00:00Z"),
+    });
+    check("a Russian member's push is the Russian text", W.say(words, "ru") === words.ru);
+    check("written in Cyrillic", /[а-яё]/i.test(words.ru.subject + words.ru.body), words.ru);
+    check(
+      "with the month declined after the day",
+      /21 ноября/.test(words.ru.body),
+      words.ru.body,
+    );
+    const letterRu = W.forEmail(words, "ru");
+    check("a Russian member's email has a Russian subject", letterRu.subject === words.ru.subject);
+    check(
+      "Russian above English, signed in each",
+      letterRu.body.indexOf(words.ru.body) < letterRu.body.indexOf(words.en.body) &&
+        letterRu.body.includes("С уважением") &&
+        letterRu.body.includes("Best regards"),
+    );
+    check(
+      "and no Greek in it",
+      !letterRu.body.includes(words.el.body),
+    );
+    const letterEl = W.forEmail(words, "el");
+    check(
+      "everybody else still gets English and Greek",
+      letterEl.body.includes(words.en.body) && letterEl.body.includes(words.el.body) &&
+        !letterEl.body.includes(words.ru.body),
+    );
+    const desk = W.forEmailParts({
+      en: { subject: "Closed tomorrow", body: "The studio is closed tomorrow." },
+      el: { subject: "Κλειστά αύριο", body: "Το στούντιο είναι κλειστό αύριο." },
+    }, "ru");
+    check(
+      "a staff notice with no Russian reaches a Russian member as before",
+      desk.subject === "Closed tomorrow" && desk.body.includes("Κλειστά") === false &&
+        desk.body.includes("Το στούντιο"),
+      desk,
+    );
+
+    check("1 занятие / 3 занятия / 5 занятий / 21 занятие",
+      [1, 3, 5, 21].map((n) => C.ruPlural(n, "a", "b", "c")).join("") === "abca");
+    check("a pack name is translated by its shape",
+      C.ruText("3 months · 2 sessions per week") === "3 месяца · 2 занятия в неделю",
+      C.ruText("3 months · 2 sessions per week"));
+    check("a name it does not know stays in English",
+      C.ruText("Something new") === "Something new");
+    check("Greek still falls back to English when left empty",
+      C.pickText("el", "Reformer Flow", "") === "Reformer Flow");
+
+    /* A notice in Russian is read in Russian, and one without is read in English. */
+    const member = db.select().from(users).where(eq(users.role, "MEMBER")).get();
+    if (member) {
+      const withRu = N.createNotice({
+        titleEn: "RU test notice", bodyEn: "English body",
+        titleRu: "Тестовое уведомление", bodyRu: "Текст", userId: member.id,
+      });
+      const plain = N.createNotice({ titleEn: "EN only notice", bodyEn: "English only", userId: member.id });
+      const page = N.noticesFor(member.id, "ru", { perPage: 50 });
+      const a = page.rows.find((r) => r.id === withRu.id);
+      const b = page.rows.find((r) => r.id === plain.id);
+      check("a Russian reader sees the Russian version", a?.title === "Тестовое уведомление", a);
+      check("and the English where there is no Russian", b?.title === "EN only notice", b);
+      const en = N.noticesFor(member.id, "en", { perPage: 50 }).rows.find((r) => r.id === withRu.id);
+      check("an English reader still sees English", en?.title === "RU test notice", en);
+      N.deleteNotice(withRu.id);
+      N.deleteNotice(plain.id);
+    }
   }
 
   console.log(

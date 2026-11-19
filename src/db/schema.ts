@@ -80,7 +80,7 @@ export const users = sqliteTable(
 
     /* ---- how we are allowed to reach them ---- */
     /**
-     * Which language to write to them in. "en" | "el", null on accounts that
+     * Which language to write to them in. "en" | "el" | "ru", null on accounts that
      * have never chosen.
      *
      * The site has always known this — the language switch sets a cookie, and
@@ -935,6 +935,9 @@ export const notices = sqliteTable(
     /** Optional Greek version. Falls back to the English one when empty. */
     titleEl: text("title_el").notNull().default(""),
     bodyEl: text("body_el").notNull().default(""),
+    /** Optional Russian version. Falls back to the English one when empty. */
+    titleRu: text("title_ru").notNull().default(""),
+    bodyRu: text("body_ru").notNull().default(""),
     /**
      * Who it was for. ALL means every member — those are the studio and
      * timetable notices nobody can opt out of, because a class being cancelled

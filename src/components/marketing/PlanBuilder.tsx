@@ -1,5 +1,6 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -88,7 +89,6 @@ export function PlanBuilder({
 }) {
   const { t, locale, fmtMoney } = useI18n();
   const router = useRouter();
-  const el = locale === "el";
   const d = t.pricingPage.builder;
 
   /**
@@ -163,7 +163,7 @@ export function PlanBuilder({
           other card names itself. It changes as the chips change, which is the
           quickest confirmation that the chips did something. */}
       <p className="text-[11px] uppercase tracking-widest text-clay">
-        {pack ? (el ? pack.nameEl : pack.nameEn) : d.title}
+        {pack ? pickText(locale, pack.nameEn, pack.nameEl) : d.title}
       </p>
 
       {/**
@@ -235,7 +235,7 @@ export function PlanBuilder({
 
           {pack.listPriceCents ? (
             <p className="mt-3 inline-flex rounded-full bg-gold/15 px-3 py-1 text-[10px] uppercase tracking-widest text-[#8a6f1a]">
-              {(el ? pack.discountLabelEl : pack.discountLabelEn) ||
+              {pickText(locale, pack.discountLabelEn, pack.discountLabelEl) ||
                 t.pricingPage.offer}
             </p>
           ) : null}
@@ -270,7 +270,7 @@ export function PlanBuilder({
               onClick={buy}
               disabled={busy}
               className="w-full"
-              aria-label={`${t.pricingPage.buy} — ${el ? pack.nameEl : pack.nameEn}`}
+              aria-label={`${t.pricingPage.buy} — ${pickText(locale, pack.nameEn, pack.nameEl)}`}
             >
               {busy ? t.common.loading : t.pricingPage.buy}
             </Button>

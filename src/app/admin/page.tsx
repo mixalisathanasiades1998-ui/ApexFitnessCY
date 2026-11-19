@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AdminBody } from "@/components/admin/AdminBody";
 import { DeskLock } from "@/components/admin/DeskLock";
+import { DeskLanguage } from "@/components/admin/DeskLanguage";
 import { currentUser, deskUnlocked, isOwner, isStaff } from "@/lib/auth";
 import { studioStats, upcomingClassCount } from "@/lib/admin";
 import { getPackages } from "@/lib/catalogue";
@@ -34,8 +35,18 @@ export default async function AdminPage({
   const user = await currentUser();
   const staff = user && isStaff(user);
 
-  if (!staff) return <DeskLock />;
-  if (!(await deskUnlocked(user.id))) return <DeskLock name={user.name} />;
+  if (!staff)
+    return (
+      <DeskLanguage>
+        <DeskLock />
+      </DeskLanguage>
+    );
+  if (!(await deskUnlocked(user.id)))
+    return (
+      <DeskLanguage>
+        <DeskLock name={user.name} />
+      </DeskLanguage>
+    );
 
   /* Reception's console never fetches the takings. The Analytics tab is not
      merely hidden from them — the query does not run, and /api/admin/stats
@@ -47,39 +58,41 @@ export default async function AdminPage({
   ]);
 
   return (
-    <AdminBody
-      staffName={user.name}
-      owner={owner}
-      scheduled={upcomingClassCount()}
-      /**
-       * Which tab to open, decided here rather than in the browser.
-       *
-       * It used to be read from `window.location` inside a `useState`
-       * initialiser, which cannot work: the server has no window, so it rendered
-       * Bookings, the browser then read `?tab=members` and rendered Members, and
-       * React reported the two as a hydration mismatch and threw the whole tree
-       * away. Landing on /admin?tab=members is not an edge case either — it is
-       * what saving a member does.
-       *
-       * The server knows the address. Passing it down means both renders agree.
-       */
-      initialTab={tab ?? null}
-      stats={stats}
-      /* Both names, because the desk reads in Greek too. Sending only the
+    <DeskLanguage>
+      <AdminBody
+        staffName={user.name}
+        owner={owner}
+        scheduled={upcomingClassCount()}
+        /**
+         * Which tab to open, decided here rather than in the browser.
+         *
+         * It used to be read from `window.location` inside a `useState`
+         * initialiser, which cannot work: the server has no window, so it rendered
+         * Bookings, the browser then read `?tab=members` and rendered Members, and
+         * React reported the two as a hydration mismatch and threw the whole tree
+         * away. Landing on /admin?tab=members is not an edge case either — it is
+         * what saving a member does.
+         *
+         * The server knows the address. Passing it down means both renders agree.
+         */
+        initialTab={tab ?? null}
+        stats={stats}
+        /* Both names, because the desk reads in Greek too. Sending only the
          English one left every other word on the Pricing tab translated and
          the pack names in English — the one place the Greek console broke
          character. */
-      packs={packs.map((p) => ({
-        id: p.id,
-        slug: p.slug,
-        nameEn: p.nameEn,
-        nameEl: p.nameEl,
-        credits: p.credits,
-        priceCents: p.priceCents,
-        listPriceCents: p.listPriceCents,
-        discountLabelEn: p.discountLabelEn,
-        discountLabelEl: p.discountLabelEl,
-      }))}
-    />
+        packs={packs.map((p) => ({
+          id: p.id,
+          slug: p.slug,
+          nameEn: p.nameEn,
+          nameEl: p.nameEl,
+          credits: p.credits,
+          priceCents: p.priceCents,
+          listPriceCents: p.listPriceCents,
+          discountLabelEn: p.discountLabelEn,
+          discountLabelEl: p.discountLabelEl,
+        }))}
+      />
+    </DeskLanguage>
   );
 }

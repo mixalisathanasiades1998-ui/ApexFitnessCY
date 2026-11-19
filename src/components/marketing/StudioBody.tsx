@@ -1,5 +1,6 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
 import { LanguageFlags } from "@/components/ui/LanguageFlags";
 import { parseLanguages } from "@/lib/languages";
 import Image from "next/image";
@@ -34,7 +35,6 @@ export type TeamMember = {
  */
 export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
   const { t, locale } = useI18n();
-  const el = locale === "el";
 
   return (
     <>
@@ -162,7 +162,7 @@ export function StudioBody({ team = [] }: { team?: TeamMember[] }) {
                         {/* Greek bio when the site is in Greek and it is not
                             empty; otherwise the English one, so a desk-added
                             instructor with only an English bio still reads. */}
-                        {el && m.bioEl.trim() ? m.bioEl : m.bioEn}
+                        {pickText(locale, m.bioEn, m.bioEl)}
                       </p>
                       {/* Sits in the bottom corner, pushed down by mt-auto so
                           it lands on the same line across the row however long

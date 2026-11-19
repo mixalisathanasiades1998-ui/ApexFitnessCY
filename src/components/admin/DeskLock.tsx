@@ -96,7 +96,7 @@ export function DeskLock({ name }: { name?: string }) {
       <div className="border-b border-mocha-200/70 bg-cream/95">
         <div className="container-x flex h-20 items-center justify-between">
           <Wordmark className="w-[132px]" priority />
-          <LanguageToggle />
+          <LanguageToggle desk />
         </div>
       </div>
 

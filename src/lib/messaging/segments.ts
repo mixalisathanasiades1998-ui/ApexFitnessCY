@@ -196,6 +196,27 @@ export function smsBodyFor(
 }
 
 /**
+ * The Russian text message, for members who read the site in Russian.
+ *
+ * A hand-written Russian SMS wins; otherwise the Russian version of the notice,
+ * built the same way as the English one. Empty when the desk wrote no Russian
+ * at all, which means those members get the same text as everybody else.
+ */
+export function smsRussianFor(
+  ru: { subject: string; body: string } | undefined,
+  override?: string,
+): string {
+  const typed = (override ?? "").trim();
+  if (typed) return typed;
+  if (!ru) return "";
+  const subject = ru.subject.trim();
+  const body = ru.body.trim();
+  if (!subject) return body;
+  if (!body) return subject;
+  return `${subject}. ${body}`;
+}
+
+/**
  * The ceiling, so nobody sends a twelve-segment text to four hundred people.
  *
  * Four is deliberately generous — enough for a real Greek sentence, not enough

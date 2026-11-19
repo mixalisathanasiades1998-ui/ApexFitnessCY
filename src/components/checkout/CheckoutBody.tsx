@@ -1,5 +1,6 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
 import { ContactHelp } from "@/components/marketing/ContactHelp";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -87,7 +88,6 @@ export function CheckoutBody({
 }) {
   const { t, locale, fmtMoney, fmtSessions, fmtFullDate } = useI18n();
   const c = t.checkoutPage;
-  const el = locale === "el";
   const router = useRouter();
 
   const [started, setStarted] = useState<Started | null>(null);
@@ -121,7 +121,7 @@ export function CheckoutBody({
   const topUp = start.current !== null;
   const day = (key: string) => fmtFullDate(`${key}T12:00:00Z`);
 
-  const name = el ? pack.nameEl : pack.nameEn;
+  const name = pickText(locale, pack.nameEn, pack.nameEl);
   const amountLabel = fmtMoney(amountCents);
 
   /**

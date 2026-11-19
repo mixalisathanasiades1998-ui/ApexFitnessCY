@@ -1,3 +1,4 @@
+import type { Locale } from "@/i18n/dictionaries";
 import { desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { noticeDeliveries, noticeReads, notices, users } from "@/db/schema";
@@ -85,6 +86,9 @@ export function createNotice(args: {
   bodyEn: string;
   titleEl?: string;
   bodyEl?: string;
+  /** Optional Russian version, shown to members reading the site in Russian. */
+  titleRu?: string;
+  bodyRu?: string;
   important?: boolean;
   /** ALL for studio and timetable notices, OFFERS for the opt-in audience. */
   audience?: "ALL" | "OFFERS";
@@ -105,6 +109,8 @@ export function createNotice(args: {
       bodyEn: args.bodyEn,
       titleEl: args.titleEl ?? "",
       bodyEl: args.bodyEl ?? "",
+      titleRu: args.titleRu ?? "",
+      bodyRu: args.bodyRu ?? "",
       important: args.important ?? false,
       audience: args.audience ?? "ALL",
       channels: (args.channels ?? []).join(","),
@@ -150,7 +156,7 @@ export const NOTICES_PER_PAGE = 5;
  */
 export function noticesFor(
   userId: string,
-  locale: "en" | "el" = "en",
+  locale: Locale = "en",
   opts: { filter?: "all" | "unread" | "read"; page?: number; perPage?: number } = {},
 ): NoticePage {
   const filter = opts.filter ?? "all";
@@ -194,6 +200,8 @@ export function noticesFor(
       titleEl: notices.titleEl,
       bodyEn: notices.bodyEn,
       bodyEl: notices.bodyEl,
+      titleRu: notices.titleRu,
+      bodyRu: notices.bodyRu,
       important: notices.important,
       createdAt: notices.createdAt,
       readAt: noticeReads.readAt,
@@ -213,8 +221,17 @@ export function noticesFor(
   return {
     rows: rows.map((r) => ({
       id: r.id,
-      title: (locale === "el" && r.titleEl) || r.titleEn,
-      body: (locale === "el" && r.bodyEl) || r.bodyEn,
+      /* Each language falls back to the English when it was left empty — a
+         notice written before Russian existed, or one the desk wrote in
+         English only. */
+      title:
+        (locale === "el" && r.titleEl) ||
+        (locale === "ru" && r.titleRu) ||
+        r.titleEn,
+      body:
+        (locale === "el" && r.bodyEl) ||
+        (locale === "ru" && r.bodyRu) ||
+        r.bodyEn,
       createdAt: r.createdAt,
       important: r.important,
       read: r.readAt !== null,

@@ -10,7 +10,7 @@ import { hasAvatar } from "@/lib/avatars";
 import { noticesFor } from "@/lib/notices";
 import { isPilatesExperience, isPilatesLevel } from "@/lib/intake";
 import { pushPublicKey } from "@/lib/messaging/push";
-import { LOCALE_COOKIE } from "@/i18n/dictionaries";
+import { LOCALE_COOKIE, asLocale } from "@/i18n/dictionaries";
 
 export const metadata: Metadata = { title: "My account" };
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export default async function AccountPage() {
      layout uses. Without this the first page of notices was always English —
      the Greek version was written, stored and then never asked for. */
   const jar = await cookies();
-  const locale = jar.get(LOCALE_COOKIE)?.value === "el" ? "el" : "en";
+  const locale = asLocale(jar.get(LOCALE_COOKIE)?.value);
 
   /* The first page only. The list fetches the rest itself as the member pages
      through, so the initial HTML stays small however long they have been a

@@ -112,6 +112,8 @@ const COLUMNS: Record<string, Column[]> = {
     { name: "user_id", ddl: "text references users(id) on delete cascade" },
     { name: "included_test", ddl: "integer default 0 not null" },
     { name: "segment", ddl: "text default '' not null" },
+    { name: "title_ru", ddl: "text default '' not null" },
+    { name: "body_ru", ddl: "text default '' not null" },
   ],
 };
 
@@ -184,6 +186,8 @@ const TABLES: { name: string; ddl: string }[] = [
             body_en text not null,
             title_el text default '' not null,
             body_el text default '' not null,
+            title_ru text default '' not null,
+            body_ru text default '' not null,
             audience text default 'ALL' not null,
             channels text default '' not null,
             user_id text references users(id) on delete cascade,

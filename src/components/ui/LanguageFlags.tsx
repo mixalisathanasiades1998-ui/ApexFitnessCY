@@ -65,7 +65,7 @@ export function LanguageFlags({
   );
   if (known.length === 0) return null;
   const names = known
-    .map((l) => (locale === "el" ? LANGUAGE_NAMES[l].el : LANGUAGE_NAMES[l].en))
+    .map((l) => LANGUAGE_NAMES[l][locale])
     .join(", ");
   return (
     <span

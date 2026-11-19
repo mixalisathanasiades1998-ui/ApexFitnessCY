@@ -50,13 +50,18 @@ export function reminderChoices() {
 /** "0 min" reads as nothing; at zero the reminder lands as the class starts. */
 export function formatLeadTime(
   minutes: number,
-  locale: "en" | "el" = "en",
+  locale: "en" | "el" | "ru" = "en",
 ): string {
-  if (minutes === 0) return locale === "el" ? "Στην ώρα του" : "At class time";
+  if (minutes === 0)
+    return locale === "el"
+      ? "Στην ώρα του"
+      : locale === "ru"
+        ? "К началу занятия"
+        : "At class time";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const hUnit = locale === "el" ? "ώ" : "h";
-  const mUnit = "min";
+  const hUnit = locale === "el" ? "ώ" : locale === "ru" ? "ч" : "h";
+  const mUnit = locale === "ru" ? "мин" : "min";
   if (h === 0) return `${m} ${mUnit}`;
   if (m === 0) return `${h} ${hUnit}`;
   return `${h} ${hUnit} ${m} ${mUnit}`;

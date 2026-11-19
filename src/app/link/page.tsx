@@ -6,7 +6,7 @@ import { InstallButton } from "@/components/link/InstallButton";
 import { MantraBar } from "@/components/link/MantraBar";
 import { Monogram } from "@/components/ui/Monogram";
 import { Wordmark } from "@/components/ui/Wordmark";
-import { LOCALE_COOKIE, DEFAULT_LOCALE } from "@/i18n/dictionaries";
+import { LOCALE_COOKIE, DEFAULT_LOCALE, asLocale } from "@/i18n/dictionaries";
 import { STUDIO } from "@/lib/studio";
 
 /**
@@ -79,7 +79,7 @@ export const metadata: Metadata = {
 /** Matches the site: the cookie decides, and English is the fallback. */
 async function readLocale() {
   const jar = await cookies();
-  return jar.get(LOCALE_COOKIE)?.value === "el" ? "el" : DEFAULT_LOCALE;
+  return asLocale(jar.get(LOCALE_COOKIE)?.value ?? DEFAULT_LOCALE);
 }
 
 /**
@@ -139,6 +139,23 @@ const COPY = {
       "Πάτα το κουμπί Κοινοποίηση στο κάτω μέρος του Safari.",
       "Κύλησε κάτω και διάλεξε Προσθήκη στην αρχική οθόνη.",
       "Πάτα Προσθήκη. Από εκείνη τη στιγμή ανοίγει σαν εφαρμογή.",
+    ],
+  },
+  ru: {
+    tagline: "Reformer Pilates Ларнака",
+    website: "Перейти на сайт",
+    facebook: "Facebook",
+    instagram: "Instagram",
+    tiktok: "TikTok",
+    install: "Установить приложение",
+    installed: "Вы в приложении",
+    call: "Позвонить нам",
+    builtBy: "Дизайн и разработка",
+    iosTitle: "Чтобы добавить на экран «Домой»",
+    iosSteps: [
+      "Нажмите кнопку «Поделиться» внизу Safari.",
+      "Прокрутите вниз и выберите «На экран „Домой“».",
+      "Нажмите «Добавить». Дальше сайт открывается как приложение.",
     ],
   },
 } as const;

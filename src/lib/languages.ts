@@ -11,10 +11,13 @@ export type TeachingLanguage = (typeof TEACHING_LANGUAGES)[number];
 /** Every instructor teaches in Greek and English unless the desk says otherwise. */
 export const DEFAULT_LANGUAGES: TeachingLanguage[] = ["el", "en"];
 
-export const LANGUAGE_NAMES: Record<TeachingLanguage, { en: string; el: string; native: string }> = {
-  el: { en: "Greek", el: "Ελληνικά", native: "Ελληνικά" },
-  en: { en: "English", el: "Αγγλικά", native: "English" },
-  ru: { en: "Russian", el: "Ρωσικά", native: "Русский" },
+export const LANGUAGE_NAMES: Record<
+  TeachingLanguage,
+  { en: string; el: string; ru: string; native: string }
+> = {
+  el: { en: "Greek", el: "Ελληνικά", ru: "Греческий", native: "Ελληνικά" },
+  en: { en: "English", el: "Αγγλικά", ru: "Английский", native: "English" },
+  ru: { en: "Russian", el: "Ρωσικά", ru: "Русский", native: "Русский" },
 };
 
 /** The stored list as known languages, in a fixed order, duplicates dropped. */

@@ -8,7 +8,7 @@ import { createSession, hashPassword } from "@/lib/auth";
 import { sendVerificationCode } from "@/lib/messaging/events";
 import { toE164 } from "@/lib/messaging/sms";
 import { REMINDER_DEFAULT_MINUTES } from "@/lib/profile";
-import { LOCALE_COOKIE } from "@/i18n/dictionaries";
+import { LOCALE_COOKIE, LOCALES } from "@/i18n/dictionaries";
 import { registerSchema } from "@/lib/validation";
 import { OTP_TTL_MINUTES, issueCode } from "@/lib/verify";
 import { clientIp, hit, tooMany } from "@/lib/rate-limit";
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
    */
   const jar = await cookies();
   const chose = jar.get(LOCALE_COOKIE)?.value;
-  const locale = chose === "el" || chose === "en" ? chose : null;
+  const locale = chose && (LOCALES as readonly string[]).includes(chose) ? chose : null;
 
   const existing = await db.query.users.findFirst({
     where: eq(users.email, email),

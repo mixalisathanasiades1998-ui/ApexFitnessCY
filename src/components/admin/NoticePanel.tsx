@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/Button";
 import { Chevron } from "@/components/ui/Chevron";
 import { Pager } from "@/components/ui/Pager";
 import { useI18n } from "@/i18n/LanguageProvider";
-import { MAX_SEGMENTS, smsBodyFor, smsCost } from "@/lib/messaging/segments";
+import {
+  MAX_SEGMENTS,
+  smsBodyFor,
+  smsCost,
+  smsRussianFor,
+} from "@/lib/messaging/segments";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,6 +49,9 @@ type Sent = {
 
 type Reach = {
   people: number;
+  /** How many of them read the site in Russian, and how many of those SMS reaches. */
+  russian?: number;
+  smsRussian?: number;
   push: number;
   email: number;
   sms: number;
@@ -85,6 +93,10 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
   const [text, setText] = useState("");
   const [titleEl, setTitleEl] = useState("");
   const [textEl, setTextEl] = useState("");
+  const [titleRu, setTitleRu] = useState("");
+  const [textRu, setTextRu] = useState("");
+  /* A hand-written Russian SMS. Empty means "follow the Russian version". */
+  const [smsRu, setSmsRu] = useState("");
   const [important, setImportant] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   /* SMS is the one channel with a price on it, so it carries one choice of its
@@ -281,13 +293,24 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
     ? smsBodyFor("el", smsNoticeEn, smsNoticeEl)
     : "";
   const smsPreviewCost = smsCost(smsPreview);
+  /* The Russian text message, when there is Russian to send. Members reading
+     in Russian get it instead of the text above; it is billed on its own. */
+  const smsNoticeRu =
+    titleRu && textRu ? { subject: titleRu, body: textRu } : undefined;
+  const smsRussian = smsRussianFor(smsNoticeRu, smsRu);
+  const smsRussianCost = smsRussian ? smsCost(smsRussian) : null;
+  const smsRussianPeople = smsRussian ? (reach?.smsRussian ?? 0) : 0;
   /* Read from the server rather than assumed, so the preview shows the sender
      the member will actually see. */
   const smsSender = smsMeta?.sender ?? "APEX pilates";
   const smsRecipients = reach?.sms ?? 0;
-  const smsTotalSegments = smsPreviewCost.segments * smsRecipients;
+  const smsTotalSegments =
+    smsPreviewCost.segments * Math.max(smsRecipients - smsRussianPeople, 0) +
+    (smsRussianCost?.segments ?? 0) * smsRussianPeople;
   const smsMax = smsMeta?.maxSegments ?? MAX_SEGMENTS;
-  const smsOver = smsPreviewCost.segments > smsMax;
+  const smsOver =
+    smsPreviewCost.segments > smsMax ||
+    (smsRussianCost?.segments ?? 0) > smsMax;
   const smsMoney =
     smsMeta?.pricePerSegment == null
       ? null
@@ -304,6 +327,8 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
           bodyEn: text,
           titleEl,
           bodyEl: textEl,
+          titleRu,
+          bodyRu: textRu,
           important,
           audience,
           channels,
@@ -314,6 +339,7 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
           smsLang,
           smsEn,
           smsEl,
+          smsRu,
         }),
       });
       const data = (await res.json()) as {
@@ -339,6 +365,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
       setText("");
       setTitleEl("");
       setTextEl("");
+      setTitleRu("");
+      setTextRu("");
+      setSmsRu("");
       setSmsEn("");
       setSmsEl("");
       setSmsEditing(false);
@@ -397,6 +426,35 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
             value={textEl}
             onChange={(e) => setTextEl(e.target.value)}
             placeholder={d.noticeBody}
+            className="input mt-3 resize-y"
+          />
+        </details>
+
+        {/* Russian, for members who read the site in Russian. The console
+            itself is English and Greek; this is the one place the desk writes
+            Russian, and only when it wants to. */}
+        <details className="mt-4" data-notice-russian>
+          <summary className="cursor-pointer text-[11px] uppercase tracking-widest text-clay">
+            {d.noticeRussian}
+          </summary>
+          <p className="mt-3 text-[11px] leading-relaxed text-clay">
+            {d.noticeRussianHelp.replace("{n}", String(reach?.russian ?? 0))}
+          </p>
+          <input
+            lang="ru"
+            value={titleRu}
+            onChange={(e) => setTitleRu(e.target.value)}
+            placeholder={d.noticeSubject}
+            maxLength={120}
+            className="input mt-3"
+          />
+          <textarea
+            lang="ru"
+            rows={4}
+            value={textRu}
+            onChange={(e) => setTextRu(e.target.value)}
+            placeholder={d.noticeBody}
+            maxLength={2000}
             className="input mt-3 resize-y"
           />
         </details>
@@ -690,10 +748,35 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                 </p>
               )}
 
+              {/* The Russian text, when there is one: its own preview, its own
+                  wording and its own price, because it is a different message
+                  to different people. */}
+              {smsRussian && (
+                <div data-sms-russian className="mt-4 border-t border-mocha-200/70 pt-4">
+                  <p className="text-[10px] uppercase tracking-brand text-clay">
+                    {d.smsRussianTitle.replace("{n}", String(reach?.smsRussian ?? 0))}
+                  </p>
+                  <textarea
+                    lang="ru"
+                    rows={3}
+                    value={smsRu || smsRussian}
+                    onChange={(e) => setSmsRu(e.target.value)}
+                    className="input mt-2"
+                  />
+                  {smsRussianCost && (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-clay lining-nums tabular-nums">
+                      {d.smsRussianCount
+                        .replace("{chars}", String(smsRussianCost.units))
+                        .replace("{segments}", String(smsRussianCost.segments))}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {smsOver && (
                 <p className="mt-2 rounded-xl bg-clay/10 px-3 py-2 text-[11px] leading-relaxed text-clay">
                   {d.smsTooLong
-                    .replace("{n}", String(smsPreviewCost.segments))
+                    .replace("{n}", String(Math.max(smsPreviewCost.segments, smsRussianCost?.segments ?? 0)))
                     .replace("{max}", String(smsMax))}
                 </p>
               )}

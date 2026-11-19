@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import PDFDocument from "pdfkit";
 import { STUDIO } from "./studio";
 import {
@@ -25,19 +27,46 @@ import { studioParts } from "./time";
  *
  * ---
  *
- * **Why the document is in English.**
+ * **Why the document is in English, and why it carries its own font.**
  *
- * Not an oversight. pdfkit's built-in fonts are WinAnsi-encoded and have no
- * Greek glyphs at all, so Greek text would come out as blanks or worse — and
- * fixing that means shipping a Greek-capable TTF in the repository and
- * embedding it in every file. An invoice in English is normal and accepted in
- * Cyprus, and getting one that is *correct* out today is worth more than a
- * bilingual one later. The line items name the pack in English, which is also
- * what the studio's own bookkeeping calls it.
+ * An invoice in English is normal and accepted in Cyprus, and the line items
+ * name the pack in English, which is also what the studio's own bookkeeping
+ * calls it.
  *
- * If the studio does want Greek, it is one font file and a `doc.font()` call,
- * and this comment is the note explaining why nobody did it yet.
+ * The *customer's name*, though, is whatever they typed, and in Larnaca that is
+ * often Greek or Russian. pdfkit's built-in Helvetica is WinAnsi-encoded and has
+ * no Greek or Cyrillic at all, so "Μαρία" or "Анна" printed as garbage on a tax
+ * document. The invoice is therefore set in Liberation Sans (assets/fonts/,
+ * SIL Open Font License), which has Latin, Greek and Cyrillic and was drawn to
+ * Helvetica's exact metrics — so every line sits where it did. If the font
+ * files are ever missing, it falls back to Helvetica rather than failing: an
+ * invoice with a garbled name is still better than no invoice.
  */
+
+/** The invoice's typeface: Liberation Sans, or Helvetica if it is missing. */
+const FONT_DIR = path.join(process.cwd(), "assets", "fonts");
+type Faces = { regular: string; bold: string };
+const FACES = new WeakMap<PDFKit.PDFDocument, Faces>();
+/** The faces registered on this document, for the small drawing helpers. */
+function fontsOf(doc: PDFKit.PDFDocument): Faces {
+  return FACES.get(doc) ?? { regular: "Helvetica", bold: "Helvetica-Bold" };
+}
+function invoiceFonts(doc: PDFKit.PDFDocument): Faces {
+  const regular = path.join(FONT_DIR, "LiberationSans-Regular.ttf");
+  const bold = path.join(FONT_DIR, "LiberationSans-Bold.ttf");
+  try {
+    if (existsSync(regular) && existsSync(bold)) {
+      doc.registerFont("Invoice", regular);
+      doc.registerFont("Invoice-Bold", bold);
+      const faces = { regular: "Invoice", bold: "Invoice-Bold" };
+      FACES.set(doc, faces);
+      return faces;
+    }
+  } catch {
+    /* Fall through to the built-in face. */
+  }
+  return { regular: "Helvetica", bold: "Helvetica-Bold" };
+}
 
 export type InvoiceData = {
   /** The studio's own number, or null for a document that has none. */
@@ -88,7 +117,7 @@ export function invoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    draw(doc, { data, issuer, split, specimen });
+    draw(doc, { data, issuer, split, specimen, fonts: invoiceFonts(doc) });
     doc.end();
   });
 }
@@ -100,9 +129,10 @@ function draw(
     issuer: InvoiceIssuer;
     split: ReturnType<typeof vatSplit>;
     specimen: boolean;
+    fonts: { regular: string; bold: string };
   },
 ) {
-  const { data, issuer, split, specimen } = ctx;
+  const { data, issuer, split, specimen, fonts } = ctx;
   const left = 50;
   const right = 545;
   const money = (cents: number) => eur(cents, data.currency);
@@ -120,7 +150,7 @@ function draw(
     doc.save();
     doc.rotate(-38, { origin: [300, 420] });
     doc
-      .font("Helvetica-Bold")
+      .font(fonts.bold)
       .fontSize(74)
       .fillColor("#E9DED6")
       .text("SPECIMEN", 40, 380, { width: 560, align: "center" });
@@ -129,13 +159,13 @@ function draw(
 
   /* ------------------------------------------------------------------ heading */
   doc
-    .font("Helvetica-Bold")
+    .font(fonts.bold)
     .fontSize(9)
     .fillColor(CLAY)
     .text("APEX PILATES", left, 52, { characterSpacing: 2.4 });
 
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(24)
     .fillColor(MOCHA)
     .text(specimen ? "Specimen invoice" : "Invoice", left, 70);
@@ -150,7 +180,7 @@ function draw(
     issuer.phone,
   ].filter(Boolean);
 
-  doc.font("Helvetica").fontSize(9).fillColor(CLAY);
+  doc.font(fonts.regular).fontSize(9).fillColor(CLAY);
   let y = 56;
   for (const line of issuerLines) {
     doc.text(line, right - 220, y, { width: 220, align: "right" });
@@ -170,7 +200,7 @@ function draw(
   /* ------------------------------------------------------------- the customer */
   field(doc, left, 218, "Billed to", data.customer.name);
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(10)
     .fillColor(MOCHA)
     .text(data.customer.email, left, 248);
@@ -182,7 +212,7 @@ function draw(
   const tableTop = 300;
   doc.moveTo(left, tableTop).lineTo(right, tableTop).strokeColor(RULE).stroke();
 
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(CLAY);
+  doc.font(fonts.bold).fontSize(8).fillColor(CLAY);
   doc.text("DESCRIPTION", left, tableTop + 10, { characterSpacing: 1.4 });
   doc.text("QTY", left + 300, tableTop + 10, { width: 40, align: "right", characterSpacing: 1.4 });
   doc.text("NET", left + 350, tableTop + 10, { width: 70, align: "right", characterSpacing: 1.4 });
@@ -190,7 +220,7 @@ function draw(
 
   doc.moveTo(left, tableTop + 26).lineTo(right, tableTop + 26).strokeColor(RULE).stroke();
 
-  doc.font("Helvetica").fontSize(10).fillColor(MOCHA);
+  doc.font(fonts.regular).fontSize(10).fillColor(MOCHA);
   doc.text(data.description, left, tableTop + 38, { width: 290 });
   doc.text(String(data.credits), left + 300, tableTop + 38, { width: 40, align: "right" });
   doc.text(money(split.netCents), left + 350, tableTop + 38, { width: 70, align: "right" });
@@ -216,7 +246,7 @@ function draw(
     ty += 18;
   } else {
     doc
-      .font("Helvetica")
+      .font(fonts.regular)
       .fontSize(9)
       .fillColor(CLAY)
       .text("No VAT charged on this supply.", left + 300, ty, {
@@ -229,7 +259,7 @@ function draw(
   doc.moveTo(left + 300, ty + 2).lineTo(right, ty + 2).strokeColor(RULE).stroke();
   ty += 14;
 
-  doc.font("Helvetica-Bold").fontSize(12).fillColor(MOCHA);
+  doc.font(fonts.bold).fontSize(12).fillColor(MOCHA);
   doc.text("Total paid", left + 300, ty, { width: 110, align: "left" });
   doc.text(money(split.grossCents), left + 410, ty, { width: 85, align: "right" });
 
@@ -253,11 +283,11 @@ function draw(
     );
   }
 
-  doc.font("Helvetica").fontSize(8.5).fillColor(CLAY);
+  doc.font(fonts.regular).fontSize(8.5).fillColor(CLAY);
   doc.text(notes.join("\n"), left, footY + 12, { width: right - left, lineGap: 3 });
 
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(8)
     .fillColor(CLAY)
     .text(
@@ -275,18 +305,20 @@ function field(
   label: string,
   value: string,
 ) {
+  const fonts = fontsOf(doc);
   doc
-    .font("Helvetica-Bold")
+    .font(fonts.bold)
     .fontSize(7.5)
     .fillColor(CLAY)
     .text(label.toUpperCase(), x, y, { characterSpacing: 1.4 });
-  doc.font("Helvetica").fontSize(11).fillColor(MOCHA).text(value, x, y + 13);
+  doc.font(fonts.regular).fontSize(11).fillColor(MOCHA).text(value, x, y + 13);
 }
 
 function total(doc: PDFKit.PDFDocument, y: number, label: string, value: string) {
-  doc.font("Helvetica").fontSize(9.5).fillColor(CLAY);
+  const fonts = fontsOf(doc);
+  doc.font(fonts.regular).fontSize(9.5).fillColor(CLAY);
   doc.text(label, 350, y, { width: 110, align: "left" });
-  doc.font("Helvetica").fontSize(9.5).fillColor(MOCHA);
+  doc.font(fonts.regular).fontSize(9.5).fillColor(MOCHA);
   doc.text(value, 460, y, { width: 85, align: "right" });
 }
 

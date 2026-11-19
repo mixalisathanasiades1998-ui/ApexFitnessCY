@@ -1,34 +1,86 @@
 import { STUDIO } from "@/lib/studio";
+import { INTL_LOCALE, type Locale } from "@/i18n/dictionaries";
+import { ruPlural, ruText } from "@/lib/ru-catalog";
 import type { Outgoing } from "./types";
 
 /**
- * The words, in both languages.
+ * The words, in all three languages: English, Greek and Russian.
  *
  * Everything a member reads is written here rather than at the point it is sent,
  * for two reasons. The first is that the studio is in Larnaca: a member is as
- * likely to read Greek as English, and we do not ask them which, so an email
- * carries both. The second is that the same sentence goes to three different
- * places — the account, an inbox, a phone — and they must not be allowed to
- * drift apart into three slightly different accounts of the same fact.
+ * likely to read Greek or Russian as English. The second is that the same
+ * sentence goes to three different places — the account, an inbox, a phone —
+ * and they must not be allowed to drift apart into three slightly different
+ * accounts of the same fact.
  *
  * Where each language goes:
  *
- *   in the app   both are stored; the site shows whichever the member is
+ *   in the app   all three are stored; the site shows whichever the member is
  *                reading it in, because it already knows that
- *   email        both, English above Greek, separated by a rule — we have no
- *                idea which they prefer and guessing wrong is worse than
- *                showing two
+ *   email        two, separated by a rule. A member who reads the site in
+ *                Russian gets Russian above English; everybody else, and the
+ *                studio's own mailbox, gets English above Greek — see
+ *                `forEmail` below
  *   push         one language, the member's own — see `say` below. A phone
  *                notification is one line and there is no room for two.
- *   sms          the same, and for the same reason, only harder: Greek costs
- *                three times the segments, so length is checked after the
- *                language is chosen and not before.
+ *   sms          the same, and for the same reason, only harder: Greek and
+ *                Russian cost three times the segments, so length is checked
+ *                after the language is chosen and not before.
+ *
+ * The Russian of a class or pack name is never typed in the console: it is
+ * worked out from the English with `ruText`, which falls back to the English.
  */
 
-export type Bilingual = { en: Outgoing; el: Outgoing };
+/** The name is older than the third language; kept so callers need not change. */
+export type Bilingual = { en: Outgoing; el: Outgoing; ru: Outgoing };
+export type Trilingual = Bilingual;
+
+/** The Intl locale for one of ours, English for anything unexpected. */
+function intl(lang: Locale) {
+  return INTL_LOCALE[lang] ?? "en-GB";
+}
 
 /**
- * One of the two, for the channels that can only carry one.
+ * "29 августа", with the month in the genitive.
+ *
+ * Day and month are asked for in one Intl call on purpose. Russian ICU gives a
+ * month on its own in the nominative ("август"), which is the month's name and
+ * not how a date is said; only with a day beside it does it decline it.
+ */
+function ruDayMonth(d: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: STUDIO.timezone,
+    day: "numeric",
+    month: "long",
+  }).format(d);
+}
+
+/**
+ * "каждый понедельник" / "каждую среду" / "каждое воскресенье".
+ *
+ * Russian "every" agrees with the weekday's gender and takes the accusative,
+ * which Intl does not produce, so the seven phrases are written out and the
+ * weekday is read in English only to pick one.
+ */
+const RU_EVERY: Record<string, string> = {
+  Mon: "каждый понедельник",
+  Tue: "каждый вторник",
+  Wed: "каждую среду",
+  Thu: "каждый четверг",
+  Fri: "каждую пятницу",
+  Sat: "каждую субботу",
+  Sun: "каждое воскресенье",
+};
+function ruEvery(d: Date) {
+  const key = new Intl.DateTimeFormat("en-GB", {
+    timeZone: STUDIO.timezone,
+    weekday: "short",
+  }).format(d);
+  return RU_EVERY[key] ?? `каждую неделю`;
+}
+
+/**
+ * One of the three, for the channels that can only carry one.
  *
  * Push and SMS have room for a single language, and for a long time that
  * language was English for everybody. A member who had used the switch at the
@@ -38,20 +90,28 @@ export type Bilingual = { en: Outgoing; el: Outgoing };
  * language it speaks to them in.
  *
  * The argument takes the raw column rather than a `Locale`, so every caller can
- * pass `user.locale` straight from a query without a cast or a check. Anything
- * that is not exactly "el" means English, which covers null, an old row, and a
- * value somebody typed by hand — the safe direction, because English is the
- * language the studio itself is administered in.
+ * pass `user.locale` straight from a query without a cast or a check. Exactly
+ * "el" is Greek and exactly "ru" is Russian; anything else means English, which
+ * covers null, an old row, and a value somebody typed by hand — the safe
+ * direction, because English is the language the studio itself is administered
+ * in.
  */
 export function say(m: Bilingual, locale?: string | null): Outgoing {
-  return locale === "el" ? m.el : m.en;
+  if (locale === "el") return m.el;
+  if (locale === "ru") return m.ru;
+  return m.en;
 }
 
 /* ------------------------------------------------------------------ the dates */
 
-/** "Saturday 29 August at 18:00" / "Σάββατο 29 Αυγούστου στις 18:00". */
-export function whenWords(d: Date, lang: "en" | "el" = "en") {
-  const locale = lang === "el" ? "el-GR" : "en-GB";
+/**
+ * "Saturday 29 August at 18:00" / "Σάββατο 29 Αυγούστου στις 18:00" /
+ * "суббота, 29 августа в 18:00".
+ */
+export function whenWords(d: Date, lang: Locale = "en") {
+  const locale = intl(lang);
+  /* Weekday, day and month in one call, which is also what puts a Russian
+     month in the genitive. */
   const day = new Intl.DateTimeFormat(locale, {
     timeZone: STUDIO.timezone,
     weekday: "long",
@@ -64,12 +124,24 @@ export function whenWords(d: Date, lang: "en" | "el" = "en") {
     minute: "2-digit",
     hour12: false,
   }).format(d);
-  return lang === "el" ? `${day} στις ${time}` : `${day} at ${time}`;
+  if (lang === "el") return `${day} στις ${time}`;
+  if (lang === "ru") return `${day} в ${time}`;
+  return `${day} at ${time}`;
 }
 
-/** "25 November 2026" / "25 Νοεμβρίου 2026". */
-export function dateWords(d: Date, lang: "en" | "el" = "en") {
-  return new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+/** "25 November 2026" / "25 Νοεμβρίου 2026" / "25 ноября 2026". */
+export function dateWords(d: Date, lang: Locale = "en") {
+  /* Russian is built from day+month and the year rather than asked for whole,
+     because ICU ends a Russian date with "г." — and every sentence here ends
+     the date with a full stop, which would make it "2026 г..". */
+  if (lang === "ru") {
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: STUDIO.timezone,
+      year: "numeric",
+    }).format(d);
+    return `${ruDayMonth(d)} ${year}`;
+  }
+  return new Intl.DateTimeFormat(intl(lang), {
     timeZone: STUDIO.timezone,
     day: "numeric",
     month: "long",
@@ -87,10 +159,11 @@ export function dateWords(d: Date, lang: "en" | "el" = "en") {
  * "every {weekday}" in both languages rather than a plural weekday, because
  * Greek inflects the noun and "Δευτέρες" is not a word anybody writes. "κάθε
  * Δευτέρα" is, and it is what the day itself is called, so nothing has to be
- * pluralised.
+ * pluralised. Russian says "каждый понедельник" / "каждую среду", which agrees
+ * with the day — see `ruEvery`.
  */
-export function slotWords(d: Date, lang: "en" | "el" = "en") {
-  const locale = lang === "el" ? "el-GR" : "en-GB";
+export function slotWords(d: Date, lang: Locale = "en") {
+  const locale = intl(lang);
   const day = new Intl.DateTimeFormat(locale, {
     timeZone: STUDIO.timezone,
     weekday: "long",
@@ -101,9 +174,9 @@ export function slotWords(d: Date, lang: "en" | "el" = "en") {
     minute: "2-digit",
     hour12: false,
   }).format(d);
-  return lang === "el"
-    ? `κάθε ${day} στις ${time}`
-    : `every ${day} at ${time}`;
+  if (lang === "el") return `κάθε ${day} στις ${time}`;
+  if (lang === "ru") return `${ruEvery(d)} в ${time}`;
+  return `every ${day} at ${time}`;
 }
 
 /**
@@ -117,8 +190,8 @@ export function slotWords(d: Date, lang: "en" | "el" = "en") {
  * twelve-month run starting in December ends in the year after, and "8 December
  * to 2 March" hides the one fact that makes the span surprising.
  */
-export function rangeWords(from: Date, to: Date, lang: "en" | "el" = "en") {
-  const locale = lang === "el" ? "el-GR" : "en-GB";
+export function rangeWords(from: Date, to: Date, lang: Locale = "en") {
+  const locale = intl(lang);
   const year = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: STUDIO.timezone,
@@ -134,23 +207,43 @@ export function rangeWords(from: Date, to: Date, lang: "en" | "el" = "en") {
   const sameYear = year(from) === year(to);
   const left = sameYear ? short(from) : dateWords(from, lang);
   const right = dateWords(to, lang);
-  return lang === "el" ? `${left} έως ${right}` : `${left} to ${right}`;
+  if (lang === "el") return `${left} έως ${right}`;
+  if (lang === "ru") return `с ${left} по ${right}`;
+  return `${left} to ${right}`;
 }
 
-/** "1 class" / "12 classes", and the Greek, which inflects the noun. */
-export function classWords(n: number, lang: "en" | "el" = "en") {
+/** "1 class" / "12 classes", and the Greek and Russian, which inflect the noun. */
+export function classWords(n: number, lang: Locale = "en") {
   if (lang === "el") return n === 1 ? "1 μάθημα" : `${n} μαθήματα`;
+  if (lang === "ru") return `${n} ${ruPlural(n, "занятие", "занятия", "занятий")}`;
   return n === 1 ? "1 class" : `${n} classes`;
 }
 
 /** "1 week" / "4 weeks", same reason. */
-export function weekWords(n: number, lang: "en" | "el" = "en") {
+export function weekWords(n: number, lang: Locale = "en") {
   if (lang === "el") return n === 1 ? "1 εβδομάδα" : `${n} εβδομάδες`;
+  if (lang === "ru") return `${n} ${ruPlural(n, "неделя", "недели", "недель")}`;
   return n === 1 ? "1 week" : `${n} weeks`;
 }
 
-/** Minutes, said the way a person would say them. */
-export function leadWords(minutes: number, lang: "en" | "el" = "en") {
+/**
+ * Minutes, said the way a person would say them.
+ *
+ * The Russian is in the accusative ("1 минуту", "2 часа") because the only
+ * sentence it goes into says "через …".
+ */
+export function leadWords(minutes: number, lang: Locale = "en") {
+  if (lang === "ru") {
+    if (minutes <= 0) return "сейчас";
+    if (minutes < 60) {
+      return `${minutes} ${ruPlural(minutes, "минуту", "минуты", "минут")}`;
+    }
+    const hours = minutes / 60;
+    if (Number.isInteger(hours)) {
+      return `${hours} ${ruPlural(hours, "час", "часа", "часов")}`;
+    }
+    return `${Math.floor(hours)} ч ${minutes % 60} мин`;
+  }
   const el = lang === "el";
   if (minutes <= 0) return el ? "τώρα" : "now";
   if (minutes < 60) return el ? `${minutes} λεπτά` : `${minutes} minutes`;
@@ -164,15 +257,16 @@ export function leadWords(minutes: number, lang: "en" | "el" = "en") {
   return el ? `${whole}ω ${rest}λ` : `${whole}h ${rest}m`;
 }
 
-/** "1 session" / "10 sessions", and the Greek, which inflects the noun. */
-export function sessionWords(n: number, lang: "en" | "el" = "en") {
+/** "1 session" / "10 sessions", and the Greek and Russian, which inflect the noun. */
+export function sessionWords(n: number, lang: Locale = "en") {
   if (lang === "el") return n === 1 ? "1 συνεδρία" : `${n} συνεδρίες`;
+  if (lang === "ru") return `${n} ${ruPlural(n, "занятие", "занятия", "занятий")}`;
   return n === 1 ? "1 session" : `${n} sessions`;
 }
 
 /** Money, with the decimals dropped when there are none to show. */
-export function moneyWords(cents: number, currency: string, lang: "en" | "el" = "en") {
-  return new Intl.NumberFormat(lang === "el" ? "el-GR" : "en-GB", {
+export function moneyWords(cents: number, currency: string, lang: Locale = "en") {
+  return new Intl.NumberFormat(intl(lang), {
     style: "currency",
     currency: currency || "EUR",
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
@@ -195,6 +289,11 @@ export function bookedWords(a: {
     el: {
       subject: "Η κράτηση επιβεβαιώθηκε",
       body: `${a.classEl}, ${whenWords(a.startsAt, "el")}. Σας περιμένουμε στο στούντιο.`,
+      url: "/account?tab=notifications",
+    },
+    ru: {
+      subject: "Вы записаны",
+      body: `${ruText(a.classEn)}, ${whenWords(a.startsAt, "ru")}. Ждём вас в студии.`,
       url: "/account?tab=notifications",
     },
   };
@@ -270,8 +369,8 @@ export function repeatBookedWords(a: {
    * "6 October, 13 October and 20 October". Only ever up to three, because
    * four is a paragraph and twenty is a wall.
    */
-  function dateList(lang: "en" | "el") {
-    const locale = lang === "el" ? "el-GR" : "en-GB";
+  function dateList(lang: Locale) {
+    const locale = intl(lang);
     const parts = a.failed.slice(0, 3).map((f) =>
       new Intl.DateTimeFormat(locale, {
         timeZone: STUDIO.timezone,
@@ -282,10 +381,37 @@ export function repeatBookedWords(a: {
     if (parts.length === 1) return parts[0];
     const last = parts[parts.length - 1];
     const rest = parts.slice(0, -1).join(", ");
-    return lang === "el" ? `${rest} και ${last}` : `${rest} and ${last}`;
+    if (lang === "el") return `${rest} και ${last}`;
+    if (lang === "ru") return `${rest} и ${last}`;
+    return `${rest} and ${last}`;
   }
 
-  function why(lang: "en" | "el") {
+  /* Russian says "на 3 недели записаться не удалось", which puts the weeks in
+     the accusative — so it has its own sentences rather than weekWords. */
+  function whyRu() {
+    const k = a.failed.length;
+    if (!k) return "";
+    const lead = ` На ${k} ${ruPlural(k, "неделю", "недели", "недель")} записаться не удалось`;
+    if (only === "SESSIONS_EXPIRE_FIRST" && until) {
+      const d = dateWords(new Date(until), "ru");
+      return `${lead}: срок действия ваших занятий истекает ${d}. Пополните баланс — и эти недели снова будут доступны.`;
+    }
+    if (only === "CLASS_FULL") return `${lead}: на эти занятия уже нет мест.`;
+    if (only === "NO_CREDITS" || only === "CREDITS_NOT_VALID_HERE") {
+      return `${lead}: на балансе нет занятий, которыми их можно оплатить. Пополните баланс и запишитесь на эти недели.`;
+    }
+    if (only === "TOO_LATE" || only === "SESSION_CANCELLED") {
+      return `${lead}: запись на них уже закрыта.`;
+    }
+    if (only === "ONE_PER_DAY") {
+      return `${lead}: ваш пакет позволяет одно занятие в день.`;
+    }
+    if (k <= 3) return `${lead}: ${dateList("ru")}.`;
+    return `${lead}. Что свободно в эти даты, смотрите в расписании.`;
+  }
+
+  function why(lang: Locale) {
+    if (lang === "ru") return whyRu();
     const k = a.failed.length;
     if (!k) return "";
     const weeks = weekWords(k, lang);
@@ -332,18 +458,22 @@ export function repeatBookedWords(a: {
       : ` ${weeks} could not be booked. The timetable shows what is open on those dates.`;
   }
 
-  function had(lang: "en" | "el") {
+  function had(lang: Locale) {
     if (!a.alreadyHad) return "";
-    return lang === "el"
-      ? ` ${weekWords(a.alreadyHad, "el")} τις είχατε ήδη.`
-      : ` ${weekWords(a.alreadyHad)} you already had.`;
+    const n = a.alreadyHad;
+    if (lang === "el") return ` ${weekWords(n, "el")} τις είχατε ήδη.`;
+    if (lang === "ru") {
+      return ` На ${n} ${ruPlural(n, "неделю", "недели", "недель")} вы уже были записаны.`;
+    }
+    return ` ${weekWords(n)} you already had.`;
   }
 
   /* A run that landed a single week is described as the one class it is. "1
      classes, 8 September to 8 September" is what the general form would say,
      and it happens whenever eleven of twelve weeks are full. */
-  function when(lang: "en" | "el") {
-    const cls = lang === "el" ? a.classEl : a.classEn;
+  function when(lang: Locale) {
+    const cls =
+      lang === "el" ? a.classEl : lang === "ru" ? ruText(a.classEn) : a.classEn;
     if (a.booked === 1) return `${cls}, ${whenWords(a.firstStartsAt, lang)}.`;
     return `${cls}, ${slotWords(a.firstStartsAt, lang)}. ${classWords(
       a.booked,
@@ -366,6 +496,13 @@ export function repeatBookedWords(a: {
         ? `Κρατήθηκαν ${a.booked} από ${asked} μαθήματα`
         : `Κρατήθηκαν ${classWords(a.booked, "el")}`,
       body: `${when("el")}${why("el")}${had("el")}`,
+      url: "/account?tab=classes",
+    },
+    ru: {
+      subject: short
+        ? `Вы записаны на ${a.booked} из ${asked} ${ruPlural(asked, "занятия", "занятий", "занятий")}`
+        : `Вы записаны на ${classWords(a.booked, "ru")}`,
+      body: `${when("ru")}${why("ru")}${had("ru")}`,
       url: "/account?tab=classes",
     },
   };
@@ -397,9 +534,9 @@ export function tomorrowWords(a: {
   /** Every class they have booked tomorrow, earliest first. */
   classes: { startsAt: Date; classEn: string; classEl: string }[];
 }): Bilingual {
-  const times = (lang: "en" | "el") =>
+  const times = (lang: Locale) =>
     a.classes.map((c) =>
-      new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+      new Intl.DateTimeFormat(intl(lang), {
         timeZone: STUDIO.timezone,
         hour: "2-digit",
         minute: "2-digit",
@@ -410,11 +547,11 @@ export function tomorrowWords(a: {
   /* "09:00 and 18:00", joined the way the reader's own language joins a list.
      Falls back to commas where Intl.ListFormat is missing, which is only very
      old runtimes but is one line to survive. */
-  const joined = (lang: "en" | "el") => {
+  const joined = (lang: Locale) => {
     const parts = times(lang);
     if (parts.length === 1) return parts[0];
     try {
-      return new Intl.ListFormat(lang === "el" ? "el" : "en-GB", {
+      return new Intl.ListFormat(lang === "en" ? "en-GB" : lang, {
         style: "long",
         type: "conjunction",
       }).format(parts);
@@ -439,6 +576,11 @@ export function tomorrowWords(a: {
     el: {
       subject: many ? "Τα μαθήματά σου αύριο" : "Το μάθημά σου αύριο",
       body: `${nameEl}, αύριο στις ${joined("el")}. Σας περιμένουμε στο στούντιο.`,
+      url: "/account?tab=classes",
+    },
+    ru: {
+      subject: many ? "Ваши занятия завтра" : "Ваше занятие завтра",
+      body: `${ruText(nameEn)}, завтра в ${joined("ru")}. Ждём вас в студии.`,
       url: "/account?tab=classes",
     },
   };
@@ -467,6 +609,15 @@ export function cancelledWords(a: {
         (a.refunded
           ? "Η συνεδρία επέστρεψε στο υπόλοιπό σας."
           : "Η ακύρωση έγινε εντός 12 ωρών, γι' αυτό η συνεδρία χρησιμοποιήθηκε."),
+      url: "/account?tab=notifications",
+    },
+    ru: {
+      subject: "Запись отменена",
+      body:
+        `Запись на ${ruText(a.classEn)} (${whenWords(a.startsAt, "ru")}) отменена. ` +
+        (a.refunded
+          ? "Занятие вернулось на ваш баланс."
+          : "Отмена менее чем за 12 часов до начала, поэтому занятие списано."),
       url: "/account?tab=notifications",
     },
   };
@@ -533,6 +684,11 @@ export function purchasedWords(a: {
   const invoiceEl = a.hasInvoice
     ? " Το τιμολόγιό σας είναι συνημμένο."
     : "";
+  const startRu = later ? ` Ваш пакет начнёт действовать ${dateWords(later, "ru")}.` : "";
+  const expiryRu = a.expiresAt
+    ? ` Срок действия занятий истекает ${dateWords(a.expiresAt, "ru")}.`
+    : "";
+  const invoiceRu = a.hasInvoice ? " Счёт с НДС приложен к письму." : "";
 
   return {
     en: {
@@ -547,6 +703,13 @@ export function purchasedWords(a: {
       body:
         `${sessionWords(a.credits, "el")} προστέθηκαν στο υπόλοιπό σας για ` +
         `${moneyWords(a.amountCents, a.currency, "el")}.${startEl}${expiryEl}${invoiceEl}`,
+      url: "/account?tab=payments",
+    },
+    ru: {
+      subject: "Оплата получена",
+      body:
+        `На ваш баланс зачислено ${sessionWords(a.credits, "ru")} за ` +
+        `${moneyWords(a.amountCents, a.currency, "ru")}.${startRu}${expiryRu}${invoiceRu}`,
       url: "/account?tab=payments",
     },
   };
@@ -565,6 +728,14 @@ export function reminderWords(a: {
     el: {
       subject: "Το μάθημά σας πλησιάζει",
       body: `Το μάθημά σας ξεκινά σε ${leadWords(a.minutes, "el")}, ${whenWords(a.startsAt, "el")}.`,
+      url: "/account",
+    },
+    ru: {
+      subject: "Скоро ваше занятие",
+      body:
+        a.minutes <= 0
+          ? `Ваше занятие начинается сейчас — ${whenWords(a.startsAt, "ru")}.`
+          : `Ваше занятие начнётся через ${leadWords(a.minutes, "ru")} — ${whenWords(a.startsAt, "ru")}.`,
       url: "/account",
     },
   };
@@ -636,6 +807,19 @@ export function promoWords(a: {
         `${dayEl(expires)}, γι' αυτό κλείστε θέση πριν από τότε.`,
       url: "/timetable",
     },
+    ru: {
+      subject: one
+        ? "Бесплатное занятие в подарок"
+        : `${a.credits} ${ruPlural(a.credits, "бесплатное занятие", "бесплатных занятия", "бесплатных занятий")} в подарок`,
+      body:
+        `Добро пожаловать в APEX pilates. ${sessionWords(a.credits, "ru")} ` +
+        `уже на вашем балансе — в подарок от студии.\n\n` +
+        `${one ? "Его" : "Их"} можно использовать для записи на любое занятие ` +
+        `с ${ruDayMonth(a.from)} по ${ruDayMonth(a.to)}. ` +
+        `${one ? "Срок его действия" : "Срок их действия"} истекает ` +
+        `${ruDayMonth(expires)}, поэтому, пожалуйста, запишитесь до этой даты.`,
+      url: "/timetable",
+    },
   };
 }
 
@@ -681,6 +865,22 @@ export function welcomeWords(a: { credits: number; expiresAt: Date }): Bilingual
         `έως τις ${dayEl}. Κλείστε θέση από το πρόγραμμα όποτε είστε έτοιμοι.`,
       url: "/timetable",
     },
+    ru: {
+      subject: one
+        ? "Ваше приветственное занятие готово"
+        : `Приветственные занятия готовы: ${a.credits}`,
+      body:
+        `Добро пожаловать в APEX pilates. ${
+          one
+            ? "Бесплатное приветственное занятие"
+            : `${a.credits} ${ruPlural(a.credits, "бесплатное приветственное занятие", "бесплатных приветственных занятия", "бесплатных приветственных занятий")}`
+        } ` +
+        `уже на вашем балансе — в подарок от студии.\n\n` +
+        `${one ? "Его" : "Их"} можно использовать на любое групповое занятие до ` +
+        `${ruDayMonth(a.expiresAt)} включительно. Записывайтесь через расписание, ` +
+        `когда будете готовы.`,
+      url: "/timetable",
+    },
   };
 }
 
@@ -710,6 +910,15 @@ export function grantedWords(a: { credits: number }): Bilingual {
       body:
         `Το στούντιο πρόσθεσε ${sessionWords(a.credits, "el")} στον λογαριασμό σου. ` +
         `${one ? "Είναι έτοιμη" : "Είναι έτοιμες"} για χρήση, οπότε κλείσε όποιο μάθημα θέλεις από το πρόγραμμά σου.`,
+      url: "/timetable",
+    },
+    ru: {
+      subject: one
+        ? "На ваш аккаунт добавлено занятие"
+        : `На ваш аккаунт добавлено занятий: ${a.credits}`,
+      body:
+        `Студия добавила на ваш аккаунт ${sessionWords(a.credits, "ru")}. ` +
+        `${one ? "Оно готово" : "Они готовы"} к использованию — записывайтесь на любое занятие в расписании.`,
       url: "/timetable",
     },
   };
@@ -744,6 +953,13 @@ export function studioGrantedWords(a: {
       body: [
         `${a.memberName} — ${contact}`,
         `${sessionWords(a.credits, "el")} δωρεάν${a.staffName ? `, από ${a.staffName}` : ""}`,
+      ].join("\n"),
+    },
+    ru: {
+      subject: `Бесплатные занятия: ${a.memberName}`,
+      body: [
+        `${a.memberName} — ${contact}`,
+        `${sessionWords(a.credits, "ru")} начислено бесплатно${a.staffName ? `, сотрудник: ${a.staffName}` : ""}`,
       ].join("\n"),
     },
   };
@@ -801,6 +1017,15 @@ export function verifySentWords(a: { minutes: number }): Bilingual {
         `όποτε θέλεις.`,
       url: "/verify",
     },
+    ru: {
+      subject: "Подтвердите адрес электронной почты",
+      body:
+        `Код подтверждения уже отправлен вам по электронной почте. Введите его ` +
+        `на сайте, чтобы завершить регистрацию.\n\nКод действует ${a.minutes} ` +
+        `${ruPlural(a.minutes, "минуту", "минуты", "минут")}, а новый можно ` +
+        `запросить в любой момент.`,
+      url: "/verify",
+    },
   };
 }
 
@@ -836,6 +1061,17 @@ export function resetWords(a: { link: string; minutes: number }): Bilingual {
         `Αν δεν ήσασταν εσείς, αγνοήστε αυτό το email. Ο κωδικός σας μένει ` +
         `ακριβώς όπως είναι και δεν αλλάζει τίποτε.`,
     },
+    ru: {
+      subject: "Сброс пароля APEX pilates",
+      body:
+        `Кто-то запросил сброс пароля для аккаунта APEX pilates, привязанного ` +
+        `к этому адресу электронной почты. Если это были вы, откройте ссылку, ` +
+        `чтобы задать новый пароль:\n\n${a.link}\n\n` +
+        `Ссылка действует ${a.minutes} ${ruPlural(a.minutes, "минуту", "минуты", "минут")} ` +
+        `и срабатывает только один раз.\n\n` +
+        `Если это были не вы, просто проигнорируйте это письмо. Ваш пароль ` +
+        `останется прежним, и ничего не изменится.`,
+    },
   };
 }
 
@@ -865,6 +1101,19 @@ export function verifyWords(a: { code: string; minutes: number }): Bilingual {
         `Αν δεν ήσασταν εσείς, αγνοήστε αυτό το email. Ο λογαριασμός δεν ` +
         `μπορεί να χρησιμοποιηθεί χωρίς τον κωδικό, οπότε δεν θα συμβεί τίποτε ` +
         `άλλο.`,
+      url: "/verify",
+    },
+    ru: {
+      subject: `${a.code} — ваш код APEX pilates`,
+      body:
+        `Только что на этот адрес электронной почты был создан аккаунт ` +
+        `APEX pilates. Надеемся, это были вы.\n\n` +
+        `Ваш код подтверждения: ${a.code}\n\n` +
+        `Введите его на сайте, чтобы завершить регистрацию. Код действует ` +
+        `${a.minutes} ${ruPlural(a.minutes, "минуту", "минуты", "минут")}, а новый ` +
+        `можно запросить в любой момент.\n\n` +
+        `Если это были не вы, проигнорируйте это письмо. Аккаунтом нельзя ` +
+        `пользоваться, пока не введён код, так что больше ничего не произойдёт.`,
       url: "/verify",
     },
   };
@@ -923,6 +1172,20 @@ export function personalBookedWords(a: {
         `πρόγραμμα για εσάς, οπότε η συνεδρία μετράει ως χρησιμοποιημένη.`,
       url: "/account",
     },
+    ru: {
+      subject: two
+        ? "Вы записаны на дуэт"
+        : "Вы записаны на персональное занятие",
+      body:
+        (two
+          ? `Студия ждёт вас и ${a.guestName}: ${whenWords(a.startsAt, "ru")}.`
+          : `Студия в вашем распоряжении: ${whenWords(a.startsAt, "ru")}.`) +
+        `\n\nВесь этот час с вами будет инструктор.\n\n` +
+        `Если планы изменятся, бесплатная отмена возможна до конца предыдущего ` +
+        `дня. После этого инструктор уже включён в график ради вас, поэтому ` +
+        `занятие будет считаться использованным.`,
+      url: "/account",
+    },
   };
 }
 
@@ -967,6 +1230,8 @@ export function studioPaidWords(a: {
   /** "Cash", "Card at the desk", "Card online" — the till, in words. */
   methodEn: string;
   methodEl: string;
+  /** Russian for the till; `ruText` of the English when not given. */
+  methodRu?: string;
   credits: number;
   amountCents: number;
   currency: string;
@@ -1003,6 +1268,16 @@ export function studioPaidWords(a: {
     a.reference ? `Αναφορά: ${a.reference}` : "",
   ].filter(Boolean);
 
+  const paidRu = moneyWords(a.amountCents, a.currency, "ru");
+  const linesRu = [
+    `${a.memberName} — ${contact}`,
+    `${sessionWords(a.credits, "ru")} за ${paidRu}`,
+    `Способ оплаты: ${a.methodRu ?? ruText(a.methodEn)}${a.staffName ? `, сотрудник: ${a.staffName}` : ""}`,
+    `Баланс сейчас: ${sessionWords(a.balance, "ru")}`,
+    a.invoiceNo ? `Счёт: ${a.invoiceNo}` : "",
+    a.reference ? `Номер операции: ${a.reference}` : "",
+  ].filter(Boolean);
+
   return {
     en: {
       /* The amount and the name in the subject, so the mailbox is readable
@@ -1014,6 +1289,10 @@ export function studioPaidWords(a: {
     el: {
       subject: `Πληρωμή: ${paidEl} από ${a.memberName}`,
       body: linesEl.join("\n"),
+    },
+    ru: {
+      subject: `Оплата получена: ${paidRu}, ${a.memberName}`,
+      body: linesRu.join("\n"),
     },
   };
 }
@@ -1032,6 +1311,10 @@ export function studioAppointmentWords(a: {
   const whoEl = two ? `${a.memberName} και ${a.guestName}` : a.memberName;
   const kindEn = two ? "Duet, two people" : "Personal, one person";
   const kindEl = two ? "Δυάδα, δύο άτομα" : "Ατομική, ένα άτομο";
+  /* Russian names the people after a colon rather than as the subject of a
+     verb, which would have to agree with a gender the site does not know. */
+  const whoRu = two ? `${a.memberName} и ${a.guestName}` : a.memberName;
+  const kindRu = two ? "Дуэт, два человека" : "Персональное, один человек";
   const contact = [a.memberEmail, a.memberPhone].filter(Boolean).join(", ");
 
   if (a.cancelled) {
@@ -1052,6 +1335,15 @@ export function studioAppointmentWords(a: {
           `Η ώρα είναι ξανά ελεύθερη. Αν έχει ήδη ζητηθεί από εκπαιδευτή να ` +
           `έρθει, πρέπει να ενημερωθεί.`,
       },
+      ru: {
+        subject: `Отмена: ${whenWords(a.startsAt, "ru")}`,
+        body:
+          `Персональное занятие (${whenWords(a.startsAt, "ru")}) отменено. ` +
+          `Клиент: ${whoRu}.\n\n` +
+          `${kindRu}. ${contact}\n\n` +
+          `Этот час снова свободен. Если инструктора уже попросили прийти, ` +
+          `его нужно предупредить.`,
+      },
     };
   }
 
@@ -1071,6 +1363,14 @@ export function studioAppointmentWords(a: {
         `${kindEl}. ${contact}\n\n` +
         `Χρειάζεται εκπαιδευτής για αυτή την ώρα. Πέφτει στο μεσημεριανό κενό, ` +
         `οπότε δεν είναι ακόμη κανείς στο πρόγραμμα.`,
+    },
+    ru: {
+      subject: `Новое занятие: ${whenWords(a.startsAt, "ru")}`,
+      body:
+        `Студия забронирована: ${whenWords(a.startsAt, "ru")}. Клиент: ${whoRu}.\n\n` +
+        `${kindRu}. ${contact}\n\n` +
+        `На этот час нужен инструктор. Он приходится на дневной перерыв, ` +
+        `поэтому в графике на это время пока никого нет.`,
     },
   };
 }
@@ -1100,6 +1400,12 @@ export function studioNewMemberWords(a: {
       subject: `Νέο μέλος: ${a.memberName}`,
       body:
         `${a.memberName} μόλις δημιούργησε λογαριασμό και επιβεβαίωσε το email του.\n` +
+        `${contact}`,
+    },
+    ru: {
+      subject: `Новый клиент: ${a.memberName}`,
+      body:
+        `Только что создан аккаунт и подтверждена электронная почта: ${a.memberName}.\n` +
         `${contact}`,
     },
   };
@@ -1135,6 +1441,13 @@ export function contactStudioWords(a: {
         `${reach}\n\n` +
         `${a.message}`,
     },
+    ru: {
+      subject: `Новое обращение: ${a.name}`,
+      body:
+        `Сообщение через форму на сайте. Отправитель: ${a.name}.\n` +
+        `${reach}\n\n` +
+        `${a.message}`,
+    },
   };
 }
 
@@ -1162,6 +1475,13 @@ export function contactAckWords(a: { name: string }): Bilingual {
         `Ευχαριστούμε που επικοινωνήσατε με το APEX pilates, ${a.name}.\n\n` +
         `Λάβαμε το μήνυμά σας. Το στούντιο θα το εξετάσει και θα σας απαντήσει ` +
         `το συντομότερο δυνατό, συνήθως εντός 24 έως 48 ωρών.`,
+    },
+    ru: {
+      subject: "Мы получили ваше сообщение",
+      body:
+        `Спасибо, что написали в APEX pilates, ${a.name}.\n\n` +
+        `Мы получили ваше сообщение. Студия рассмотрит его и ответит как можно ` +
+        `скорее — обычно в течение 24–48 часов.`,
     },
   };
 }
@@ -1193,6 +1513,15 @@ export function personalCancelledWords(a: {
         (a.refunded
           ? "Η συνεδρία επέστρεψε στο υπόλοιπό σας."
           : "Η ακύρωση έγινε μετά το τέλος της προηγούμενης μέρας, γι' αυτό η συνεδρία χρησιμοποιήθηκε."),
+      url: "/account?tab=notifications",
+    },
+    ru: {
+      subject: "Занятие отменено",
+      body:
+        `Ваше занятие (${whenWords(a.startsAt, "ru")}) отменено. ` +
+        (a.refunded
+          ? "Занятие вернулось на ваш баланс."
+          : "Отмена сделана после окончания предыдущего дня, поэтому занятие списано."),
       url: "/account?tab=notifications",
     },
   };
@@ -1238,6 +1567,15 @@ export function instructorChangedWords(a: {
         `μένει όπως ήταν.`,
       url: "/account",
     },
+    ru: {
+      subject: "Смена инструктора",
+      body:
+        `${ruText(a.classEn)}, ${whenWords(a.startsAt, "ru")}: вместо ` +
+        `${a.from} занятие проведёт ${a.to}.\n\n` +
+        `Больше ничего не меняется: то же время, тот же зал, и ваша запись ` +
+        `остаётся в силе.`,
+      url: "/account",
+    },
   };
 }
 
@@ -1252,20 +1590,24 @@ export function instructorChangedWords(a: {
 export function classMovedWords(a: {
   classEn: string;
   classEl: string;
+  /** The Russian name, when the caller has a better one than `ruText(classEn)`. */
+  classRu?: string;
   /** Each of this member's bookings that moved, old and new start. */
   moves: { from: Date; to: Date }[];
   /** Set when the whole weekly slot moved, from this day on. */
   weeklyFrom?: Date;
 }): Bilingual {
-  const clock = (d: Date, lang: "en" | "el") =>
-    new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+  const classRu = a.classRu ?? ruText(a.classEn);
+  const clock = (d: Date, lang: Locale) =>
+    new Intl.DateTimeFormat(intl(lang), {
       timeZone: STUDIO.timezone,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     }).format(d);
-  const dayOnly = (d: Date, lang: "en" | "el") =>
-    new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", {
+  /* One Intl call for weekday, day and month, so a Russian month is genitive. */
+  const dayOnly = (d: Date, lang: Locale) =>
+    new Intl.DateTimeFormat(intl(lang), {
       timeZone: STUDIO.timezone,
       weekday: "long",
       day: "numeric",
@@ -1299,6 +1641,15 @@ export function classMovedWords(a: {
           `επιστρέφει.`,
         url: "/account",
       },
+      ru: {
+        subject: "Новое время вашего занятия",
+        body:
+          `${classRu} (${dayOnly(first.to, "ru")}) переносится ` +
+          `с ${clock(first.from, "ru")} на ${clock(first.to, "ru")}.\n\n` +
+          `Ваше место сохранено. Если новое время вам не подходит, запись можно ` +
+          `бесплатно отменить до начала занятия, и оно вернётся на ваш баланс.`,
+        url: "/account",
+      },
     };
   }
 
@@ -1312,6 +1663,9 @@ export function classMovedWords(a: {
   }).format(first.to);
   const datesEn = sorted.map((m) => dayOnly(m.to, "en")).join(", ");
   const datesEl = sorted.map((m) => dayOnly(m.to, "el")).join(", ");
+  /* Semicolons, because a Russian date already has a comma inside it
+     ("понедельник, 8 сентября"), and a comma-joined list of them is unreadable. */
+  const datesRu = sorted.map((m) => dayOnly(m.to, "ru")).join("; ");
   return {
     en: {
       subject: "Your class has a new time",
@@ -1339,6 +1693,18 @@ export function classMovedWords(a: {
         `και η συνεδρία σας επιστρέφει.`,
       url: "/account",
     },
+    ru: {
+      subject: "Новое время вашего занятия",
+      body:
+        `${classRu} ${ruEvery(first.to)} в ${clock(usual.from, "ru")} ` +
+        `с ${dateWords(a.weeklyFrom, "ru")} переносится на ${clock(first.to, "ru")}.\n\n` +
+        (many
+          ? `Ваши записи перенесены вместе с ним — ${classWords(sorted.length, "ru")}: ${datesRu}. Ваши места сохранены.`
+          : `Ваша запись (${datesRu}) перенесена вместе с ним. Ваше место сохранено.`) +
+        `\n\nЕсли новое время вам не подходит, ${many ? "любую из этих записей" : "запись"} ` +
+        `можно бесплатно отменить до начала занятия, и занятие вернётся на ваш баланс.`,
+      url: "/account",
+    },
   };
 }
 
@@ -1354,6 +1720,7 @@ export function classMovedWords(a: {
 export const SIGN_OFF = {
   en: "Best regards,\nAPEX pilates Team",
   el: "Με εκτίμηση,\nΗ ομάδα του APEX pilates",
+  ru: "С уважением,\nкоманда APEX pilates",
 };
 
 /** The rule between the two languages. Rendered as a line, not as characters. */
@@ -1389,6 +1756,10 @@ function alreadySigned(body: string) {
     "με εκτίμηση",
     "φιλικά",
     "ευχαριστούμε",
+    "с уважением",
+    "спасибо",
+    "благодарим",
+    "всего доброго",
   ];
 
   return lines.some((line) => {
@@ -1407,25 +1778,71 @@ function sign(body: string, off: string) {
   return alreadySigned(body) ? body : `${body}\n\n${off}`;
 }
 
-/**
- * One email carrying both languages.
- *
- * English first because the interface defaults to it, then a rule, then the
- * Greek. Each half is signed — unless the writer signed it themselves.
- *
- * The **subject stays in one language**, deliberately. Joining both with a
- * separator was the first attempt and it was wrong: an inbox shows perhaps fifty
- * characters of a subject line, so "Hello Testing - Important · Γεια σας Τεστ -
- * SHMANTIKO" is a line of noise in the list and a mess in the notification on a
- * phone. A subject's job is to be recognised at a glance, and two languages
- * competing for the same forty characters means neither is. Both languages are
- * in the body, where there is room for them.
- */
-export function forEmail(m: Bilingual | Outgoing, el?: Outgoing): Outgoing {
-  const en = "en" in m && "el" in m ? (m as Bilingual).en : (m as Outgoing);
-  const greek = "en" in m && "el" in m ? (m as Bilingual).el : el;
+/** The same words twice, which is no reason for a rule and a second half. */
+function sameAs(a: Outgoing, b: Outgoing) {
+  return a.subject === b.subject && a.body === b.body;
+}
 
-  if (!greek || (greek.subject === en.subject && greek.body === en.body)) {
+/**
+ * One email carrying two languages.
+ *
+ * Which two depends on the reader. A member who reads the site in Russian gets
+ * Russian first, then a rule, then the English — the English stays because a
+ * letter is the copy somebody may forward, and a Russian reader in Cyprus is
+ * the person least likely to want Greek. Everybody else, and the studio's own
+ * mailbox (sent with no locale), gets English first because the interface
+ * defaults to it, then a rule, then the Greek. Each half is signed — unless the
+ * writer signed it themselves.
+ *
+ * The **subject stays in one language**, deliberately: the first half's.
+ * Joining both with a separator was the first attempt and it was wrong: an
+ * inbox shows perhaps fifty characters of a subject line, so "Hello Testing -
+ * Important · Γεια σας Τεστ - SHMANTIKO" is a line of noise in the list and a
+ * mess in the notification on a phone. A subject's job is to be recognised at a
+ * glance, and two languages competing for the same forty characters means
+ * neither is. Both languages are in the body, where there is room for them.
+ *
+ * A plain `Outgoing` is English only, signed. `locale` is the raw
+ * `users.locale` column, like `say`.
+ */
+export function forEmail(m: Bilingual | Outgoing, locale?: string | null): Outgoing {
+  if ("en" in m && "el" in m) {
+    const b = m as Bilingual;
+    return forEmailParts({ en: b.en, el: b.el, ru: b.ru }, locale);
+  }
+  return forEmailParts({ en: m as Outgoing });
+}
+
+/**
+ * The same letter, from parts that may be missing.
+ *
+ * For notices the desk writes by hand, where the Greek is typed or it is not
+ * and the Russian usually is not. A Russian reader gets Russian above English
+ * when there is Russian to give them; otherwise the rule is exactly
+ * `forEmail`'s English-and-Greek one, and a Greek half that is missing or
+ * identical to the English is left out rather than sent empty under a rule.
+ */
+export function forEmailParts(
+  parts: { en: Outgoing; el?: Outgoing; ru?: Outgoing },
+  locale?: string | null,
+): Outgoing {
+  const { en, el: greek, ru } = parts;
+
+  if (locale === "ru" && ru && !sameAs(ru, en)) {
+    return {
+      subject: ru.subject,
+      body: [
+        sign(ru.body, SIGN_OFF.ru),
+        LANGUAGE_RULE,
+        sign(en.body, SIGN_OFF.en),
+      ].join("\n\n"),
+      url: ru.url ?? en.url,
+      /* From the English, for the reason given in the branch below. */
+      attachments: en.attachments,
+    };
+  }
+
+  if (!greek || sameAs(greek, en)) {
     return { ...en, body: sign(en.body, SIGN_OFF.en) };
   }
 

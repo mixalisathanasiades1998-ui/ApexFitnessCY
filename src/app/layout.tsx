@@ -8,6 +8,7 @@ import {
   DEFAULT_LOCALE,
   dictionaries,
   LOCALE_COOKIE,
+  asLocale,
   type Locale,
 } from "@/i18n/dictionaries";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
@@ -96,7 +97,7 @@ export const viewport: Viewport = {
 async function readLocale(): Promise<Locale> {
   const jar = await cookies();
   const v = jar.get(LOCALE_COOKIE)?.value;
-  return v === "el" ? "el" : DEFAULT_LOCALE;
+  return v ? asLocale(v) : DEFAULT_LOCALE;
 }
 
 /**

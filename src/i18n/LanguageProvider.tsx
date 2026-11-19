@@ -9,9 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { STUDIO } from "@/lib/studio";
+import { ruPlural } from "@/lib/ru-catalog";
 import {
   DEFAULT_LOCALE,
   dictionaries,
+  INTL_LOCALE,
   LOCALE_COOKIE,
   type Dictionary,
   type Locale,
@@ -89,7 +91,8 @@ export function LanguageProvider({
      *
      * The switch would work without the cookie: this page turns Greek from
      * React state, not from here. What the cookie buys is the *next* visit
-     * opening in Greek. It holds "en" or "el" and nothing else. See /cookies,
+     * opening in Greek or Russian. It holds "en", "el" or "ru" and nothing
+     * else. See /cookies,
      * which says so in both languages.
      */
     document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
@@ -120,7 +123,7 @@ export function LanguageProvider({
   }, []);
 
   const value = useMemo<Ctx>(() => {
-    const intlLocale = locale === "el" ? "el-GR" : "en-GB";
+    const intlLocale = INTL_LOCALE[locale];
     const tz = STUDIO.timezone;
 
     /**
@@ -141,7 +144,27 @@ export function LanguageProvider({
     const weekdayShort = part({ weekday: "short" });
     const weekdayLong = part({ weekday: "long" });
     const monthShort = part({ month: "short" });
-    const monthLong = part({ month: "long" });
+    /**
+     * The month as it reads *after a day number*.
+     *
+     * Greek and Russian decline it: "19 Νοεμβρίου", "19 ноября", where the
+     * month on its own is "Νοέμβριος", "ноябрь". Asked for alone, Intl gives
+     * the standalone form in Russian everywhere and in Greek in some browsers,
+     * so a date came out "19 ноябрь". Formatting day and month together and
+     * keeping only the month gives the declined form, still from a single
+     * pattern, so Node and the browser agree.
+     */
+    const monthAfterDay = (month: "long" | "short") => {
+      const f = new Intl.DateTimeFormat(intlLocale, {
+        timeZone: tz,
+        day: "numeric",
+        month,
+      });
+      return (d: DateLike) =>
+        f.formatToParts(toDate(d)).find((p) => p.type === "month")?.value ?? "";
+    };
+    const monthShortOfDay = monthAfterDay("short");
+    const monthLongOfDay = monthAfterDay("long");
     const dayNumber = part({ day: "numeric" });
     const year = part({ year: "numeric" });
     const time = part({ hour: "2-digit", minute: "2-digit", hour12: false });
@@ -165,10 +188,11 @@ export function LanguageProvider({
       setLocale,
       fmtTime: (d) => time(d),
       fmtShortDate: (d) =>
-        `${clean(weekdayShort(d))} ${dayNumber(d)} ${clean(monthShort(d))}`,
-      fmtLongDate: (d) => `${weekdayLong(d)} ${dayNumber(d)} ${monthLong(d)}`,
-      fmtDayMonth: (d) => `${dayNumber(d)} ${clean(monthShort(d))}`,
-      fmtFullDate: (d) => `${dayNumber(d)} ${monthLong(d)} ${year(d)}`,
+        `${clean(weekdayShort(d))} ${dayNumber(d)} ${clean(monthShortOfDay(d))}`,
+      fmtLongDate: (d) =>
+        `${weekdayLong(d)} ${dayNumber(d)} ${monthLongOfDay(d)}`,
+      fmtDayMonth: (d) => `${dayNumber(d)} ${clean(monthShortOfDay(d))}`,
+      fmtFullDate: (d) => `${dayNumber(d)} ${monthLongOfDay(d)} ${year(d)}`,
       fmtMonthYear: (d) => `${clean(monthShort(d))} ${year(d)}`,
       fmtMonthShort: (d) => clean(monthShort(d)),
       fmtDayNumber: (d) => dayNumber(d),
@@ -179,10 +203,16 @@ export function LanguageProvider({
          off the thousands separator in "€1,000.00". */
       fmtMoney: (cents) =>
         money.format(cents / 100).replace(/([.,])00(?!\d)/, ""),
+      /* Russian has three forms (1 занятие, 2 занятия, 5 занятий), so it is
+         worked out rather than read as a singular/plural pair. */
       fmtSessions: (n) =>
-        `${n} ${n === 1 ? dictionaries[locale].common.credit : dictionaries[locale].common.credits}`,
+        locale === "ru"
+          ? `${n} ${ruPlural(n, "занятие", "занятия", "занятий")}`
+          : `${n} ${n === 1 ? dictionaries[locale].common.credit : dictionaries[locale].common.credits}`,
       fmtSpots: (n) =>
-        `${n} ${n === 1 ? dictionaries[locale].common.spotLeft : dictionaries[locale].common.spotsLeft}`,
+        locale === "ru"
+          ? `осталось ${n} ${ruPlural(n, "место", "места", "мест")}`
+          : `${n} ${n === 1 ? dictionaries[locale].common.spotLeft : dictionaries[locale].common.spotsLeft}`,
     };
   }, [locale, setLocale]);
 

@@ -6,7 +6,7 @@ import { users } from "@/db/schema";
 import { currentUser } from "@/lib/auth";
 import { getAvailableCredits } from "@/lib/credits";
 import { unreadCount } from "@/lib/notices";
-import { LOCALE_COOKIE } from "@/i18n/dictionaries";
+import { LOCALE_COOKIE, LOCALES } from "@/i18n/dictionaries";
 
 /**
  * The two numbers on the header, and nothing else.
@@ -53,7 +53,7 @@ export async function GET() {
    */
   if (!user.locale) {
     const chose = (await cookies()).get(LOCALE_COOKIE)?.value;
-    if (chose === "el" || chose === "en") {
+    if (chose && (LOCALES as readonly string[]).includes(chose)) {
       db.update(users)
         .set({ locale: chose })
         .where(eq(users.id, user.id))

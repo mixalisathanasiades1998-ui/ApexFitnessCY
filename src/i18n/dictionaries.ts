@@ -1,11 +1,54 @@
+import { ruPart1 } from "./ru-part1";
+import { ruPart2 } from "./ru-part2";
+
 /** Cookie that remembers the visitor's language choice.
  *  Declared here, not in the provider: constants exported from a "use client"
  *  module are client references, and read as undefined on the server. */
 export const LOCALE_COOKIE = "apex_locale";
 
-export const LOCALES = ["en", "el"] as const;
+export const LOCALES = ["en", "el", "ru"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
+
+/**
+ * Any stored or posted value, made into a language the site has.
+ *
+ * Every reader of the cookie, the `users.locale` column and the `?locale=`
+ * parameter goes through this, so adding a language is one line above and not
+ * forty `=== "el"` checks that quietly send the new one to English.
+ */
+export function asLocale(v: unknown): Locale {
+  return (LOCALES as readonly string[]).includes(v as string)
+    ? (v as Locale)
+    : DEFAULT_LOCALE;
+}
+
+/** What the language switch prints for each one: each in its own script. */
+export const LOCALE_LABEL: Record<Locale, string> = {
+  en: "EN",
+  el: "ΕΛ",
+  ru: "RU",
+};
+
+/** The Intl locale that formats dates and money for each one. */
+export const INTL_LOCALE: Record<Locale, string> = {
+  en: "en-GB",
+  el: "el-GR",
+  ru: "ru-RU",
+};
+
+/**
+ * The languages the desk console is written in.
+ *
+ * Russian is a members' language: the public site, the account and every
+ * message a member receives. The console stays English and Greek, so somebody
+ * who reads the site in Russian and then opens /admin gets English there.
+ */
+export const DESK_LOCALES = ["en", "el"] as const;
+export type DeskLocale = (typeof DESK_LOCALES)[number];
+export function deskLocale(l: Locale): DeskLocale {
+  return l === "el" ? "el" : "en";
+}
 
 export const en = {
   meta: {
@@ -77,7 +120,7 @@ export const en = {
       /* Under the two buttons on the cover, where the header's own account chip
          is hidden — see Header.tsx cover mode. */
       memberAsk: "Already a member?",
-      notMemberAsk: "No member yet?",
+      notMemberAsk: "Not a member yet?",
       notMemberJoin: "Create account now!",
       memberSignIn: "Sign in",
       memberAccount: "My account",
@@ -230,7 +273,7 @@ export const en = {
         },
         {
           q: "What is the cancellation policy?",
-          a: "Cancel at least 12 hours before the class starts and your session is returned to your balance instantly. Inside 12 hours, online cancellation is not available and the session is deducted. Personal and Duet appointments close earlier, at the end of the day before, because an instructor has been asked to come in for that slot.\n\nSessions are not refundable in money. Cancelling a class returns the session to your balance to use on another one; it is not a refund, and sessions that expire unused are not refunded or extended. If you decide to stop coming, whatever is left in your balance stays yours until its expiry date and cannot be paid back.",
+          a: "Cancel at least 12 hours before the class starts and your session is returned to your balance instantly. Inside 12 hours you can still cancel online, which frees your place for somebody else, but the session is not returned to your balance. For Personal and Duet appointments the free cancellation ends earlier, at the end of the day before, because an instructor has been asked to come in for that slot.\n\nSessions are not refundable in money. Cancelling a class returns the session to your balance to use on another one; it is not a refund, and sessions that expire unused are not refunded or extended. If you decide to stop coming, whatever is left in your balance stays yours until its expiry date and cannot be paid back.",
         },
       ],
     },
@@ -273,7 +316,7 @@ export const en = {
     room: {
       eyebrow: "In the room",
       title: "What the hour is actually like.",
-      body: "Four things that are true of every class here, whichever hour you book.",
+      body: "Five things that are true of every class here, whichever hour you book.",
     },
     team: {
       eyebrow: "The team",
@@ -728,6 +771,11 @@ export const en = {
     noticeSubject: "Subject",
     noticeBody: "Message",
     noticeGreek: "Greek version, optional",
+    noticeRussian: "Russian version, optional",
+    noticeRussianHelp:
+      "{n} of the members this reaches read the site in Russian. They get this version in their account, by push, and by email above the English. Leave it empty and they get the English, as everyone else.",
+    smsRussianTitle: "Russian text, for the {n} who read in Russian",
+    smsRussianCount: "{chars} characters · {segments} segment(s) each",
     noticeImportant: "Mark as important",
     noticeSend: "Send",
     noticeSendAll: "Send to everyone",
@@ -1285,7 +1333,7 @@ export const en = {
     cancelConfirmTitle: "Cancel this booking?",
     cancelRefund: "Your session will be returned to your balance.",
     cancelTooLate:
-      "Cancellation closed 12 hours before this class, so the booking cannot be cancelled now.",
+      "The free cancellation for this class closed 12 hours before it starts. You can still cancel, but the session will not come back to your balance.",
     /* Past the free window, cancelling is now possible and costs the session.
        The wording the studio asked for, close to word for word: it has to say
        plainly that the session does not come back, and the yes has to sound
@@ -1378,7 +1426,7 @@ export const en = {
     personalTooLate:
       "This hour had to be booked by the end of the day before, so an instructor could be arranged. Pick a later day.",
     personalCancelTooLate:
-      "Cancellation closed at the end of the day before, because an instructor has already been asked to come in for this hour.",
+      "Free cancellation closed at the end of the day before, because an instructor has already been asked to come in for this hour. Cancelling now does not return the session.",
     needsPersonal:
       "This hour needs a Personal or Duet session. The sessions in your balance are for group classes and cannot be used here.",
     needsDuet:
@@ -1785,7 +1833,7 @@ export const el: typeof en = {
         },
         {
           q: "Ποια είναι η πολιτική ακυρώσεων;",
-          a: "Ακύρωσε τουλάχιστον 12 ώρες πριν την έναρξη και η συνεδρία επιστρέφει αμέσως στο υπόλοιπό σου. Εντός 12 ωρών, η ακύρωση από τον ιστότοπο δεν είναι διαθέσιμη και η συνεδρία χρεώνεται. Οι Ατομικές και οι Δυάδες κλείνουν πιο νωρίς, στο τέλος της προηγούμενης μέρας, γιατί έχει ήδη κληθεί εκπαιδευτής για εκείνη την ώρα.\n\nΟι συνεδρίες δεν επιστρέφονται σε χρήμα. Η ακύρωση ενός μαθήματος επιστρέφει τη συνεδρία στο υπόλοιπό σου για να τη χρησιμοποιήσεις σε άλλο· δεν είναι επιστροφή χρημάτων, και οι συνεδρίες που λήγουν αχρησιμοποίητες δεν επιστρέφονται ούτε παρατείνονται. Αν αποφασίσεις να σταματήσεις, ό,τι έχει μείνει στο υπόλοιπό σου παραμένει δικό σου μέχρι την ημερομηνία λήξης και δεν αποδίδεται σε χρήμα.",
+          a: "Ακύρωσε τουλάχιστον 12 ώρες πριν την έναρξη και η συνεδρία επιστρέφει αμέσως στο υπόλοιπό σου. Εντός 12 ωρών μπορείς ακόμη να ακυρώσεις από τον ιστότοπο, ώστε η θέση σου να ελευθερωθεί για κάποιον άλλον, αλλά η συνεδρία δεν επιστρέφεται στο υπόλοιπό σου. Για τις Ατομικές και τις Δυάδες η δωρεάν ακύρωση λήγει νωρίτερα, στο τέλος της προηγούμενης μέρας, γιατί έχει ήδη κληθεί εκπαιδευτής για εκείνη την ώρα.\n\nΟι συνεδρίες δεν επιστρέφονται σε χρήμα. Η ακύρωση ενός μαθήματος επιστρέφει τη συνεδρία στο υπόλοιπό σου για να τη χρησιμοποιήσεις σε άλλο· δεν είναι επιστροφή χρημάτων, και οι συνεδρίες που λήγουν αχρησιμοποίητες δεν επιστρέφονται ούτε παρατείνονται. Αν αποφασίσεις να σταματήσεις, ό,τι έχει μείνει στο υπόλοιπό σου παραμένει δικό σου μέχρι την ημερομηνία λήξης και δεν αποδίδεται σε χρήμα.",
         },
       ],
     },
@@ -1828,7 +1876,7 @@ export const el: typeof en = {
     room: {
       eyebrow: "Μέσα στην αίθουσα",
       title: "Πώς είναι πραγματικά η ώρα.",
-      body: "Τέσσερα πράγματα που ισχύουν σε κάθε μάθημα εδώ, όποια ώρα και να κλείσεις.",
+      body: "Πέντε πράγματα που ισχύουν σε κάθε μάθημα εδώ, όποια ώρα και να κλείσεις.",
     },
     team: {
       eyebrow: "Η ομάδα",
@@ -2251,6 +2299,11 @@ export const el: typeof en = {
     noticeSubject: "Θέμα",
     noticeBody: "Μήνυμα",
     noticeGreek: "Ελληνική εκδοχή, προαιρετικά",
+    noticeRussian: "Ρωσική εκδοχή, προαιρετικά",
+    noticeRussianHelp:
+      "{n} από τα μέλη που αφορά διαβάζουν τη σελίδα στα ρωσικά. Παίρνουν αυτή την εκδοχή στον λογαριασμό τους, με push και με email πάνω από τα αγγλικά. Αν μείνει κενή, παίρνουν τα αγγλικά, όπως όλοι.",
+    smsRussianTitle: "Ρωσικό μήνυμα, για τα {n} μέλη που διαβάζουν στα ρωσικά",
+    smsRussianCount: "{chars} χαρακτήρες · {segments} τμήμα(τα) το καθένα",
     noticeImportant: "Σήμανση ως σημαντικό",
     noticeSend: "Αποστολή",
     noticeSendAll: "Αποστολή σε όλους",
@@ -2783,7 +2836,7 @@ export const el: typeof en = {
     cancelConfirmTitle: "Ακύρωση κράτησης;",
     cancelRefund: "Η συνεδρία θα επιστρέψει στο υπόλοιπό σου.",
     cancelTooLate:
-      "Η ακύρωση έκλεισε 12 ώρες πριν το μάθημα, οπότε η κράτηση δεν μπορεί να ακυρωθεί τώρα.",
+      "Η δωρεάν ακύρωση για αυτό το μάθημα έκλεισε 12 ώρες πριν την έναρξη. Μπορείς ακόμη να ακυρώσεις, αλλά η συνεδρία δεν θα επιστραφεί στο υπόλοιπό σου.",
     cancelForfeitTitle: "Είσαι σίγουρος;",
     cancelForfeitBody:
       "Η συνεδρία δεν θα επιστραφεί. Η ακύρωση τόσο κοντά στο μάθημα δεν τη γυρίζει στο υπόλοιπό σου, αλλά ελευθερώνει τη θέση σου για κάποιον άλλον.",
@@ -2850,7 +2903,7 @@ export const el: typeof en = {
     personalTooLate:
       "Αυτή η ώρα χρειαζόταν κράτηση μέχρι το τέλος της προηγούμενης μέρας, για να ανατεθεί εκπαιδευτής. Διάλεξε μια άλλη μέρα.",
     personalCancelTooLate:
-      "Η ακύρωση έκλεισε στο τέλος της προηγούμενης μέρας, γιατί έχει ήδη ζητηθεί από εκπαιδευτή να έρθει για αυτή την ώρα.",
+      "Η δωρεάν ακύρωση έκλεισε στο τέλος της προηγούμενης μέρας, γιατί έχει ήδη ζητηθεί από εκπαιδευτή να έρθει για αυτή την ώρα. Η ακύρωση τώρα δεν επιστρέφει τη συνεδρία.",
     needsPersonal:
       "Αυτή η ώρα χρειάζεται Ατομική ή συνεδρία Δυάδας. Οι συνεδρίες στο υπόλοιπό σου είναι για ομαδικά μαθήματα και δεν ισχύουν εδώ.",
     needsDuet:
@@ -3045,5 +3098,27 @@ export const el: typeof en = {
   },
 };
 
-export const dictionaries = { en, el };
+/**
+ * Russian: the public site, the account and checkout.
+ *
+ * The desk console is not translated (see DESK_LOCALES above): `desk` and
+ * `admin` are the English ones, with Russian only for the handful of `desk`
+ * words that public screens borrow — the date picker and the personal/duet
+ * labels in a member's bookings.
+ */
+export const ru: typeof en = {
+  ...ruPart1,
+  ...ruPart2,
+  desk: {
+    ...en.desk,
+    pickDay: "Выберите день",
+    monthBefore: "Предыдущий месяц",
+    monthAfter: "Следующий месяц",
+    personal: "Персональное",
+    duet: "Дуэт",
+  },
+  admin: en.admin,
+};
+
+export const dictionaries = { en, el, ru };
 export type Dictionary = typeof en;

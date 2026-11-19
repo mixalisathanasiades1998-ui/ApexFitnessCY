@@ -1,5 +1,6 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -65,7 +66,6 @@ export function PricingGrid({
   const { t, locale, fmtMoney } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
-  const el = locale === "el";
 
   /* The pack card no longer takes the payment. It sends the member to the
      checkout page, which is where the order and the card sit side by side —
@@ -185,7 +185,7 @@ export function PricingGrid({
                         highlight ? "text-cream/60" : "text-clay",
                       )}
                     >
-                      {el ? p.nameEl : p.nameEn}
+                      {pickText(locale, p.nameEn, p.nameEl)}
                     </p>
 
                     {/* When an offer is running the old price stays on the card,
@@ -219,7 +219,7 @@ export function PricingGrid({
                             : "bg-gold/15 text-[#8a6f1a]",
                         )}
                       >
-                        {(el ? p.discountLabelEl : p.discountLabelEn) ||
+                        {pickText(locale, p.discountLabelEn, p.discountLabelEl) ||
                           t.pricingPage.offer}
                       </p>
                     ) : null}

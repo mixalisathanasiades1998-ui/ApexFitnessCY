@@ -348,3 +348,24 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The cover photographs: a slow zoom while each one is on screen. Shorter and
+ gentler than .kenburns, because it restarts with every photograph; see
+ HeroSlides in components/home/Hero.tsx. */
+.hero-drift {
+  animation: hero-drift 7.5s cubic-bezier(0.33, 0, 0.2, 1) both;
+}
+@keyframes hero-drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.1) translate3d(-1%, -1%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-drift {
+    animation: none !important;
+    transform: none !important;
+  }
+}

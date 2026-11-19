@@ -272,7 +272,7 @@ export function Technogym() {
 /* -------------------------------------------------------- timetable preview */
 
 export function TimetablePreview() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   /**
    * The studio's hours, including the three in the middle of the day.
@@ -384,7 +384,12 @@ export function TimetablePreview() {
               ))}
               <div className="mt-7 flex items-center gap-3 border-t border-mocha-200/70 pt-5 text-[10px] uppercase tracking-widest text-clay">
                 <Monogram className="h-6 w-6" />
-                {STUDIO.classLengthMinutes}&thinsp;min · max {STUDIO.capacity}
+                {/* Length and room size, in the reader's own abbreviations. */}
+                {locale === "el"
+                  ? `${STUDIO.classLengthMinutes} λεπ. · έως ${STUDIO.capacity}`
+                  : locale === "ru"
+                    ? `${STUDIO.classLengthMinutes} мин · до ${STUDIO.capacity} чел.`
+                    : `${STUDIO.classLengthMinutes}\u2009min · max ${STUDIO.capacity}`}
               </div>
             </div>
           </Reveal>

@@ -1,5 +1,6 @@
 "use client";
 
+import { pickText } from "@/lib/ru-catalog";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -97,24 +98,34 @@ type Props = {
   pushPublicKey: string;
 };
 
-const REASON: Record<string, { en: string; el: string }> = {
-  PURCHASE: { en: "Pack purchased", el: "Αγορά πακέτου" },
-  BOOKING: { en: "Class booked", el: "Κράτηση μαθήματος" },
-  CANCELLATION_REFUND: { en: "Cancellation refund", el: "Επιστροφή ακύρωσης" },
-  ADMIN_GRANT: { en: "Studio adjustment", el: "Διόρθωση στούντιο" },
+const REASON: Record<string, { en: string; el: string; ru: string }> = {
+  PURCHASE: { en: "Pack purchased", el: "Αγορά πακέτου", ru: "Покупка пакета" },
+  BOOKING: { en: "Class booked", el: "Κράτηση μαθήματος", ru: "Запись на занятие" },
+  CANCELLATION_REFUND: {
+    en: "Cancellation refund",
+    el: "Επιστροφή ακύρωσης",
+    ru: "Возврат за отмену",
+  },
+  ADMIN_GRANT: { en: "Studio adjustment", el: "Διόρθωση στούντιο", ru: "Корректировка студии" },
   /* An expiry extended, or a start day moved, by the studio. No session added
      or taken, so the line shows 0 — but it must still read as words. */
   ADMIN_EXTEND: {
     en: "Pack dates updated by the studio",
     el: "Ενημέρωση ημερομηνιών πακέτου από το στούντιο",
+    ru: "Студия изменила даты пакета",
   },
-  EXPIRY: { en: "Credits expired", el: "Λήξη credits" },
-  WELCOME: { en: "Welcome session", el: "Συνεδρία καλωσορίσματος" },
+  EXPIRY: { en: "Credits expired", el: "Λήξη credits", ru: "Срок занятий истёк" },
+  WELCOME: {
+    en: "Welcome session",
+    el: "Συνεδρία καλωσορίσματος",
+    ru: "Приветственное занятие",
+  },
   /* The welcome session kept for after a newly bought pack: a booking moved
      onto the pack, or its last day moved later. See welcomeFollowsPack. */
   WELCOME_KEPT: {
     en: "Welcome session kept for after your pack",
     el: "Η συνεδρία καλωσορίσματος κρατήθηκε για μετά το πακέτο",
+    ru: "Приветственное занятие сохранено на после пакета",
   },
 };
 
@@ -131,7 +142,6 @@ export function AccountBody(props: Props) {
     fmtSessions,
   } = useI18n();
   const router = useRouter();
-  const el = locale === "el";
 
   const [busy, setBusy] = useState<string | null>(null);
   /* Which sub-section is open. Everything stays on one page and one route:
@@ -702,7 +712,7 @@ export function AccountBody(props: Props) {
                               {b.guestName ? t.desk.duet : t.desk.personal}
                             </span>
                           )}
-                          <span>{el ? b.className.el : b.className.en}</span>
+                          <span>{pickText(locale, b.className.en, b.className.el)}</span>
                         </p>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-clay">
                           <span className="lining-nums tabular-nums text-mocha-500">
@@ -787,7 +797,7 @@ export function AccountBody(props: Props) {
                     className="flex items-center justify-between gap-4 border-b border-mocha-200/60 pb-4 text-sm"
                   >
                     <span className="text-mocha-600">
-                      {el ? b.className.el : b.className.en}
+                      {pickText(locale, b.className.en, b.className.el)}
                       <span className="ml-3 text-[11px] lining-nums tabular-nums text-clay">
                         {fmtDayMonth(b.startsAt)} {fmtTime(b.startsAt)}
                       </span>
@@ -820,9 +830,7 @@ export function AccountBody(props: Props) {
                     className="flex items-center justify-between gap-4 text-sm"
                   >
                     <span className="text-mocha-500">
-                      {el
-                        ? (REASON[l.reason]?.el ?? l.reason)
-                        : (REASON[l.reason]?.en ?? l.reason)}
+                      {REASON[l.reason]?.[locale] ?? l.reason}
                       <span className="ml-3 text-[11px] text-clay">
                         {fmtDayMonth(l.createdAt)}
                       </span>
@@ -871,9 +879,7 @@ export function AccountBody(props: Props) {
                     >
                       <span className="text-mocha-500">
                         {p.packageName
-                          ? el
-                            ? p.packageName.el
-                            : p.packageName.en
+                          ? pickText(locale, p.packageName.en, p.packageName.el)
                           : fmtSessions(p.credits)}
                         <span className="ml-3 text-[11px] text-clay">
                           {fmtDayMonth(p.createdAt)}
@@ -950,7 +956,12 @@ export function AccountBody(props: Props) {
           body={
             <>
               <p>
-                {el ? confirming.className.el : confirming.className.en} ·{" "}
+                {pickText(
+                  locale,
+                  confirming.className.en,
+                  confirming.className.el,
+                )}{" "}
+                ·{" "}
                 {fmtDayMonth(confirming.startsAt)}{" "}
                 {fmtTime(confirming.startsAt)}
               </p>

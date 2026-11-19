@@ -50,12 +50,18 @@ export default function StripeFields({
   onPaid: () => void;
 }) {
   const stripe = useMemo(() => loadStripe(publicKey), [publicKey]);
+  const { locale } = useI18n();
 
   return (
     <Elements
+      /* Stripe's own field labels and errors follow the site's language
+         rather than the browser's. Elements cannot change language once
+         mounted, so a switch mid-checkout mounts it afresh. */
+      key={locale}
       stripe={stripe}
       options={{
         clientSecret,
+        locale,
         appearance: {
           theme: "flat",
           variables: {

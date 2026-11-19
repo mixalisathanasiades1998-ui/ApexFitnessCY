@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { member } from "@/lib/api-guard";
+import { asLocale } from "@/i18n/dictionaries";
 import { noticesFor, unreadCount } from "@/lib/notices";
 
 /**
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   if ("res" in gate) return gate.res;
 
   const url = new URL(req.url);
-  const locale = url.searchParams.get("locale") === "el" ? "el" : "en";
+  const locale = asLocale(url.searchParams.get("locale"));
 
   const asked = url.searchParams.get("filter");
   const filter =

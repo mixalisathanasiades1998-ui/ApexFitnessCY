@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { currentUser } from "@/lib/auth";
+import { LOCALES, type Locale } from "@/i18n/dictionaries";
 
 /**
  * Remember which language a member reads the site in, on the account.
@@ -29,9 +30,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const wanted = (body as { locale?: unknown } | null)?.locale;
-  if (wanted !== "en" && wanted !== "el") {
+  if (!(LOCALES as readonly string[]).includes(wanted as string)) {
     return NextResponse.json({ error: "BAD_LOCALE" }, { status: 400 });
   }
+  const chosen = wanted as Locale;
 
   const user = await currentUser();
   if (!user) return NextResponse.json({ saved: false, locale: wanted });
@@ -39,9 +41,9 @@ export async function POST(req: Request) {
   /* Cheap enough to write every time, but the switch is pressed twice by
      somebody comparing the two languages and this is a disk write on a small
      instance, so an unchanged value is left alone. */
-  if (user.locale !== wanted) {
+  if (user.locale !== chosen) {
     db.update(users)
-      .set({ locale: wanted })
+      .set({ locale: chosen })
       .where(eq(users.id, user.id))
       .run();
   }
