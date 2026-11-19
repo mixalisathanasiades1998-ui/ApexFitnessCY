@@ -772,6 +772,18 @@ export const en = {
     noticeBody: "Message",
     noticeGreek: "Greek version, optional",
     noticeRussian: "Russian version, optional",
+    testTitle: "Test it first",
+    testHelp:
+      "Sends this message by email to the address below only, marked [TEST], exactly as members will get it. Nobody else receives it, nothing is saved, and no push or SMS goes out. If you wrote a Russian version, a second email shows the Russian one.",
+    testEmail: "Email for the test",
+    testSend: "Send test",
+    testSent: "Test sent to {to}. Check the inbox, and the spam folder.",
+    testSentTwo:
+      "Two test emails sent to {to}: English & Greek, and Russian & English. Check the inbox, and the spam folder.",
+    testBadEmail: "That email address does not look right.",
+    testTooMany: "Too many tests in a few minutes. Try again shortly.",
+    testTooShort: "Write a subject and a message first.",
+    testFailed: "The test could not be sent. {detail}",
     noticeRussianHelp:
       "{n} of the members this reaches read the site in Russian. They get this version in their account, by push, and by email above the English. Leave it empty and they get the English, as everyone else.",
     smsRussianTitle: "Russian text, for the {n} who read in Russian",
@@ -2300,6 +2312,18 @@ export const el: typeof en = {
     noticeBody: "Μήνυμα",
     noticeGreek: "Ελληνική εκδοχή, προαιρετικά",
     noticeRussian: "Ρωσική εκδοχή, προαιρετικά",
+    testTitle: "Δοκίμασέ το πρώτα",
+    testHelp:
+      "Στέλνει αυτό το μήνυμα με email μόνο στη διεύθυνση από κάτω, με την ένδειξη [TEST], ακριβώς όπως θα το πάρουν τα μέλη. Δεν το λαμβάνει κανείς άλλος, δεν αποθηκεύεται τίποτα και δεν φεύγει push ή SMS. Αν έγραψες ρωσική εκδοχή, ένα δεύτερο email δείχνει τη ρωσική.",
+    testEmail: "Email για τη δοκιμή",
+    testSend: "Στείλε δοκιμή",
+    testSent: "Η δοκιμή στάλθηκε στο {to}. Έλεγξε τα εισερχόμενα και τα ανεπιθύμητα.",
+    testSentTwo:
+      "Στάλθηκαν δύο δοκιμαστικά email στο {to}: Αγγλικά & Ελληνικά, και Ρωσικά & Αγγλικά. Έλεγξε τα εισερχόμενα και τα ανεπιθύμητα.",
+    testBadEmail: "Αυτή η διεύθυνση email δεν φαίνεται σωστή.",
+    testTooMany: "Πολλές δοκιμές σε λίγα λεπτά. Δοκίμασε ξανά σε λίγο.",
+    testTooShort: "Γράψε πρώτα θέμα και μήνυμα.",
+    testFailed: "Η δοκιμή δεν στάλθηκε. {detail}",
     noticeRussianHelp:
       "{n} από τα μέλη που αφορά διαβάζουν τη σελίδα στα ρωσικά. Παίρνουν αυτή την εκδοχή στον λογαριασμό τους, με push και με email πάνω από τα αγγλικά. Αν μείνει κενή, παίρνουν τα αγγλικά, όπως όλοι.",
     smsRussianTitle: "Ρωσικό μήνυμα, για τα {n} μέλη που διαβάζουν στα ρωσικά",

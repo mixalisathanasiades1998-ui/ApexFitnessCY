@@ -110,6 +110,9 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
   const [smsEn, setSmsEn] = useState("");
   const [smsEl, setSmsEl] = useState("");
   const [smsEditing, setSmsEditing] = useState(false);
+  /* "Test it first": one address, email only. See /api/admin/notices/test. */
+  const [testTo, setTestTo] = useState("");
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [audience, setAudience] = useState<"ALL" | "OFFERS">("ALL");
   /* Push starts ticked, because it is the channel the studio wants used and the
@@ -230,12 +233,16 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
         reach: Reach;
         transports: Transports;
         sms?: SmsMeta;
+        me?: string;
       };
       setHistory(data.notices ?? []);
       setMeta(data.history ?? null);
       setReach(data.reach ?? null);
       setTransports(data.transports ?? {});
       setSmsMeta(data.sms ?? null);
+      /* Filled once, with the owner's own address, and then left alone: what
+         they type there is theirs. */
+      if (data.me) setTestTo((v) => v || data.me || "");
     },
     [],
   );
@@ -315,6 +322,55 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
     smsMeta?.pricePerSegment == null
       ? null
       : smsTotalSegments * smsMeta.pricePerSegment;
+
+  async function sendTest() {
+    setBusy("test");
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/notices/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: testTo,
+          titleEn: title,
+          bodyEn: text,
+          titleEl,
+          bodyEl: textEl,
+          titleRu,
+          bodyRu: textRu,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        sent?: number;
+        to?: string;
+        error?: string;
+        detail?: string;
+      };
+      if (data.ok) {
+        setTestResult({
+          ok: true,
+          text: (data.sent ?? 1) > 1
+            ? d.testSentTwo.replace("{to}", data.to ?? testTo)
+            : d.testSent.replace("{to}", data.to ?? testTo),
+        });
+      } else {
+        const why =
+          data.error === "TEST_BAD_EMAIL"
+            ? d.testBadEmail
+            : data.error === "TEST_TOO_MANY"
+              ? d.testTooMany
+              : data.error === "TOO_SHORT"
+                ? d.testTooShort
+                : d.testFailed.replace("{detail}", data.detail || data.error || "");
+        setTestResult({ ok: false, text: why });
+      }
+    } catch {
+      setTestResult({ ok: false, text: d.testFailed.replace("{detail}", "") });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function send() {
     setBusy("send");
@@ -1063,6 +1119,63 @@ export function NoticePanel({ onNotice }: { onNotice: (s: string) => void }) {
                 </p>
               )}
             </div>
+          )}
+        </div>
+
+        {/* ---------------------------------------------- test it first
+            Before four hundred inboxes, one: the same letter members would
+            get, to an address the owner chooses, marked TEST. Email only, and
+            nothing is saved. */}
+        <div
+          data-notice-test
+          className="mt-6 rounded-2xl border border-mocha-200 bg-cream-200/40 p-4"
+        >
+          <p className="text-[10px] uppercase tracking-brand text-clay">
+            {d.testTitle}
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-clay">
+            {d.testHelp}
+          </p>
+          <label className="label mt-3" htmlFor="notice-test-to">
+            {d.testEmail}
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="notice-test-to"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={testTo}
+              onChange={(e) => {
+                setTestTo(e.target.value);
+                setTestResult(null);
+              }}
+              className="input min-w-0 flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={
+                busy === "test" ||
+                title.trim().length < 3 ||
+                text.trim().length < 3 ||
+                !testTo.trim()
+              }
+              onClick={sendTest}
+            >
+              {busy === "test" ? t.common.loading : d.testSend}
+            </Button>
+          </div>
+          {testResult && (
+            <p
+              role="status"
+              className={cn(
+                "mt-2 text-[11px] leading-relaxed",
+                testResult.ok ? "text-mocha-600" : "text-red-700",
+              )}
+            >
+              {testResult.text}
+            </p>
           )}
         </div>
 

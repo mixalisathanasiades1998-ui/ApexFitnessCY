@@ -84,7 +84,7 @@ export function Hero({ user }: { user: HeroUser }) {
           being re-rasterised along with the photograph drifting underneath it.
           Without it, Windows Chrome renders some letters with parts of their
           stems missing. */}
-      <div className="container-x relative flex flex-1 transform-gpu flex-col items-center justify-center overflow-hidden pb-[clamp(4rem,14svh,10rem)] text-center [backface-visibility:hidden]">
+      <div className="container-x relative flex flex-1 transform-gpu flex-col items-center justify-center overflow-hidden pb-[clamp(4rem,14svh,10rem)] text-center [@media(max-height:760px)]:pb-[clamp(1rem,5svh,3rem)] [backface-visibility:hidden]">
         {/* Two shadows, not one: a tight one to give the hairlines an edge
             against anything pale, and a softer one behind it for depth.
             Marcellus is a high-contrast face and its thin strokes are what go
@@ -221,9 +221,9 @@ type Slide = {
  * and the only one loaded straight away, so it is the strongest on both
  * shapes of screen: a reformer, close, with nothing busy behind the type.
  *
- * The sign photograph is a portrait of the room — the "Powered by Technogym"
- * wall over a class. On a wide screen the crop is mostly ceiling and the class
- * is cut off at the shoulders, so it is shown on phones only.
+ * The third is the class under the "Powered by Technogym" wall. On a wide
+ * screen its crop is the lower part of the photograph, the class itself; on a
+ * phone the whole wall fits.
  *
  * Each file is pre-cropped and pre-sized (`public/media/hero/`), because the
  * site serves images as they are: the originals are 6240px and 5–13 MB.
@@ -242,14 +242,14 @@ const SLIDES: Slide[] = [
     /* Both crops keep the APEX sign on the wall clear of the headline: on a
        wide screen it is cropped out (the bar above already carries the name),
        on a phone it sits between the bar and the first line. */
-    posWide: "50% 40%",
+    posWide: "50% 100%",
     posTall: "50% 50%",
     alt: "The APEX pilates reception and studio",
   },
   {
-    wide: null,
+    wide: "/media/hero/sign-wide.jpg",
     tall: "/media/hero/sign-tall.jpg",
-    posWide: "50% 50%",
+    posWide: "50% 55%",
     /* A little left of centre, so "Powered by" is not cut on a narrow phone. */
     posTall: "22% 50%",
     alt: "A class at APEX pilates under the Powered by Technogym sign",
@@ -440,7 +440,7 @@ function HeroLanguages() {
       role="group"
       aria-label="Language · Γλώσσα · Язык"
       data-hero-languages
-      className="mt-[clamp(1.25rem,3svh,2.25rem)] flex items-center gap-3 text-[11px] uppercase tracking-[0.32em] sm:text-[12px]"
+      className="mt-[clamp(1rem,3svh,2.25rem)] flex items-center gap-3 text-[11px] uppercase tracking-[0.32em] sm:text-[12px]"
     >
       {LOCALES.map((l, i) => {
         const on = locale === l;

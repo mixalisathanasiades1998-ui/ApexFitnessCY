@@ -225,11 +225,11 @@ export function Header({ user }: { user: HeaderUser }) {
               : "justify-between",
           )}
         >
-          {cover && (
-            <div className={cn("hidden md:block", open && "invisible")}>
-              <LanguageToggle tone="dark" />
-            </div>
-          )}
+          {/* The left third of the cover bar, kept empty so the wordmark
+              stays centred. The language choice lives on the cover itself,
+              as EN · ΕΛ · RU under the buttons (see Hero.tsx), and a second
+              switch up here was the same thing twice. */}
+          {cover && <div aria-hidden className="hidden md:block" />}
 
           <div
             className={cn(

@@ -91,6 +91,8 @@ export async function GET(req: Request) {
     includeTest,
     segment,
     transports: { ...transportStatus(), push: { name: "Web push", ready: pushReady() } },
+    /* The owner's own address, to fill the "send a test" box with. */
+    me: gate.user.email,
     /* So the screen can put a number next to the SMS box while the desk types.
        The price is configuration, not a guess: unset it and the screen shows
        segments and stays quiet about money, which is the honest failure mode. */
